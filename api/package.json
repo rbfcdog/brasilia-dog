@@ -11,7 +11,7 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test",
-    "validate:mpp": "mppx validate http://127.0.0.1:3000/paid"
+    "validate:mpp": "mppx validate http://127.0.0.1:3000"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.4",
