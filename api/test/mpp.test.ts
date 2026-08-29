@@ -11,6 +11,7 @@ const sandboxConfig: AppConfig = {
   stripeSecretKey: 'sk_test_example',
   stripeProfileId: 'profile_test_example',
   supabase: null,
+  passkey: { rpName: 'Test', rpId: 'localhost', origin: 'http://localhost:3000' },
 };
 
 test('issues a Stripe MPP payment challenge before serving the controlled resource', async () => {

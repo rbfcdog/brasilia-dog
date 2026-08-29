@@ -110,6 +110,89 @@ The seed file defines this disabled endpoint for setup verification only:
 
 It returns `404` until its product is published and the offering and endpoint are activated.
 
+## Passkey (WebAuthn) endpoints
+
+The API generates and verifies WebAuthn registration and authentication options. Credentials are stored in an in-memory store during development; a Supabase-backed store is defined by the passkey migration but not yet wired into runtime.
+
+### `POST /passkey/register/options`
+
+Request body:
+
+```json
+{"userId": "user-1", "username": "alice"}
+```
+
+Returns WebAuthn `PublicKeyCredentialCreationOptionsJSON` for the authenticator to consume.
+
+### `POST /passkey/register/verify`
+
+Request body:
+
+```json
+{"userId": "user-1", "response": "<AuthenticatorAttestationResponseJSON>"}
+```
+
+Returns `{"verified": true, "credentialId": "..."}` on success, or `{"verified": false}` on failure.
+
+### `POST /passkey/auth/options`
+
+Request body:
+
+```json
+{"userId": "user-1"}
+```
+
+Returns WebAuthn `PublicKeyCredentialRequestOptionsJSON`.
+
+### `POST /passkey/auth/verify`
+
+Request body:
+
+```json
+{"userId": "user-1", "response": "<AuthenticatorAssertionResponseJSON>"}
+```
+
+Returns `{"verified": true, "credentialId": "..."}` on success, or `{"verified": false}` on failure.
+
+## Refund endpoint
+
+### `POST /refund`
+
+Issues a Stripe refund for a previously settled payment intent. The API uses the same `STRIPE_SECRET_KEY` as the payment flow.
+
+Request body:
+
+```json
+{"paymentIntentId": "pi_...", "amount": 50, "reason": "requested_by_customer"}
+```
+
+`amount` is optional; omit it for a full refund. `reason` is optional and must be one of `duplicate`, `fraudulent`, or `requested_by_customer`.
+
+Returns:
+
+```json
+{"id": "re_...", "amount": 50, "currency": "usd", "status": "succeeded", "paymentIntentId": "pi_...", "reason": "requested_by_customer"}
+```
+
+## Product info endpoint
+
+### `GET /v1/products/{slug}/info`
+
+Returns product metadata by slug, including name, description, and any stored metadata. This endpoint reads from the `products` table and is available for any product slug that exists in the database, regardless of published status (the read is performed with the service-role client).
+
+```json
+{
+  "product": {
+    "id": "e4e4e3da-...",
+    "slug": "market-signal-sandbox",
+    "name": "Market signal sandbox",
+    "description": "...",
+    "metadata": {"category": "signals", "price_display": "$0.50"}
+  }
+}
+```
+
+Returns `404` if the slug does not exist.
 ## Errors
 
 | Status | Body or header | Meaning |

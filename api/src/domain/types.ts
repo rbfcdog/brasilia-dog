@@ -14,6 +14,13 @@ export interface AppConfig {
   stripeSecretKey: string;
   stripeProfileId: string;
   supabase: SupabaseConfig | null;
+  passkey: PasskeyConfig;
+}
+
+export interface PasskeyConfig {
+  rpName: string;
+  rpId: string;
+  origin: string;
 }
 
 export interface Product {
@@ -21,6 +28,7 @@ export interface Product {
   slug: string;
   name: string;
   description: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface ProductOffering {

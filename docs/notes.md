@@ -2,8 +2,6 @@
 
 ## Direcao do produto (atualizada 29/8 14h)
 
-Conversa com o Banin definiu o que construir:
-
 - **MPP + x402**: mockar marketplace de produtos diversos.
 - **Stripe MPP para comprar em USDC**: verificar integracao com dinheiro real.
 - **Credenciais cruzadas**: o agente precisa cruzar passkey e MPP para fazer a compra. Isso evita prompt injection e takeover do agente.

@@ -4,9 +4,13 @@ import { loadEnvironment } from '../config/environment.js';
 import { createMppHandler, createPaidHandler } from '../payments/mpp.js';
 import { PaymentAttemptRepository } from '../repositories/payment-attempt-repository.js';
 import { ProductRepository } from '../repositories/product-repository.js';
+import { ProductInfoRepository } from '../repositories/product-info-repository.js';
 import { createExpressApp } from '../http/server.js';
 import { ProductCatalogService } from '../services/product-catalog-service.js';
 import { PaymentService } from '../services/payment-service.js';
+import { PasskeyService } from '../services/passkey-service.js';
+import { InMemoryPasskeyStore } from '../services/passkey-store.js';
+import { RefundService } from '../services/refund-service.js';
 import { createSupabaseClient } from '../integrations/supabase.js';
 
 loadEnvironment();
@@ -19,10 +23,24 @@ const paymentService = supabase ? new PaymentService({
   mppHandlerFactory: (options) => createMppHandler(config, options),
   paymentAttemptRepository: new PaymentAttemptRepository(supabase),
 }) : null;
+const productInfoRepository = supabase ? new ProductInfoRepository(supabase) : null;
+
+const passkeyService = new PasskeyService({
+  rpName: config.passkey.rpName,
+  rpId: config.passkey.rpId,
+  origin: config.passkey.origin,
+  store: new InMemoryPasskeyStore(),
+});
+
+const refundService = new RefundService(config.stripeSecretKey);
+
 const app = createApp({
   paidHandler: createPaidHandler(config),
   productCatalogService,
   paymentService,
+  passkeyService,
+  refundService,
+  productInfoRepository,
 });
 const server = createExpressApp(app).listen(config.port, '0.0.0.0');
 
