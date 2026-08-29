@@ -1,8 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/supabase", () => ({
-  getSupabaseAccessToken: vi.fn().mockResolvedValue(null),
-}));
 
 import {
   apiFetch,
@@ -18,6 +15,13 @@ describe("apiFetch", () => {
       Response.json({ ok: true, data: { value: 42 } }),
     );
     await expect(apiFetch<{ value: number }>("/test")).resolves.toEqual({ value: 42 });
+  });
+
+  it("returns raw backend JSON responses", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json({ status: "ok" }),
+    );
+    await expect(apiFetch<{ status: string }>("/health")).resolves.toEqual({ status: "ok" });
   });
 
   it("intercepts Payment 402 challenges", async () => {

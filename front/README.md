@@ -1,8 +1,8 @@
 # Nomad buyer assistant
 
-Nomad is the buyer-facing frontend for a governed AI shopping assistant. It turns natural-language requests into explicit purchase mandates, asks the buyer for approval, and either completes a mocked purchase or schedules continued monitoring.
+Nomad is the buyer-facing frontend for a governed AI shopping assistant. The conversational agent and purchase orchestration remain simulated until the backend is configured with its separate agent API.
 
-This slice is intentionally self-contained. AI analysis, biometrics, merchant search, and purchase execution are simulated through typed Next.js route handlers and service abstractions.
+The browser communicates only with this Next.js application. Its `/api/backend/*` route proxies allowlisted requests to the Node backend in `../api`; it never calls Supabase, Stripe, or an agent API directly.
 
 ## Run locally
 
@@ -13,7 +13,7 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-Supabase is optional. Copy `.env.example` to `.env.local` and set only the public project URL and publishable key if you want the profile page to observe a real auth session. The app never accepts a service-role key.
+Copy `.env.example` to `.env.local` and set `BACKEND_API_URL`. Use `http://localhost:3000` locally, then replace it with the deployed `api` service URL. Keep this variable server-only: do not rename it with a `NEXT_PUBLIC_` prefix.
 
 ## Deterministic demo prompts
 
@@ -33,4 +33,4 @@ npm test
 npm run build
 ```
 
-The main browser flow follows `component → hook → service → mock route handler`, keeping components independent from the future Node, AI, mandate, and payment integrations.
+The real integration path is `component → service → /api/backend/* → api/`. The current chat and mock purchase flows stay isolated until `api/` exposes its agent-adapter contract and issues the required agent execution proof.

@@ -1,4 +1,4 @@
-import { getSupabaseAccessToken } from "@/lib/supabase";
+import { getPasskeySessionToken } from "@/lib/passkey-session";
 import type { ApiEnvelope, PaymentChallenge } from "@/types/shopping";
 
 export class ApiError extends Error {
@@ -26,6 +26,27 @@ export class PaymentChallengeError extends ApiError {
   }
 }
 
+function isApiEnvelope<T>(payload: unknown): payload is ApiEnvelope<T> {
+  return typeof payload === "object" && payload !== null && "ok" in payload;
+}
+
+function errorFromPayload(payload: unknown, status: number): ApiError {
+  if (
+    typeof payload === "object" &&
+    payload !== null &&
+    "error" in payload &&
+    typeof payload.error === "string"
+  ) {
+    const detail =
+      "detail" in payload && typeof payload.detail === "string"
+        ? ` ${payload.detail}`
+        : "";
+    return new ApiError(`${payload.error}${detail}`, status, payload.error);
+  }
+
+  return new ApiError(`Request failed with status ${status}.`, status);
+}
+
 export async function apiFetch<T>(
   input: RequestInfo | URL,
   init: RequestInit = {},
@@ -36,9 +57,9 @@ export async function apiFetch<T>(
     headers.set("Content-Type", "application/json");
   }
 
-  const accessToken = await getSupabaseAccessToken();
-  if (accessToken && !headers.has("Authorization")) {
-    headers.set("Authorization", `Bearer ${accessToken}`);
+  const sessionToken = getPasskeySessionToken();
+  if (sessionToken && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${sessionToken}`);
   }
 
   const response = await fetch(input, { ...init, headers });
@@ -66,13 +87,21 @@ export async function apiFetch<T>(
     throw new InvalidJsonResponseError(response.status);
   }
 
-  const envelope = (await response.json()) as ApiEnvelope<T>;
-  if (!response.ok || !envelope.ok) {
-    const error = envelope.ok
-      ? { code: "HTTP_ERROR", message: `Request failed with status ${response.status}.` }
-      : envelope.error;
-    throw new ApiError(error.message, response.status, error.code);
+  const payload = (await response.json()) as T | ApiEnvelope<T>;
+  if (isApiEnvelope<T>(payload)) {
+    if (!response.ok || !payload.ok) {
+      const error = payload.ok
+        ? new ApiError(`Request failed with status ${response.status}.`, response.status)
+        : new ApiError(payload.error.message, response.status, payload.error.code);
+      throw error;
+    }
+
+    return payload.data;
   }
 
-  return envelope.data;
+  if (!response.ok) {
+    throw errorFromPayload(payload, response.status);
+  }
+
+  return payload;
 }
