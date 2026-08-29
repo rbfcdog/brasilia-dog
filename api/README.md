@@ -64,12 +64,27 @@ Do not substitute a `pk_test_...` or `pk_live_...` publishable key for `STRIPE_S
 
 ## Railway deployment
 
-The API directory contains `Dockerfile` and `railway.json`. Railway builds that image, injects the runtime environment, probes `GET /health`, and activates the deployment only after it receives HTTP `200`.
+The API directory contains `Dockerfile`. Railway infrastructure is defined in [`.railway/railway.ts`](../.railway/railway.ts), which replaces the deprecated `railway.json`. Railway builds the Dockerfile, injects the runtime environment, probes `GET /health`, and activates the deployment only after it receives HTTP `200`.
 
 The image intentionally contains no `.env`. On Railway, `dotenv` finds no local file and the service uses Railway's injected Variables instead; do not add a secret file to the image to work around a variable problem.
 
-1. In Railway, create a service from this repository and set its **Root Directory** to `api`. Railway then finds `api/Dockerfile`, reads `api/railway.json`, and uses `/health` as the readiness check.
-2. In the service's Variables page, configure sandbox values only:
+1. Install the Railway CLI and link the project:
+
+   ```bash
+   npm i -g @railway/cli
+   railway login
+   railway link
+   ```
+
+2. Apply the infrastructure configuration:
+
+   ```bash
+   railway config plan
+   railway config apply
+   ```
+
+   This creates or updates the `api` service with root directory `api`, Dockerfile build, and `/health` readiness check.
+3. In the service's Variables page, configure sandbox values only:
 
    ```dotenv
    STRIPE_MODE=sandbox
@@ -78,12 +93,12 @@ The image intentionally contains no `.env`. On Railway, `dotenv` finds no local 
    MPP_SECRET_KEY=<at least 32 random bytes>
    ```
 
-   Railway supplies `PORT`; do not add a fixed `PORT` variable. Never commit or paste any variable value into chat.
+   Railway supplies `PORT`; do not add a fixed `PORT` variable. Never commit or paste any variable value into chat or `.railway/railway.ts`.
 
-3. Generate a public domain from the Railway service settings, then verify `https://<domain>/health` returns `{"status":"ok"}`.
-4. Verify `https://<domain>/paid` returns an MPP `402` challenge. A test-style configuration proves deployment and challenge routing only. It does not prove Stripe settlement.
+4. Generate a public domain from the Railway service settings, then verify `https://<domain>/health` returns `{"status":"ok"}`.
+5. Verify `https://<domain>/paid` returns an MPP `402` challenge. A test-style configuration proves deployment and challenge routing only. It does not prove Stripe settlement.
 
-Do not configure `STRIPE_MODE=live` or `ALLOW_LIVE_MPP_TEST=true` on Railway until the live-money gates in the [production runbook](../docs/stripe-mpp-production-runbook.md) are complete. Railway's health check behavior and `PORT` contract are described in the [Railway health-check documentation](https://docs.railway.com/guides/healthchecks).
+Do not configure `STRIPE_MODE=live` or `ALLOW_LIVE_MPP_TEST=true` on Railway until the live-money gates in the [production runbook](../docs/stripe-mpp-production-runbook.md) are complete. Railway's health check behavior and `PORT` contract are described in the [Railway health-check documentation](https://docs.railway.com/guides/healthchecks). Infrastructure as Code is documented in the [Railway IaC guide](https://docs.railway.com/infrastructure-as-code).
 
 ## Verification completed locally
 

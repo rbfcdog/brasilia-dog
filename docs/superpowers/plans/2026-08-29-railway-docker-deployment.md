@@ -6,14 +6,14 @@
 
 **Architecture:** Railway builds from the API service root, `api/`. It installs only production dependencies, copies only API runtime source, and runs `src/index.js` as the unprivileged Node user. Railway injects runtime secrets and `PORT`; no `.env` file or credential is copied into the image. The Node process listens on all container interfaces so the Railway proxy can reach `GET /health`.
 
-**Tech Stack:** Node.js 22, Docker, Railway config-as-code, `mppx`, Stripe Node SDK.
+**Tech Stack:** Node.js 22, Docker, Railway Infrastructure as Code (`.railway/railway.ts`), `mppx`, Stripe Node SDK.
 
 **Spec:** `api/README.md`, `api/docs/adr-0001-supabase-primary-data-platform.md`, and `docs/stripe-mpp-production-runbook.md`.
 
 ## Global Constraints
 
 - The Docker image MUST contain no `.env`, credentials, Git history, source docs, or local `node_modules`.
-- Railway MUST use `api/Dockerfile`, probe `GET /health`, and use the injected `PORT` value.
+- Railway MUST use `api/Dockerfile` and `.railway/railway.ts`, probe `GET /health`, and use the injected `PORT` value.
 - The service MUST bind to `0.0.0.0`, not loopback-only `127.0.0.1`.
 - Live MPP mode remains blocked by the existing `ALLOW_LIVE_MPP_TEST=true` gate.
 - No raw card data, Stripe secret, MPP secret, or Supabase service-role key may be committed, logged, or placed in browser code.
@@ -26,11 +26,11 @@
 **Files:**
 - Create: `api/Dockerfile`
 - Create: `api/.dockerignore`
-- Create: `api/railway.json`
+- Create: `.railway/railway.ts`
 
 **Interfaces:**
 - Consumes: `api/package.json`, `api/package-lock.json`, `api/src/index.js`
-- Produces: a Docker image that starts with `npm start`; a Railway deployment contract with Dockerfile build and `GET /health` readiness.
+- Produces: a Docker image that starts with `npm start`; a Railway IaC service definition with Dockerfile build, `api` root directory, and `GET /health` readiness.
 
 - [ ] **Step 1: Establish the failing container-build condition**
 
