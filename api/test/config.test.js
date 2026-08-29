@@ -1,7 +1,14 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { loadConfig } from '../src/config.js';
+const { loadEnvironment } = await import('../src/environment.js')
+  .catch(() => ({ loadEnvironment: undefined }));
+
 
 const sandboxEnvironment = {
   MPP_SECRET_KEY: '12345678901234567890123456789012',
@@ -67,4 +74,30 @@ test('permits live mode only with explicit acknowledgement and live credentials'
     stripeSecretKey: 'sk_live_example',
     stripeProfileId: 'profile_example',
   });
+});
+
+test('loads local values without overwriting Railway runtime variables', async () => {
+  assert.equal(typeof loadEnvironment, 'function');
+
+  const directory = await mkdtemp(join(tmpdir(), 'nextwave-mpp-'));
+  const environmentPath = join(directory, '.env');
+  const environment = {
+    STRIPE_SECRET_KEY: 'sk_test_injected_by_railway',
+  };
+
+  try {
+    await writeFile(
+      environmentPath,
+      'MPP_SECRET_KEY=local-mpp-secret\nSTRIPE_SECRET_KEY=sk_test_from_file\n',
+    );
+
+    loadEnvironment({ environment, path: environmentPath });
+
+    assert.deepEqual(environment, {
+      MPP_SECRET_KEY: 'local-mpp-secret',
+      STRIPE_SECRET_KEY: 'sk_test_injected_by_railway',
+    });
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
 });

@@ -7,11 +7,12 @@
     "node": ">=22"
   },
   "scripts": {
-    "start": "node --env-file-if-exists=.env src/index.js",
+    "start": "node src/index.js",
     "test": "node --test",
     "validate:mpp": "mppx validate http://127.0.0.1:3000/paid"
   },
   "dependencies": {
+    "dotenv": "^17.4.2",
     "mppx": "^0.9.1",
     "stripe": "^22.6.0"
   }

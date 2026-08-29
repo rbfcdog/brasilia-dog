@@ -1,7 +1,10 @@
 import { createApp } from './app.js';
 import { loadConfig } from './config.js';
+import { loadEnvironment } from './environment.js';
 import { createPaidHandler } from './mpp.js';
 import { createNodeServer } from './server.js';
+
+loadEnvironment();
 
 const config = loadConfig();
 const app = createApp({ paidHandler: createPaidHandler(config) });

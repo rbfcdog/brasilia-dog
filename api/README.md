@@ -47,6 +47,8 @@ A Node.js MPP endpoint that charges an agent for the controlled `GET /paid` reso
 
 The endpoint exposes `GET /health` without payment and protects `GET /paid` with Stripe MPP. `mppx validate` performs sandbox test transactions when the endpoint has valid sandbox configuration.
 
+`dotenv` loads the local `.env` file before application configuration. It does not overwrite an existing process variable, so an injected deployment value remains authoritative.
+
 ## What is needed from Stripe
 
 The service will not start until all three secrets and identifiers are set locally:
@@ -63,6 +65,8 @@ Do not substitute a `pk_test_...` or `pk_live_...` publishable key for `STRIPE_S
 ## Railway deployment
 
 The API directory contains `Dockerfile` and `railway.json`. Railway builds that image, injects the runtime environment, probes `GET /health`, and activates the deployment only after it receives HTTP `200`.
+
+The image intentionally contains no `.env`. On Railway, `dotenv` finds no local file and the service uses Railway's injected Variables instead; do not add a secret file to the image to work around a variable problem.
 
 1. In Railway, create a service from this repository and set its **Root Directory** to `api`. Railway then finds `api/Dockerfile`, reads `api/railway.json`, and uses `/health` as the readiness check.
 2. In the service's Variables page, configure sandbox values only:
