@@ -15,6 +15,7 @@ const sandboxEnvironment = {
   STRIPE_MODE: 'sandbox',
   STRIPE_SECRET_KEY: 'sk_test_example',
   STRIPE_PROFILE_ID: 'profile_test_example',
+  SESSION_SECRET: 'a'.repeat(64),
 };
 
 test('loads a sandbox Stripe MPP configuration with test credentials', () => {
@@ -26,6 +27,7 @@ test('loads a sandbox Stripe MPP configuration with test credentials', () => {
     stripeProfileId: 'profile_test_example',
     supabase: null,
     passkey: { rpName: 'Brasilia Dog Marketplace', rpId: 'localhost', origin: 'http://localhost:3000' },
+    sessionSecret: 'a'.repeat(64),
   });
 });
 
@@ -108,6 +110,7 @@ test('permits live mode only with explicit acknowledgement and live credentials'
     stripeProfileId: 'profile_example',
     supabase: null,
     passkey: { rpName: 'Brasilia Dog Marketplace', rpId: 'localhost', origin: 'http://localhost:3000' },
+    sessionSecret: 'a'.repeat(64),
   });
 });
 

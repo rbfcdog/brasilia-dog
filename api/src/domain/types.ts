@@ -15,6 +15,7 @@ export interface AppConfig {
   stripeProfileId: string;
   supabase: SupabaseConfig | null;
   passkey: PasskeyConfig;
+  sessionSecret: string;
 }
 
 export interface PasskeyConfig {
@@ -94,6 +95,111 @@ export interface ProductCatalog {
 
 export interface ProductPaymentService {
   serve(endpoint: ProductEndpoint, request: Request): Promise<Response>;
+}
+
+// Agent identity domain types
+
+export interface AgentIdentity {
+  id: string;
+  ownerId: string;
+  displayName: string;
+  status: 'active' | 'suspended' | 'revoked';
+  createdAt: string;
+}
+
+export interface AgentSigningKey {
+  id: string;
+  agentIdentityId: string;
+  algorithm: 'Ed25519';
+  publicKeyJwk: JsonWebKey;
+  publicKeyFingerprint: string;
+  status: 'active' | 'retired' | 'revoked';
+  notBefore: string;
+  notAfter: string | null;
+}
+
+export interface Mandate {
+  id: string;
+  ownerId: string;
+  agentIdentityId: string;
+  version: number;
+  status: 'active' | 'revoked' | 'expired';
+  scope: MandateScope;
+  maxAmountMinor: number;
+  currency: string;
+  expiresAt: string;
+  createdAt: string;
+}
+
+export interface MandateScope {
+  allowedProductSlugs?: string[];
+  allowedPaths?: string[];
+  guidelines?: string[];
+}
+
+export interface MandateUsage {
+  totalSpentMinor: number;
+  purchaseCount: number;
+}
+
+export interface AgentExecutionProofRecord {
+  id: string;
+  agentIdentityId: string;
+  agentSigningKeyId: string;
+  mandateId: string;
+  mandateVersion: number;
+  requestMethod: string;
+  requestPath: string;
+  requestBodySha256: string;
+  nonce: string;
+  issuedAt: string;
+  expiresAt: string;
+  verifiedAt: string;
+}
+
+// Session token types
+
+export interface PasskeySession {
+  token: string;
+  userId: string;
+  credentialId: string;
+  issuedAt: number;
+  expiresAt: number;
+}
+
+// Payment history types
+
+export interface PaymentAttemptRecord {
+  id: string;
+  productId: string;
+  offeringId: string;
+  endpointId: string;
+  rail: ProductRail;
+  providerPaymentId: string | null;
+  idempotencyKey: string;
+  status: 'challenged' | 'settled' | 'failed' | 'refunded';
+  amountMinor: number;
+  currency: string;
+  scale: number;
+  requestFingerprint: string | null;
+  receipt: Record<string, unknown> | null;
+  failureCode: string | null;
+  agentExecutionProofId: string | null;
+  createdAt: string;
+}
+
+export interface AgentActivityRecord {
+  id: string;
+  agentIdentityId: string;
+  agentSigningKeyId: string;
+  mandateId: string;
+  mandateVersion: number;
+  requestMethod: string;
+  requestPath: string;
+  nonce: string;
+  issuedAt: string;
+  verifiedAt: string;
+  createdAt: string;
 }
 
 

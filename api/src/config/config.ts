@@ -77,6 +77,7 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
   const mppSecretKey = requireValue(environment, 'MPP_SECRET_KEY');
   const stripeSecretKey = requireValue(environment, 'STRIPE_SECRET_KEY');
   const stripeProfileId = requireValue(environment, 'STRIPE_PROFILE_ID');
+  const sessionSecret = requireValue(environment, 'SESSION_SECRET');
 
   if (Buffer.byteLength(mppSecretKey, 'utf8') < 32) {
     throw new Error('MPP_SECRET_KEY must contain at least 32 bytes.');
@@ -108,5 +109,6 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
       rpId: environment.PASSKEY_RP_ID ?? 'localhost',
       origin: environment.PASSKEY_ORIGIN ?? 'http://localhost:3000',
     },
+    sessionSecret,
   };
 }

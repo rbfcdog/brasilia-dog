@@ -5,6 +5,8 @@ import {
   verifyAuthenticationResponse,
 } from '@simplewebauthn/server';
 
+import type { SessionService } from './session-service.js';
+
 export interface PasskeyCredentialRecord {
   id: string;
   credentialId: string;
@@ -32,6 +34,8 @@ export interface RegistrationResult {
 export interface AuthenticationResult {
   verified: boolean;
   credentialId?: string;
+  sessionToken?: string;
+  sessionExpiresAt?: number;
 }
 
 interface PasskeyServiceOptions {
@@ -39,6 +43,7 @@ interface PasskeyServiceOptions {
   rpId: string;
   origin: string;
   store: PasskeyStore;
+  sessionService?: SessionService;
 }
 
 export class PasskeyService {
@@ -46,12 +51,14 @@ export class PasskeyService {
   private readonly rpId: string;
   private readonly origin: string;
   private readonly store: PasskeyStore;
+  private readonly sessionService?: SessionService;
 
-  constructor({ rpName, rpId, origin, store }: PasskeyServiceOptions) {
+  constructor({ rpName, rpId, origin, store, sessionService }: PasskeyServiceOptions) {
     this.rpName = rpName;
     this.rpId = rpId;
     this.origin = origin;
     this.store = store;
+    this.sessionService = sessionService;
   }
 
   async generateRegistration(userId: string, username: string) {
@@ -161,6 +168,17 @@ export class PasskeyService {
     if (verification.verified) {
       await this.store.updateCounter(userId, credential.credentialId, verification.authenticationInfo.newCounter);
       await this.store.setCurrentChallenge(userId, '');
+
+      if (this.sessionService) {
+        const session = await this.sessionService.createSession(userId, credential.credentialId);
+        return {
+          verified: true,
+          credentialId: credential.credentialId,
+          sessionToken: session.token,
+          sessionExpiresAt: session.expiresAt,
+        };
+      }
+
       return { verified: true, credentialId: credential.credentialId };
     }
 
