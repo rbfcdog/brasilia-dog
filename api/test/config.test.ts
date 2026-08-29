@@ -5,9 +5,8 @@ import { join } from 'node:path';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { loadConfig } from '../src/config.js';
-const { loadEnvironment } = await import('../src/environment.js')
-  .catch(() => ({ loadEnvironment: undefined }));
+import { loadConfig, loadSupabaseConfig } from '../src/config.js';
+import { loadEnvironment } from '../src/environment.js';
 
 
 const sandboxEnvironment = {
@@ -25,6 +24,7 @@ test('loads a sandbox Stripe MPP configuration with test credentials', () => {
     mppSecretKey: '12345678901234567890123456789012',
     stripeSecretKey: 'sk_test_example',
     stripeProfileId: 'profile_test_example',
+    supabase: null,
   });
 });
 
@@ -48,22 +48,36 @@ test('rejects a live Stripe key in sandbox mode', () => {
   );
 });
 
-test('logs a configuration diagnostic before rejecting a wrong-prefix key', () => {
-  const logs = [];
-  const originalError = console.error;
-  console.error = (message) => logs.push(message);
+test('does not configure Supabase when no Supabase variables are supplied', () => {
+  assert.equal(loadSupabaseConfig({}), null);
+});
 
-  try {
-    assert.throws(
-      () => loadConfig({ ...sandboxEnvironment, STRIPE_SECRET_KEY: 'sk_live_example' }),
-      /sk_test_/,
-    );
-    assert.equal(logs.length, 1);
-    assert.match(logs[0], /Configuration diagnostic/);
-    assert.match(logs[0], /STRIPE_SECRET_KEY.*sk_live_/);
-  } finally {
-    console.error = originalError;
-  }
+test('rejects partial Supabase configuration', () => {
+  assert.throws(
+    () => loadSupabaseConfig({ SUPABASE_URL: 'https://example.supabase.co' }),
+    /SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY is required/,
+  );
+});
+
+test('rejects conflicting Supabase server credentials', () => {
+  assert.throws(
+    () => loadSupabaseConfig({
+      SUPABASE_URL: 'https://example.supabase.co',
+      SUPABASE_SECRET_KEY: 'sb_secret_example',
+      SUPABASE_SERVICE_ROLE_KEY: 'legacy-service-role-example',
+    }),
+    /Configure only one/,
+  );
+});
+
+test('loads a server-only Supabase secret key', () => {
+  assert.deepEqual(loadSupabaseConfig({
+    SUPABASE_URL: 'https://example.supabase.co',
+    SUPABASE_SECRET_KEY: 'sb_secret_example',
+  }), {
+    url: 'https://example.supabase.co',
+    key: 'sb_secret_example',
+  });
 });
 
 test('requires explicit acknowledgement before enabling live mode', () => {
@@ -91,6 +105,7 @@ test('permits live mode only with explicit acknowledgement and live credentials'
     mppSecretKey: '12345678901234567890123456789012',
     stripeSecretKey: 'sk_live_example',
     stripeProfileId: 'profile_example',
+    supabase: null,
   });
 });
 

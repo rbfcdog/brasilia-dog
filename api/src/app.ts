@@ -1,4 +1,6 @@
-function json(value, status = 200) {
+import type { AppHandler, MppHandler, ProductCatalog, ProductPaymentService } from './types.js';
+
+function json(value: Record<string, unknown>, status = 200): Response {
   return Response.json(value, { status });
 }
 
@@ -28,8 +30,16 @@ const OPENAPI_DOCUMENT = Object.freeze({
     },
   },
 });
-export function createApp({ paidHandler }) {
-  return async function app(request) {
+export function createApp({
+  paidHandler,
+  productCatalogService = null,
+  paymentService = null,
+}: {
+  paidHandler: MppHandler;
+  productCatalogService?: ProductCatalog | null;
+  paymentService?: ProductPaymentService | null;
+}): AppHandler {
+  return async function app(request: Request): Promise<Response> {
     const { pathname } = new URL(request.url);
 
     if (request.method === 'GET' && pathname === '/health') {
@@ -42,6 +52,13 @@ export function createApp({ paidHandler }) {
 
     if (request.method === 'GET' && pathname === '/paid') {
       return paidHandler(request);
+    }
+
+    if (productCatalogService && paymentService) {
+      const endpoint = await productCatalogService.resolve(request);
+      if (endpoint) {
+        return paymentService.serve(endpoint, request);
+      }
     }
 
     return json({ error: 'not_found' }, 404);

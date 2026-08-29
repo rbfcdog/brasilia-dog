@@ -7,14 +7,22 @@
     "node": ">=22"
   },
   "scripts": {
-    "start": "node src/index.js",
-    "test": "node --test",
+    "start": "tsx src/index.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test",
     "validate:mpp": "mppx validate http://127.0.0.1:3000/paid",
-    "fetch:profile": "node --env-file-if-exists=.env src/fetch-profile.js"
+    "fetch:profile": "tsx --env-file-if-exists=.env src/fetch-profile.ts"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.112.4",
     "dotenv": "^17.4.2",
     "mppx": "^0.9.1",
     "stripe": "^22.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.4.0",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2"
   }
 }

@@ -83,6 +83,22 @@ A passkey should authenticate the buyer's account action. It should not be repre
 
 The language model must not hold a raw card, a reusable passkey private key, or unrestricted payment authority. The security boundary is server-side policy evaluation against current state.
 
+### Buyer passkey and agent signing identity
+
+Do not give an autonomous agent a user's WebAuthn passkey. A passkey private key is bound to its authenticator and should remain unavailable to the application, the agent, and the server. A user passkey proves that the buyer authenticated or approved a mandate action. It cannot prove that an autonomous agent made a later purchase.
+
+Use a second, non-human cryptographic identity for every agent:
+
+1. The buyer uses a passkey to create, change, or revoke a scoped mandate.
+2. Node provisions an agent identity and an Ed25519 signing key held by the server's KMS or HSM. The private key never enters the model context, browser, worker filesystem, database, logs, or chat.
+3. The agent requests a purchase through its constrained tool. The service signs a short-lived proof that commits to the agent identity, key ID, mandate ID and version, HTTP method and path, request-body hash, nonce, issued time, and expiry.
+4. Node verifies the proof against the stored public key, atomically records and consumes the nonce, then checks the current mandate before it reserves payment.
+5. The receipt and audit trail name the agent identity, signing-key ID, proof ID, mandate version, and verified timestamp.
+
+This distinguishes technical actor from buyer: the buyer cannot generate the agent proof, and a user-originated request cannot be relabeled as agent-originated. It does not prove that a buyer never instructed the agent. It proves which controlled credential submitted the recorded action.
+
+The implemented schema uses `server_kms` custody for agent keys. A dedicated WebAuthn authenticator could be used only when the agent has exclusive control of that authenticator and its user-verification policy is compatible with autonomous operation. That is not the default for a server-hosted purchasing agent.
+
 ## Payment and research rails
 
 The supplied Parallel reference describes three distinct payment options for **Parallel's paid research APIs**. They must not be collapsed into a claim that one credential or protocol supports every marketplace purchase:

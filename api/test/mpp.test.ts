@@ -2,12 +2,15 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { createPaidHandler } from '../src/mpp.js';
+import type { AppConfig } from '../src/types.js';
 
-const sandboxConfig = {
+const sandboxConfig: AppConfig = {
+  port: 3000,
   mode: 'sandbox',
   mppSecretKey: '12345678901234567890123456789012',
   stripeSecretKey: 'sk_test_example',
   stripeProfileId: 'profile_test_example',
+  supabase: null,
 };
 
 test('issues a Stripe MPP payment challenge before serving the controlled resource', async () => {
