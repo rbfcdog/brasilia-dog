@@ -9,7 +9,8 @@
   "scripts": {
     "start": "node src/index.js",
     "test": "node --test",
-    "validate:mpp": "mppx validate http://127.0.0.1:3000/paid"
+    "validate:mpp": "mppx validate http://127.0.0.1:3000/paid",
+    "fetch:profile": "node --env-file-if-exists=.env src/fetch-profile.js"
   },
   "dependencies": {
     "dotenv": "^17.4.2",

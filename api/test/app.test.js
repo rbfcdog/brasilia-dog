@@ -42,3 +42,21 @@ test('rejects routes outside the controlled paid resource', async () => {
   assert.equal(response.status, 404);
   assert.deepEqual(await response.json(), { error: 'not_found' });
 });
+
+test('serves an OpenAPI discovery document with payment info at /openapi.json', async () => {
+  const app = createApp({
+    paidHandler: async () => new Response('unexpected'),
+  });
+
+  const response = await app(new Request('http://localhost/openapi.json'));
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('content-type'), 'application/json');
+
+  const body = await response.json();
+  assert.equal(body.openapi, '3.1.0');
+  assert.ok(body.paths['/paid']);
+  assert.ok(body.paths['/paid'].get['x-payment-info']);
+  assert.equal(body.paths['/paid'].get['x-payment-info'].amount, '50');
+  assert.equal(body.paths['/paid'].get['x-payment-info'].currency, 'usd');
+});
