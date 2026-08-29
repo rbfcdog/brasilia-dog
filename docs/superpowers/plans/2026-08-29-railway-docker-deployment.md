@@ -4,7 +4,7 @@
 
 **Goal:** Make the Stripe MPP API build and run as a non-root Docker container that Railway can health-check and expose.
 
-**Architecture:** Railway builds the repository-root Dockerfile. It installs only the API production dependencies, copies only API runtime source, and runs `src/index.js` as the unprivileged Node user. Railway injects runtime secrets and `PORT`; no `.env` file or credential is copied into the image. The Node process listens on all container interfaces so the Railway proxy can reach `GET /health`.
+**Architecture:** Railway builds from the API service root, `api/`. It installs only production dependencies, copies only API runtime source, and runs `src/index.js` as the unprivileged Node user. Railway injects runtime secrets and `PORT`; no `.env` file or credential is copied into the image. The Node process listens on all container interfaces so the Railway proxy can reach `GET /health`.
 
 **Tech Stack:** Node.js 22, Docker, Railway config-as-code, `mppx`, Stripe Node SDK.
 
@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - The Docker image MUST contain no `.env`, credentials, Git history, source docs, or local `node_modules`.
-- Railway MUST use the root `Dockerfile`, probe `GET /health`, and use the injected `PORT` value.
+- Railway MUST use `api/Dockerfile`, probe `GET /health`, and use the injected `PORT` value.
 - The service MUST bind to `0.0.0.0`, not loopback-only `127.0.0.1`.
 - Live MPP mode remains blocked by the existing `ALLOW_LIVE_MPP_TEST=true` gate.
 - No raw card data, Stripe secret, MPP secret, or Supabase service-role key may be committed, logged, or placed in browser code.
@@ -24,9 +24,9 @@
 ### Task 1: Container runtime and Railway configuration
 
 **Files:**
-- Create: `Dockerfile`
-- Create: `.dockerignore`
-- Create: `railway.json`
+- Create: `api/Dockerfile`
+- Create: `api/.dockerignore`
+- Create: `api/railway.json`
 
 **Interfaces:**
 - Consumes: `api/package.json`, `api/package-lock.json`, `api/src/index.js`
@@ -37,23 +37,23 @@
 Run:
 
 ```bash
-docker build --tag nextwave-stripe-mpp-api:railway .
+docker build --file api/Dockerfile --tag nextwave-stripe-mpp-api:railway api
 ```
 
-Expected: FAIL because the repository has no root `Dockerfile`.
+Expected: FAIL because the API service root has no Dockerfile.
 
-- [ ] **Step 2: Add the root Dockerfile**
+- [ ] **Step 2: Add the API-root Dockerfile**
 
 ```dockerfile
 FROM node:22-alpine
 
 ENV NODE_ENV=production
-WORKDIR /app/api
+WORKDIR /app
 
-COPY --chown=node:node api/package.json api/package-lock.json ./
+COPY --chown=node:node package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
-COPY --chown=node:node api/src ./src
+COPY --chown=node:node src ./src
 USER node
 
 EXPOSE 3000
@@ -64,12 +64,12 @@ CMD ["npm", "start"]
 
 ```gitignore
 .git
-**/.env
-**/.env.*
-**/node_modules
-**/coverage
+.env
+.env.*
+node_modules
+coverage
 .DS_Store
-docs
+test
 ```
 
 ```json
@@ -92,10 +92,10 @@ docs
 Run:
 
 ```bash
-docker build --tag nextwave-stripe-mpp-api:railway .
+docker build --file api/Dockerfile --tag nextwave-stripe-mpp-api:railway api
 ```
 
-Expected: PASS; the image contains production dependencies and `api/src` only.
+Expected: PASS; the image contains production dependencies and `src` only.
 
 ### Task 2: Container network binding
 

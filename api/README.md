@@ -62,9 +62,9 @@ Do not substitute a `pk_test_...` or `pk_live_...` publishable key for `STRIPE_S
 
 ## Railway deployment
 
-The repository root contains `Dockerfile` and `railway.json`. Railway builds that image, injects the runtime environment, probes `GET /health`, and activates the deployment only after it receives HTTP `200`.
+The API directory contains `Dockerfile` and `railway.json`. Railway builds that image, injects the runtime environment, probes `GET /health`, and activates the deployment only after it receives HTTP `200`.
 
-1. In Railway, create a service from this repository. Keep the repository root as the service root; `railway.json` selects the root Dockerfile and `/health` readiness check.
+1. In Railway, create a service from this repository and set its **Root Directory** to `api`. Railway then finds `api/Dockerfile`, reads `api/railway.json`, and uses `/health` as the readiness check.
 2. In the service's Variables page, configure sandbox values only:
 
    ```dotenv
