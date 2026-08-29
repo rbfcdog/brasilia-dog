@@ -8,7 +8,7 @@ A Node.js MPP endpoint that charges an agent for the controlled `GET /paid` reso
 - `STRIPE_SECRET_KEY` and `MPP_SECRET_KEY` stay in `api/.env`, which Git ignores.
 - Never send a Stripe secret key through chat, browser code, Python workers, logs, or Git.
 - A live secret key sent through chat must be rotated before use.
-- `STRIPE_MODE=live` is blocked unless `ALLOW_LIVE_MPP_TEST=true` is set explicitly. Do not set it for this project until the live-money gates in [`docs/stripe-mpp-production-runbook.md`](../docs/stripe-mpp-production-runbook.md) are complete.
+- `STRIPE_MODE=live` is blocked unless `ALLOW_LIVE_MPP_TEST=true` is set explicitly. Do not set it for this project until the live-money gates in [`docs/stripe-mpp-production-runbook.md`](./docs/stripe-mpp-production-runbook.md) are complete.
 
 ## Data-platform decision
 
@@ -64,7 +64,7 @@ Do not substitute a `pk_test_...` or `pk_live_...` publishable key for `STRIPE_S
 
 ## Railway deployment
 
-The API directory contains `Dockerfile`. Railway infrastructure is defined in [`.railway/railway.ts`](../.railway/railway.ts), which replaces the deprecated `railway.json`. Railway builds the Dockerfile, injects the runtime environment, probes `GET /health`, and activates the deployment only after it receives HTTP `200`.
+The API directory contains `Dockerfile`. Railway infrastructure is defined in [`.railway/railway.ts`](./.railway/railway.ts), which replaces the deprecated `railway.json`. Railway builds the Dockerfile, injects the runtime environment, probes `GET /health`, and activates the deployment only after it receives HTTP `200`.
 
 The image intentionally contains no `.env`. On Railway, `dotenv` finds no local file and the service uses Railway's injected Variables instead; do not add a secret file to the image to work around a variable problem.
 
@@ -98,7 +98,7 @@ The image intentionally contains no `.env`. On Railway, `dotenv` finds no local 
 4. Generate a public domain from the Railway service settings, then verify `https://<domain>/health` returns `{"status":"ok"}`.
 5. Verify `https://<domain>/paid` returns an MPP `402` challenge. A test-style configuration proves deployment and challenge routing only. It does not prove Stripe settlement.
 
-Do not configure `STRIPE_MODE=live` or `ALLOW_LIVE_MPP_TEST=true` on Railway until the live-money gates in the [production runbook](../docs/stripe-mpp-production-runbook.md) are complete. Railway's health check behavior and `PORT` contract are described in the [Railway health-check documentation](https://docs.railway.com/guides/healthchecks). Infrastructure as Code is documented in the [Railway IaC guide](https://docs.railway.com/infrastructure-as-code).
+Do not configure `STRIPE_MODE=live` or `ALLOW_LIVE_MPP_TEST=true` on Railway until the live-money gates in the [production runbook](./docs/stripe-mpp-production-runbook.md) are complete. Railway's health check behavior and `PORT` contract are described in the [Railway health-check documentation](https://docs.railway.com/guides/healthchecks). Infrastructure as Code is documented in the [Railway IaC guide](https://docs.railway.com/infrastructure-as-code).
 
 ## Verification completed locally
 
@@ -107,4 +107,4 @@ Do not configure `STRIPE_MODE=live` or `ALLOW_LIVE_MPP_TEST=true` on Railway unt
 ## References
 
 - [Stripe MPP](https://docs.stripe.com/payments/machine/mpp)
-- [Stripe MPP production runbook](../docs/stripe-mpp-production-runbook.md)
+- [Stripe MPP production runbook](./docs/stripe-mpp-production-runbook.md)

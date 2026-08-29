@@ -98,8 +98,8 @@ Reconsider this decision if any of these become true:
 
 The architectural constraints come from the project’s Track 01 direction and Stripe MPP runbook. Product capabilities below are based on the linked official documentation checked on 29 August 2026. The decision is a project choice, not a claim of provider approval or completed implementation.
 
-[^track01]: [Track 01 product direction](../../docs/track-01-product-direction.md)
-[^runbook]: [Stripe MPP production runbook](../../docs/stripe-mpp-production-runbook.md)
+[^track01]: [Track 01 product direction](./track-01-product-direction.md)
+[^runbook]: [Stripe MPP production runbook](./stripe-mpp-production-runbook.md)
 [^supabase-rls]: [Supabase: Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security)
 [^supabase-functions]: [Supabase: Database functions](https://supabase.com/docs/guides/database/functions)
 [^firebase-transactions]: [Firebase: Cloud Firestore transactions](https://firebase.google.com/docs/firestore/manage-data/transactions)

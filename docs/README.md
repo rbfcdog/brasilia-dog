@@ -13,8 +13,8 @@ _Reference material for the Yuno × Nauta hackathon brief, judging criteria, and
 | [Track selection guide](./track-selection-guide.md) | Adversarial team-fit analysis, including why Challenges 01 and 03 can beat a higher-spectacle Track 04 |
 | [Yuno and Nauta context](./yuno-nauta-context.md) | Company domains, reported event partnership, track classification, evidence limits, and sources |
 | [Challenge 01: The Buyer Who Isn't Human](./challenge-01-buyer-who-isnt-human.md) | Agent purchase mandates and merchant verification |
-| [Track 01 product direction](./track-01-product-direction.md) | Team proposal for a governed agent marketplace, authorization, payment research, risks, and build order |
-| [Stripe MPP production runbook](./stripe-mpp-production-runbook.md) | Stripe account readiness, MPP validation stages, payment boundaries, and live-funds controls |
+| [Track 01 product direction](../api/docs/track-01-product-direction.md) | Team proposal for a governed agent marketplace, authorization, payment research, risks, and build order |
+| [Stripe MPP production runbook](../api/docs/stripe-mpp-production-runbook.md) | Stripe account readiness, MPP validation stages, payment boundaries, and live-funds controls |
 | [Challenge 02: The Control Tower](./challenge-02-control-tower.md) | Payment conversion monitoring and root-cause diagnosis |
 | [Challenge 03: The Interface That Builds Itself](./challenge-03-interface-that-builds-itself.md) | Runtime-generated workflow UI |
 | [Challenge 04: The Agent on the Line](./challenge-04-agent-on-the-line.md) | Voice logistics negotiation and commitments |

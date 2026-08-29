@@ -8,7 +8,7 @@
 
 **Tech Stack:** Node.js 22 ESM, native Fetch API, `@supabase/supabase-js`, Supabase Postgres/Auth/RLS, Stripe MPP `mppx`, Stellar x402 configuration.
 
-**Spec:** `api/docs/adr-0001-supabase-primary-data-platform.md`, `docs/track-01-product-direction.md`, `docs/stripe-mpp-production-runbook.md`.
+**Spec:** `api/docs/adr-0001-supabase-primary-data-platform.md`, `api/docs/track-01-product-direction.md`, `api/docs/stripe-mpp-production-runbook.md`.
 
 ## Global Constraints
 
@@ -25,8 +25,8 @@
 ### Task 1: Add Supabase schema and security policies
 
 **Files:**
-- Create: `supabase/migrations/20260829193000_product_payment_infrastructure.sql`
-- Create: `supabase/seed.sql`
+- Create: `api/supabase/migrations/20260829193000_product_payment_infrastructure.sql`
+- Create: `api/supabase/seed.sql`
 
 **Interfaces:**
 - Produces tables `products`, `product_payment_offerings`, `product_endpoints`, `payment_attempts`, `access_grants`, and `audit_events`.
