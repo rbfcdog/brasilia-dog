@@ -9,7 +9,6 @@ Base URL is the deployed API origin, for example `https://api.example.com`.
 - Send normal HTTP requests to the Express API, not directly to Supabase tables or RPC endpoints.
 - Treat a `402` response as an MPP payment challenge. The MPP client must process the `WWW-Authenticate: Payment ...` header and retry the exact request with its resulting payment credential.
 - Do not send Stripe secret keys, Supabase secret keys, MPP secrets, passkey private material, or agent signing private keys in requests.
-- There is no browser login, user-session, mandate, agent-identity, catalog-management, refund, or payment-history endpoint yet.
 - All responses use JSON except payment challenge metadata carried in HTTP headers.
 
 The API currently enables permissive CORS (`Access-Control-Allow-Origin: *`) for initial browser integration. Do not send credentialed requests to it until production origins are configured.
@@ -42,7 +41,7 @@ HTTP/1.1 200 OK
 content-type: application/json
 ```
 
-The current document declares only `GET /paid`. It does not dynamically include database-backed product endpoints, so this Markdown file is the source of truth for the full currently implemented routing behavior.
+The document declares all currently implemented routes: `/paid`, `/passkey/*`, `/refund`, and `/v1/products/{slug}/info`. It does not dynamically include database-backed product endpoints, so this Markdown file is the source of truth for the full currently implemented routing behavior.
 
 ### `GET /paid`
 
@@ -100,59 +99,120 @@ On successful Stripe MPP payment, the API records receipt metadata and a hashed 
 
 Only Stripe MPP offerings are supported. `stellar_x402` is not a Stripe payment rail and must remain inactive. Do not activate or route a Stellar x402 offering through this API.
 
-### Seeded, inactive example
+### Active product: market-signal-sandbox
 
-The seed file defines this disabled endpoint for setup verification only:
+The remote database contains this published product with an active Stripe MPP offering:
 
-| Method | Path | Rail | Status |
-| --- | --- | --- | --- |
-| `GET` | `/v1/products/market-signal-sandbox/mpp` | Stripe MPP | Disabled |
+| Field | Value |
+| --- | --- |
+| Product slug | `market-signal-sandbox` |
+| Status | `published` |
+| Offering rail | `stripe_mpp` |
+| Amount | 50 (USD cents) |
+| Offering active | `true` |
+| Endpoint method | `GET` |
+| Endpoint path | `/v1/products/market-signal-sandbox/mpp` |
+| Endpoint enabled | `true` |
+| Response body | `{"data":"market-signal-sandbox-resource","signal":"MPP/USDC test","timestamp":"..."}` |
 
-It returns `404` until its product is published and the offering and endpoint are activated.
+Calling `GET /v1/products/market-signal-sandbox/mpp` without a payment credential returns `402` with a Stripe MPP challenge. After payment, the API returns the configured JSON resource.
+
+The `seed.sql` and catalog migration force this product back to inactive `draft` state on re-run. The current active state was set manually after seeding.
 
 ## Passkey (WebAuthn) endpoints
 
-The API generates and verifies WebAuthn registration and authentication options. Credentials are stored in an in-memory store during development; a Supabase-backed store is defined by the passkey migration but not yet wired into runtime.
+The API generates and verifies WebAuthn registration and authentication options using `@simplewebauthn/server`. Credentials are stored in an in-memory store during development. A Supabase migration (`20260829150000_passkey_credentials.sql`) defines a durable table with RLS but is not yet wired into the runtime store.
 
 ### `POST /passkey/register/options`
 
-Request body:
+Generates WebAuthn registration options for a user.
+
+**Request body**
 
 ```json
 {"userId": "user-1", "username": "alice"}
 ```
 
-Returns WebAuthn `PublicKeyCredentialCreationOptionsJSON` for the authenticator to consume.
+**Success response**
+
+```http
+HTTP/1.1 200 OK
+content-type: application/json
+```
+
+Returns a `PublicKeyCredentialCreationOptionsJSON` object. The `challenge` field is stored server-side and must be presented during verification.
+
+**Error responses**
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `400` | `{"error":"userId and username are required"}` | Missing fields in request body. |
 
 ### `POST /passkey/register/verify`
 
-Request body:
+Verifies the authenticator attestation response returned by the browser or agent.
+
+**Request body**
 
 ```json
 {"userId": "user-1", "response": "<AuthenticatorAttestationResponseJSON>"}
 ```
 
-Returns `{"verified": true, "credentialId": "..."}` on success, or `{"verified": false}` on failure.
+**Success response**
+
+```json
+{"verified": true, "credentialId": "credential-id-string"}
+```
+
+**Failure responses**
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `400` | `{"error":"userId and response are required"}` | Missing fields. |
+| `400` | `{"error":"registration_failed","detail":"..."}` | Verification failed or no pending challenge. |
 
 ### `POST /passkey/auth/options`
 
-Request body:
+Generates WebAuthn authentication options for a user with registered credentials.
+
+**Request body**
 
 ```json
 {"userId": "user-1"}
 ```
 
-Returns WebAuthn `PublicKeyCredentialRequestOptionsJSON`.
+**Success response**
+
+Returns a `PublicKeyCredentialRequestOptionsJSON` object.
+
+**Error responses**
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `400` | `{"error":"userId is required"}` | Missing field. |
 
 ### `POST /passkey/auth/verify`
 
-Request body:
+Verifies the authenticator assertion response.
+
+**Request body**
 
 ```json
 {"userId": "user-1", "response": "<AuthenticatorAssertionResponseJSON>"}
 ```
 
-Returns `{"verified": true, "credentialId": "..."}` on success, or `{"verified": false}` on failure.
+**Success response**
+
+```json
+{"verified": true, "credentialId": "credential-id-string"}
+```
+
+**Failure responses**
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `400` | `{"error":"userId and response are required"}` | Missing fields. |
+| `400` | `{"error":"authentication_failed","detail":"..."}` | Verification failed, no pending challenge, or credential not found. |
 
 ## Refund endpoint
 
@@ -160,45 +220,75 @@ Returns `{"verified": true, "credentialId": "..."}` on success, or `{"verified":
 
 Issues a Stripe refund for a previously settled payment intent. The API uses the same `STRIPE_SECRET_KEY` as the payment flow.
 
-Request body:
+**Request body**
 
 ```json
 {"paymentIntentId": "pi_...", "amount": 50, "reason": "requested_by_customer"}
 ```
 
-`amount` is optional; omit it for a full refund. `reason` is optional and must be one of `duplicate`, `fraudulent`, or `requested_by_customer`.
+| Field | Required | Description |
+| --- | --- | --- |
+| `paymentIntentId` | Yes | Stripe Payment Intent ID to refund. |
+| `amount` | No | Partial refund amount in the smallest currency unit (e.g. cents). Omit for a full refund. |
+| `reason` | No | One of `duplicate`, `fraudulent`, or `requested_by_customer`. |
 
-Returns:
+**Success response**
 
-```json
-{"id": "re_...", "amount": 50, "currency": "usd", "status": "succeeded", "paymentIntentId": "pi_...", "reason": "requested_by_customer"}
+```http
+HTTP/1.1 200 OK
+content-type: application/json
+
+{"id":"re_...","amount":50,"currency":"usd","status":"succeeded","paymentIntentId":"pi_...","reason":"requested_by_customer"}
 ```
+
+**Error responses**
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `400` | `{"error":"paymentIntentId is required"}` | Missing `paymentIntentId`. |
+| `500` | `{"error":"refund_failed","detail":"..."}` | Stripe API rejected the refund request. |
+
+This endpoint was validated against the Stripe sandbox: a payment intent was created, confirmed with `pm_card_visa`, and then refunded through the API endpoint with `status: "succeeded"`.
 
 ## Product info endpoint
 
 ### `GET /v1/products/{slug}/info`
 
-Returns product metadata by slug, including name, description, and any stored metadata. This endpoint reads from the `products` table and is available for any product slug that exists in the database, regardless of published status (the read is performed with the service-role client).
+Returns product metadata by slug, including name, description, and any stored metadata. This endpoint reads from the `products` table using the service-role client, so it returns products regardless of published status.
 
-```json
+**Success response**
+
+```http
+HTTP/1.1 200 OK
+content-type: application/json
+
 {
   "product": {
     "id": "e4e4e3da-...",
     "slug": "market-signal-sandbox",
     "name": "Market signal sandbox",
     "description": "...",
-    "metadata": {"category": "signals", "price_display": "$0.50"}
+    "metadata": {"category": "signals", "price_display": "$0.50", "seller": "sandbox-merchant"}
   }
 }
 ```
 
-Returns `404` if the slug does not exist.
+**Error responses**
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `400` | `{"error":"product slug is required"}` | Slug segment is empty. |
+| `404` | `{"error":"product_not_found"}` | No product exists with the given slug. |
+
 ## Errors
 
 | Status | Body or header | Meaning |
 | --- | --- | --- |
+| `400` | `{"error":"..."}` | Missing or invalid request fields for passkey, refund, or product info endpoints. |
 | `402` | `WWW-Authenticate: Payment ...` | A Stripe MPP payment credential is required or has not passed verification. |
-| `404` | `{"error":"not_found"}` | No static route matched, Supabase is not configured, or no enabled catalog endpoint matches the request method and path. |
+| `404` | `{"error":"not_found"}` | No static route matched, Supabase is not configured, or no enabled catalog endpoint matches. |
+| `404` | `{"error":"product_not_found"}` | Product slug does not exist in the database. |
+| `500` | `{"error":"refund_failed","detail":"..."}` | Stripe refund API call failed. |
 | `503` | `{"error":"payment_audit_unavailable"}` | A Stripe MPP catalog endpoint resolved but the payment audit store is unavailable. |
 | `503` | `{"error":"payment_rail_unavailable"}` | An enabled offering uses a payment rail with no configured handler. |
 
@@ -209,9 +299,11 @@ A Stripe MPP catalog offering whose stored Stripe Profile differs from the API's
 A separate agent module should own only:
 
 - Calling `GET /health` for readiness.
-- Fetching `GET /openapi.json` for the current static payment declaration.
-- Discovering the exact product endpoint through a trusted catalog source.
+- Fetching `GET /openapi.json` for the current payment declaration.
+- Fetching `GET /v1/products/{slug}/info` to discover product metadata.
 - Processing MPP `402` challenges through its payment client.
 - Retrying exactly once with the MPP payment credential and consuming the resulting JSON resource.
+- Initiating passkey registration and authentication flows through `/passkey/*`.
+- Requesting refunds through `POST /refund` when authorized.
 
 It must not own product activation, payment settlement, Supabase admin access, payment-audit writes, mandate decisions, or agent signing-key custody.
