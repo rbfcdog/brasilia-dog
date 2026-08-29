@@ -31,7 +31,6 @@ set
   network_id = excluded.network_id,
   active = false;
 
-
 insert into public.product_endpoints (
   offering_id,
   method,
@@ -47,4 +46,3 @@ on conflict (method, path) do update
 set
   response_body = excluded.response_body,
   enabled = false;
-
