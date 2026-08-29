@@ -6,7 +6,6 @@ import type {
   PaymentAttemptStore,
   PaymentReceiptSummary,
   ProductEndpoint,
-  X402Handler,
 } from '../domain/types.js';
 
 function amountToDecimal(amountMinor: number, scale: number): string {
@@ -46,7 +45,6 @@ interface PaymentServiceOptions {
   stripeProfileId: string;
   mppHandlerFactory?: MppHandlerFactory;
   paymentAttemptRepository?: PaymentAttemptStore;
-  x402Handler?: X402Handler;
   randomUUID?: () => string;
 }
 
@@ -54,7 +52,6 @@ export class PaymentService {
   private readonly stripeProfileId: string;
   private readonly mppHandlerFactory?: MppHandlerFactory;
   private readonly paymentAttemptRepository?: PaymentAttemptStore;
-  private readonly x402Handler?: X402Handler;
   private readonly randomUUID: () => string;
   private readonly mppHandlers = new Map<string, MppHandler>();
 
@@ -62,30 +59,16 @@ export class PaymentService {
     stripeProfileId,
     mppHandlerFactory,
     paymentAttemptRepository,
-    x402Handler,
     randomUUID = createRandomUUID,
   }: PaymentServiceOptions) {
     this.stripeProfileId = stripeProfileId;
     this.mppHandlerFactory = mppHandlerFactory;
     this.paymentAttemptRepository = paymentAttemptRepository;
-    this.x402Handler = x402Handler;
     this.randomUUID = randomUUID;
   }
 
   async serve(endpoint: ProductEndpoint, request: Request): Promise<Response> {
-    if (endpoint.offering.rail === 'stripe_mpp') {
-      return this.serveMpp(endpoint, request);
-    }
-
-    if (endpoint.offering.rail === 'stellar_x402') {
-      if (!this.x402Handler) {
-        return Response.json({ error: 'payment_rail_unavailable' }, { status: 503 });
-      }
-
-      return this.x402Handler(endpoint, request);
-    }
-
-    return Response.json({ error: 'unsupported_payment_rail' }, { status: 503 });
+    return this.serveMpp(endpoint, request);
   }
 
   async serveMpp(endpoint: ProductEndpoint, request: Request): Promise<Response> {

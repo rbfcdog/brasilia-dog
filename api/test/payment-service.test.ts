@@ -107,20 +107,3 @@ test('refuses an MPP offering that belongs to a different Stripe profile', async
   );
 });
 
-test('fails closed for an x402 offering without an x402 payment handler', async () => {
-  const service = new PaymentService({ stripeProfileId: 'profile_test_example' });
-
-  const response = await service.serve({
-    ...endpoint,
-    offering: {
-      ...endpoint.offering,
-      rail: 'stellar_x402',
-      currency: 'usdc',
-      scale: 7,
-      networkId: 'stellar:testnet',
-    },
-  }, new Request('https://api.example/v1/products/market-signal/x402'));
-
-  assert.equal(response.status, 503);
-  assert.deepEqual(await response.json(), { error: 'payment_rail_unavailable' });
-});

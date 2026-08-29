@@ -16,7 +16,7 @@ create table public.products (
 create table public.product_payment_offerings (
   id uuid primary key default gen_random_uuid(),
   product_id uuid not null references public.products(id) on delete cascade,
-  rail text not null check (rail in ('stripe_mpp', 'stellar_x402')),
+  rail text not null check (rail = 'stripe_mpp'),
   amount_minor bigint not null check (amount_minor > 0),
   currency text not null,
   scale smallint not null check (scale between 0 and 18),
@@ -25,11 +25,7 @@ create table public.product_payment_offerings (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (product_id, rail),
-  check (
-    (rail = 'stripe_mpp' and currency = 'usd' and scale = 2 and network_id is not null)
-    or
-    (rail = 'stellar_x402' and currency = 'usdc' and scale = 7 and network_id in ('stellar:testnet', 'stellar:pubnet'))
-  )
+  check (currency = 'usd' and scale = 2 and network_id is not null)
 );
 
 create table public.product_endpoints (
@@ -51,7 +47,7 @@ create table public.payment_attempts (
   product_id uuid not null references public.products(id) on delete restrict,
   offering_id uuid not null references public.product_payment_offerings(id) on delete restrict,
   endpoint_id uuid not null references public.product_endpoints(id) on delete restrict,
-  rail text not null check (rail in ('stripe_mpp', 'stellar_x402')),
+  rail text not null check (rail = 'stripe_mpp'),
   provider_payment_id text,
   idempotency_key uuid not null,
   status text not null check (status in ('challenged', 'settled', 'failed', 'refunded')),

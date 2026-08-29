@@ -1,16 +1,18 @@
 # API endpoint reference
 
-This document describes the HTTP surface implemented by the Node API. It is written for an agent or separate client module. It describes current runtime behavior, not a proposed marketplace API.
+This document describes the HTTP surface implemented by the Express API. It is written for an agent or separate client module. It describes current runtime behavior, not a proposed marketplace API.
 
 Base URL is the deployed API origin, for example `https://api.example.com`.
 
 ## Integration rules
 
-- Send normal HTTP requests to the Node API, not directly to Supabase tables or RPC endpoints.
+- Send normal HTTP requests to the Express API, not directly to Supabase tables or RPC endpoints.
 - Treat a `402` response as an MPP payment challenge. The MPP client must process the `WWW-Authenticate: Payment ...` header and retry the exact request with its resulting payment credential.
 - Do not send Stripe secret keys, Supabase secret keys, MPP secrets, passkey private material, or agent signing private keys in requests.
 - There is no browser login, user-session, mandate, agent-identity, catalog-management, refund, or payment-history endpoint yet.
 - All responses use JSON except payment challenge metadata carried in HTTP headers.
+
+The API currently enables permissive CORS (`Access-Control-Allow-Origin: *`) for initial browser integration. Do not send credentialed requests to it until production origins are configured.
 
 ## Always available
 
@@ -94,29 +96,19 @@ The product endpoint defines its successful status code and JSON response body. 
 
 On successful Stripe MPP payment, the API records receipt metadata and a hashed request authorization value in the server-side payment audit store. It does not persist the raw payment credential.
 
-**x402 status**
+**Payment rail restriction**
 
-The schema supports a `stellar_x402` offering, but the current Node bootstrap does not configure an x402 handler. If an enabled x402 endpoint is resolved, it returns:
+Only Stripe MPP offerings are supported. `stellar_x402` is not a Stripe payment rail and must remain inactive. Do not activate or route a Stellar x402 offering through this API.
 
-```http
-HTTP/1.1 503 Service Unavailable
-content-type: application/json
+### Seeded, inactive example
 
-{"error":"payment_rail_unavailable"}
-```
-
-Do not treat an `x402` database row as a working x402 payment integration.
-
-### Seeded, inactive examples
-
-The seed file defines these disabled endpoints for setup verification only:
+The seed file defines this disabled endpoint for setup verification only:
 
 | Method | Path | Rail | Status |
 | --- | --- | --- | --- |
 | `GET` | `/v1/products/market-signal-sandbox/mpp` | Stripe MPP | Disabled |
-| `GET` | `/v1/products/market-signal-sandbox/x402` | Stellar x402 | Disabled |
 
-They return `404` until their product is published and the offering and endpoint are activated. The x402 path would then return `503 payment_rail_unavailable` until an x402 handler is implemented.
+It returns `404` until its product is published and the offering and endpoint are activated.
 
 ## Errors
 
@@ -125,8 +117,7 @@ They return `404` until their product is published and the offering and endpoint
 | `402` | `WWW-Authenticate: Payment ...` | A Stripe MPP payment credential is required or has not passed verification. |
 | `404` | `{"error":"not_found"}` | No static route matched, Supabase is not configured, or no enabled catalog endpoint matches the request method and path. |
 | `503` | `{"error":"payment_audit_unavailable"}` | A Stripe MPP catalog endpoint resolved but the payment audit store is unavailable. |
-| `503` | `{"error":"payment_rail_unavailable"}` | No handler exists for the endpoint's payment rail. |
-| `503` | `{"error":"unsupported_payment_rail"}` | The configured offering uses a rail the payment service does not support. |
+| `503` | `{"error":"payment_rail_unavailable"}` | An enabled offering uses a payment rail with no configured handler. |
 
 A Stripe MPP catalog offering whose stored Stripe Profile differs from the API's configured `STRIPE_PROFILE_ID` fails server-side rather than being charged. This is an operator configuration error, not a client retry condition.
 

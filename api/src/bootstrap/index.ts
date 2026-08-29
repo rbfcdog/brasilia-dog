@@ -4,7 +4,7 @@ import { loadEnvironment } from '../config/environment.js';
 import { createMppHandler, createPaidHandler } from '../payments/mpp.js';
 import { PaymentAttemptRepository } from '../repositories/payment-attempt-repository.js';
 import { ProductRepository } from '../repositories/product-repository.js';
-import { createNodeServer } from '../http/server.js';
+import { createExpressApp } from '../http/server.js';
 import { ProductCatalogService } from '../services/product-catalog-service.js';
 import { PaymentService } from '../services/payment-service.js';
 import { createSupabaseClient } from '../integrations/supabase.js';
@@ -24,7 +24,7 @@ const app = createApp({
   productCatalogService,
   paymentService,
 });
-const server = createNodeServer(app);
+const server = createExpressApp(app).listen(config.port, '0.0.0.0');
 
 server.on('error', (error) => {
   console.error('Stripe MPP server failed to start.', error.message);

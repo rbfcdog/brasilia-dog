@@ -63,6 +63,7 @@ export class ProductRepository {
       .select(ENDPOINT_SELECT)
       .eq('method', method)
       .eq('path', path)
+      .eq('offering.rail', 'stripe_mpp')
       .eq('enabled', true)
       .eq('offering.product.status', 'published')
       .eq('offering.active', true)

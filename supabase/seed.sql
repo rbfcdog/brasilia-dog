@@ -21,19 +21,6 @@ from public.products
 where slug = 'market-signal-sandbox'
 on conflict (product_id, rail) do nothing;
 
-insert into public.product_payment_offerings (
-  product_id,
-  rail,
-  amount_minor,
-  currency,
-  scale,
-  network_id,
-  active
-)
-select id, 'stellar_x402', 500000, 'usdc', 7, 'stellar:testnet', false
-from public.products
-where slug = 'market-signal-sandbox'
-on conflict (product_id, rail) do nothing;
 
 insert into public.product_endpoints (
   offering_id,
@@ -48,15 +35,3 @@ where rail = 'stripe_mpp'
   and product_id = (select id from public.products where slug = 'market-signal-sandbox')
 on conflict (method, path) do nothing;
 
-insert into public.product_endpoints (
-  offering_id,
-  method,
-  path,
-  response_body,
-  enabled
-)
-select id, 'GET', '/v1/products/market-signal-sandbox/x402', '{"data":"activate the offering before serving this product"}'::jsonb, false
-from public.product_payment_offerings
-where rail = 'stellar_x402'
-  and product_id = (select id from public.products where slug = 'market-signal-sandbox')
-on conflict (method, path) do nothing;

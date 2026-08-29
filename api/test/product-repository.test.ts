@@ -81,11 +81,12 @@ test('loads an enabled product endpoint with its offering and product', async ()
       description: 'A controlled market signal.',
     },
   });
-  assert.deepEqual(calls.slice(0, 4), [
+  assert.deepEqual(calls.slice(0, 5), [
     ['from', 'product_endpoints'],
     ['select', 'id,method,path,response_status,response_body,offering:product_payment_offerings!inner(id,rail,amount_minor,currency,scale,network_id,product:products!inner(id,slug,name,description))'],
     ['eq', 'method', 'GET'],
     ['eq', 'path', '/v1/products/market-signal/mpp'],
+    ['eq', 'offering.rail', 'stripe_mpp'],
   ]);
 });
 

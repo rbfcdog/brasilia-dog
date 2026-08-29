@@ -1,5 +1,5 @@
 export type StripeMode = 'sandbox' | 'live';
-export type ProductRail = 'stripe_mpp' | 'stellar_x402';
+export type ProductRail = 'stripe_mpp';
 export type ProductMethod = 'GET' | 'POST';
 
 export interface SupabaseConfig {
@@ -99,4 +99,3 @@ export interface MppHandlerOptions {
 
 export type MppHandler = (request: Request) => Promise<Response>;
 export type MppHandlerFactory = (options: MppHandlerOptions) => MppHandler;
-export type X402Handler = (endpoint: ProductEndpoint, request: Request) => Promise<Response>;
