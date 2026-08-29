@@ -48,6 +48,24 @@ test('rejects a live Stripe key in sandbox mode', () => {
   );
 });
 
+test('logs a configuration diagnostic before rejecting a wrong-prefix key', () => {
+  const logs = [];
+  const originalError = console.error;
+  console.error = (message) => logs.push(message);
+
+  try {
+    assert.throws(
+      () => loadConfig({ ...sandboxEnvironment, STRIPE_SECRET_KEY: 'sk_live_example' }),
+      /sk_test_/,
+    );
+    assert.equal(logs.length, 1);
+    assert.match(logs[0], /Configuration diagnostic/);
+    assert.match(logs[0], /STRIPE_SECRET_KEY.*sk_live_/);
+  } finally {
+    console.error = originalError;
+  }
+});
+
 test('requires explicit acknowledgement before enabling live mode', () => {
   assert.throws(
     () => loadConfig({
