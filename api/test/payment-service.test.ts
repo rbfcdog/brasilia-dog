@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { PaymentService } from '../src/services/payment-service.js';
-import type { MppHandlerOptions, PaymentAttemptInput, ProductEndpoint } from '../src/types.js';
+import type { MppHandlerOptions, PaymentAttemptInput, ProductEndpoint } from '../src/domain/types.js';
 
 const endpoint: ProductEndpoint = {
   id: 'endpoint-1',

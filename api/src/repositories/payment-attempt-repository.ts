@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import type { PaymentAttemptInput } from '../types.js';
+import type { PaymentAttemptInput } from '../domain/types.js';
 
 export class PaymentAttemptRepository {
   constructor(private readonly client: SupabaseClient) {}

@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createPaidHandler } from '../src/mpp.js';
-import type { AppConfig } from '../src/types.js';
+import { createPaidHandler } from '../src/payments/mpp.js';
+import type { AppConfig } from '../src/domain/types.js';
 
 const sandboxConfig: AppConfig = {
   port: 3000,

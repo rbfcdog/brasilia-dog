@@ -7,7 +7,7 @@ import type {
   PaymentReceiptSummary,
   ProductEndpoint,
   X402Handler,
-} from '../types.js';
+} from '../domain/types.js';
 
 function amountToDecimal(amountMinor: number, scale: number): string {
   if (!Number.isSafeInteger(amountMinor) || amountMinor <= 0) {

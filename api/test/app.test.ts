@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createApp } from '../src/app.js';
-import type { ProductEndpoint } from '../src/types.js';
+import { createApp } from '../src/http/app.js';
+import type { ProductEndpoint } from '../src/domain/types.js';
 
 test('reports service health without touching the payment handler', async () => {
   const app = createApp({

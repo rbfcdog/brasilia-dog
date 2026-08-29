@@ -1,4 +1,4 @@
-import type { ProductEndpoint, ProductEndpointRepository } from '../types.js';
+import type { ProductEndpoint, ProductEndpointRepository } from '../domain/types.js';
 
 export class ProductCatalogService {
   constructor(private readonly productRepository: ProductEndpointRepository) {}

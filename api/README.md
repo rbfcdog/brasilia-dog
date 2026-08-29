@@ -47,7 +47,7 @@ A Node.js MPP endpoint that charges an agent for the controlled `GET /paid` reso
 
 The endpoint exposes `GET /health` without payment and protects `GET /paid` with Stripe MPP. `mppx validate` performs sandbox test transactions when the endpoint has valid sandbox configuration.
 
-`dotenv` loads the local `.env` file before application configuration. It does not overwrite an existing process variable, so an injected deployment value remains authoritative. The production Docker image compiles TypeScript during its build and runs `node dist/index.js`; it contains neither `.env` nor the `tsx` development dependency.
+`dotenv` loads the local `.env` file before application configuration. It does not overwrite an existing process variable, so an injected deployment value remains authoritative. The production Docker image compiles TypeScript during its build and runs `node dist/bootstrap/index.js`; it contains neither `.env` nor the `tsx` development dependency.
 
 ## What is needed from Stripe
 

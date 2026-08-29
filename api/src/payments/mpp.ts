@@ -1,7 +1,7 @@
 import Stripe from 'stripe';
 import { Mppx, stripe } from 'mppx/server';
 
-import type { AppConfig, MppHandler, MppHandlerOptions, PaymentReceiptSummary } from './types.js';
+import type { AppConfig, MppHandler, MppHandlerOptions, PaymentReceiptSummary } from '../domain/types.js';
 
 const PAID_RESOURCE = Object.freeze({
   data: {

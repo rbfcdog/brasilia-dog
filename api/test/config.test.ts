@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { loadConfig, loadSupabaseConfig } from '../src/config.js';
-import { loadEnvironment } from '../src/environment.js';
+import { loadConfig, loadSupabaseConfig } from '../src/config/config.js';
+import { loadEnvironment } from '../src/config/environment.js';
 
 
 const sandboxEnvironment = {

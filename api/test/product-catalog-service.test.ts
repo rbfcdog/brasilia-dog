@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { ProductCatalogService } from '../src/services/product-catalog-service.js';
-import type { ProductEndpoint } from '../src/types.js';
+import type { ProductEndpoint } from '../src/domain/types.js';
 
 const resolvedEndpoint: ProductEndpoint = {
   id: 'endpoint-1',
@@ -50,3 +50,4 @@ test('does not query an endpoint outside the product API prefix', async () => {
 
   assert.equal(await service.resolve(new Request('https://api.example/health')), null);
 });
+

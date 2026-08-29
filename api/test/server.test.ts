@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createNodeServer } from '../src/server.js';
+import { createNodeServer } from '../src/http/server.js';
 
 test('adapts the Fetch application to a Node HTTP server', async (t) => {
   const server = createNodeServer(async () => Response.json({ status: 'ok' }));

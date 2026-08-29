@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import { PaymentAttemptRepository } from '../src/repositories/payment-attempt-repository.js';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { PaymentAttemptInput } from '../src/types.js';
+import type { PaymentAttemptInput } from '../src/domain/types.js';
 
 const paymentInput: PaymentAttemptInput = {
   productId: 'product-1',

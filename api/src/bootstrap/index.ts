@@ -1,13 +1,13 @@
-import { createApp } from './app.js';
-import { loadConfig } from './config.js';
-import { loadEnvironment } from './environment.js';
-import { createMppHandler, createPaidHandler } from './mpp.js';
-import { PaymentAttemptRepository } from './repositories/payment-attempt-repository.js';
-import { ProductRepository } from './repositories/product-repository.js';
-import { createNodeServer } from './server.js';
-import { ProductCatalogService } from './services/product-catalog-service.js';
-import { PaymentService } from './services/payment-service.js';
-import { createSupabaseClient } from './supabase.js';
+import { createApp } from '../http/app.js';
+import { loadConfig } from '../config/config.js';
+import { loadEnvironment } from '../config/environment.js';
+import { createMppHandler, createPaidHandler } from '../payments/mpp.js';
+import { PaymentAttemptRepository } from '../repositories/payment-attempt-repository.js';
+import { ProductRepository } from '../repositories/product-repository.js';
+import { createNodeServer } from '../http/server.js';
+import { ProductCatalogService } from '../services/product-catalog-service.js';
+import { PaymentService } from '../services/payment-service.js';
+import { createSupabaseClient } from '../integrations/supabase.js';
 
 loadEnvironment();
 

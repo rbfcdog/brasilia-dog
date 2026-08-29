@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import type { ProductEndpoint, ProductMethod, ProductRail } from '../types.js';
+import type { ProductEndpoint, ProductMethod, ProductRail } from '../domain/types.js';
 
 const ENDPOINT_SELECT = 'id,method,path,response_status,response_body,offering:product_payment_offerings!inner(id,rail,amount_minor,currency,scale,network_id,product:products!inner(id,slug,name,description))';
 

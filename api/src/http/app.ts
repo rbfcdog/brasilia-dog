@@ -1,4 +1,4 @@
-import type { AppHandler, MppHandler, ProductCatalog, ProductPaymentService } from './types.js';
+import type { AppHandler, MppHandler, ProductCatalog, ProductPaymentService } from '../domain/types.js';
 
 function json(value: Record<string, unknown>, status = 200): Response {
   return Response.json(value, { status });

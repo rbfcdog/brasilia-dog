@@ -1,4 +1,4 @@
-import type { AppConfig, StripeMode, SupabaseConfig } from './types.js';
+import type { AppConfig, StripeMode, SupabaseConfig } from '../domain/types.js';
 
 const MODE_BY_NAME: Record<StripeMode, true> = { sandbox: true, live: true };
 
