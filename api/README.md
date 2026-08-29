@@ -10,6 +10,10 @@ A Node.js MPP endpoint that charges an agent for the controlled `GET /paid` reso
 - A live secret key sent through chat must be rotated before use.
 - `STRIPE_MODE=live` is blocked unless `ALLOW_LIVE_MPP_TEST=true` is set explicitly. Do not set it for this project until the live-money gates in [`docs/stripe-mpp-production-runbook.md`](../docs/stripe-mpp-production-runbook.md) are complete.
 
+## Data-platform decision
+
+[ADR-0001](./docs/adr-0001-supabase-primary-data-platform.md) selects Supabase Postgres, Auth, and Storage for the Track 01 build. Node remains the only mandate and payment authority; browser and Python code remain advisory or projection-only.
+
 ## Sandbox setup
 
 1. Create a Stripe sandbox and create a sandbox business profile in the Stripe Dashboard.
