@@ -1,0 +1,11 @@
+.git
+.env
+.env.*
+**/.env
+**/.env.*
+**/node_modules
+**/coverage
+.DS_Store
+docs
+api/test
+api/README.md

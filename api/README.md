@@ -54,10 +54,32 @@ The service will not start until all three secrets and identifiers are set local
 | Variable | Source | Boundary |
 | --- | --- | --- |
 | `STRIPE_SECRET_KEY` | Stripe sandbox API keys | Node process only |
+
 | `STRIPE_PROFILE_ID` | Sandbox Stripe business profile | Node process only |
 | `MPP_SECRET_KEY` | Locally generated random value | Node process only |
 
 Do not substitute a `pk_test_...` or `pk_live_...` publishable key for `STRIPE_SECRET_KEY`. The server needs its sandbox secret key. Do not use a live key to prove this sandbox flow.
+
+## Railway deployment
+
+The repository root contains `Dockerfile` and `railway.json`. Railway builds that image, injects the runtime environment, probes `GET /health`, and activates the deployment only after it receives HTTP `200`.
+
+1. In Railway, create a service from this repository. Keep the repository root as the service root; `railway.json` selects the root Dockerfile and `/health` readiness check.
+2. In the service's Variables page, configure sandbox values only:
+
+   ```dotenv
+   STRIPE_MODE=sandbox
+   STRIPE_SECRET_KEY=sk_test_...
+   STRIPE_PROFILE_ID=profile_test_...
+   MPP_SECRET_KEY=<at least 32 random bytes>
+   ```
+
+   Railway supplies `PORT`; do not add a fixed `PORT` variable. Never commit or paste any variable value into chat.
+
+3. Generate a public domain from the Railway service settings, then verify `https://<domain>/health` returns `{"status":"ok"}`.
+4. Verify `https://<domain>/paid` returns an MPP `402` challenge. A test-style configuration proves deployment and challenge routing only. It does not prove Stripe settlement.
+
+Do not configure `STRIPE_MODE=live` or `ALLOW_LIVE_MPP_TEST=true` on Railway until the live-money gates in the [production runbook](../docs/stripe-mpp-production-runbook.md) are complete. Railway's health check behavior and `PORT` contract are described in the [Railway health-check documentation](https://docs.railway.com/guides/healthchecks).
 
 ## Verification completed locally
 

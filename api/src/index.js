@@ -12,8 +12,8 @@ server.on('error', (error) => {
   process.exitCode = 1;
 });
 
-server.listen(config.port, '127.0.0.1', () => {
-  console.log(`Stripe MPP ${config.mode} service listening on http://127.0.0.1:${config.port}`);
+server.listen(config.port, '0.0.0.0', () => {
+  console.log(`Stripe MPP ${config.mode} service listening on http://0.0.0.0:${config.port}`);
 });
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
