@@ -1,37 +1,63 @@
-TODO:
-quais sao da nauta/yuno?
-tracks menos gente/competitividade
-qual tem ideia mais diferenciada
-ver numeros iniciais de inscricao
+# Notas do projeto
 
+## Direcao do produto (atualizada 29/8 14h)
 
-track 1 
-pagamentos agenticos - x402? 
-evitar alucinacao/prompt imjection
-limite de custos e guidelines pra gasto
-como que o vendedor sabe se eh uma IA comprando
-HITL na compra  
-tanto pro lado do cliente (refund, controle) quanto pro vendedor (verificar)
+Conversa com o Banin definiu o que construir:
 
-track 2
-conversao entre diferentes provedores para de funcionar
-RCA da falha de modo agentico
-cruzamento de informacao de pgto, prov, pais, AI driven
-ponto focal de falha (ML hibrido com LLM)
+- **MPP + x402**: mockar marketplace de produtos diversos.
+- **Stripe MPP para comprar em USDC**: verificar integracao com dinheiro real.
+- **Credenciais cruzadas**: o agente precisa cruzar passkey e MPP para fazer a compra. Isso evita prompt injection e takeover do agente.
+- **Agente tem cartao de credito e passkey**: a passkey esta atrelada a uma biometria.
+- **Guidelines injetadas**: limites de custo e regras de gasto injetados no agente.
+- **Deteccao de anomalia**: tanto do lado do vendedor quanto do consumidor.
+- **Agente judge com guidelines**: valida compras contra as regras.
+- **Sistema inteligente de refund**.
+- **Marketplace de agentes inteligente**.
+- **Mercado Livre como referencia**, mas o agente consegue comprar fora tambem.
+- **Tracks 2 e 3**: ver argumentos (decisao de foco pendente).
 
-track 3 
-agente que lida com documentacao + email (RAG vs anthropic/skills)
-trigger com atividades externas EDA/mail
-ReAct no environment (notifica cliente, monitora entregas)
-harness complexo e tooling, com HITL (tool call) quando precisa
-lidar com rotas via texto
+---
 
-track 4
-elevenlabs 
-executa tool call mid conversa
-negocia, tem que ter system prompt muito bom
-entrega call pra humano quando precisa 
-twillio funcionando
-negocia em paralelo com contexto de mercado
-agente adapta conforme conversa, latencia baixa
- 
+## Analise de tracks (rascunho inicial)
+
+### Track 1: The Buyer Who Isn't Human
+
+- Pagamentos agenticos: x402? MPP?
+- Evitar alucinacao e prompt injection.
+- Limite de custos e guidelines para gasto.
+- Como o vendedor sabe se eh uma IA comprando?
+- HITL na compra: tanto pro lado do cliente (refund, controle) quanto pro vendedor (verificar).
+
+### Track 2: The Control Tower
+
+- Conversao entre diferentes provedores para de funcionar.
+- RCA da falha de modo agentico.
+- Cruzamento de informacao de pagamento, provedor, pais, AI driven.
+- Ponto focal de falha (ML hibrido com LLM).
+
+### Track 3: The Interface That Builds Itself
+
+- Agente que lida com documentacao e email (RAG vs Anthropic/skills).
+- Trigger com atividades externas EDA/mail.
+- ReAct no environment (notifica cliente, monitora entregas).
+- Harness complexo e tooling, com HITL (tool call) quando precisa.
+- Lidar com rotas via texto.
+
+### Track 4: The Agent on the Line
+
+- ElevenLabs.
+- Executa tool call mid conversa.
+- Negocia; precisa de system prompt muito bom.
+- Entrega call para humano quando precisa.
+- Twilio funcionando.
+- Negocia em paralelo com contexto de mercado.
+- Agente adapta conforme conversa; latencia baixa.
+
+---
+
+## Perguntas em aberto
+
+- Quais tracks sao da Nauta vs Yuno?
+- Quais tracks tem menos gente/competitividade?
+- Qual tem a ideia mais diferenciada?
+- Ver numeros iniciais de inscricao.
