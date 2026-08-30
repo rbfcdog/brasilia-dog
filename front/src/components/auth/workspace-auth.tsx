@@ -39,11 +39,17 @@ export function WorkspaceAuth() {
     ? searchParams.get("next")!
     : destinations[role];
 
-  const completeAccess = useCallback(async (user: AuthUser) => {
-    const status = await backendService.passkeyStatus();
-    if (!status.registered) {
-      setPendingEnrollment({ user, destination });
-      return;
+  const completeAccess = useCallback(async (_user: AuthUser) => {
+    try {
+      const status = await backendService.passkeyStatus();
+      if (!status.registered) {
+        setPendingEnrollment({ user: _user, destination });
+        return;
+      }
+    } catch {
+      // Account auth and passkey auth are separate. If the account-status
+      // lookup is unavailable or has a stale cookie, continue to the explicit
+      // passkey challenge rather than exposing a raw upstream 401.
     }
     setPendingPasskey({ destination });
   }, [destination]);
