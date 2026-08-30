@@ -77,6 +77,37 @@ test('HTTP backend adapter turns a missing catalog route into a retryable catalo
   );
 });
 
+test('HTTP backend adapter keeps catalog payment challenges and server failures out of the buyer flow', async (t) => {
+  const statuses = [402, 500];
+  const server = createServer((_request, response) => {
+    const status = statuses.shift() ?? 500;
+    response.writeHead(status, { 'content-type': 'application/json' });
+    response.end(JSON.stringify({ error: `status_${status}` }));
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise<void>((resolve) => server.close(() => resolve())));
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('Server did not bind.');
+  const adapter = new HttpBackendAdapter({
+    baseUrl: `http://127.0.0.1:${address.port}`,
+    token: backendToken,
+  });
+
+  for (const expectedStatus of [402, 500]) {
+    await assert.rejects(
+      adapter.listProducts(),
+      (error: unknown) => (
+        error instanceof Error
+        && "code" in error
+        && error.code === "PRODUCT_CATALOG_UNAVAILABLE"
+        && "httpStatus" in error
+        && error.httpStatus === 503
+      ),
+      `HTTP ${expectedStatus} should be normalized to a retryable catalog error`,
+    );
+  }
+});
+
 test('HTTP backend adapter delegates bounded marketplace search to the API', async (t) => {
   const requests: string[] = [];
   const server = createServer(async (request, response) => {

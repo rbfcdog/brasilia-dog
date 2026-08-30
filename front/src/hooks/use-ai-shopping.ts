@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef } from "react";
-import { PaymentChallengeError } from "@/lib/api";
+import { ApiError, PaymentChallengeError } from "@/lib/api";
 import { hasPasskeySession } from "@/lib/passkey-session";
 import { demoStorage } from "@/lib/demo-storage";
 import { passkeyBiometricProvider } from "@/services/biometric-provider";
@@ -310,7 +310,13 @@ export function useAIShopping() {
         conversationIdRef.current = conversation.id;
         dispatch({ type: "HYDRATE", messages: [], storage: "backend" });
       })
-      .catch(() => dispatch({ type: "HYDRATE", messages: demoStorage.readMessages(), storage: "unavailable" }));
+      .catch((error) => {
+        if (error instanceof ApiError && error.status === 401) {
+          dispatch({ type: "HYDRATE", messages: demoStorage.readMessages(), storage: "local" });
+          return;
+        }
+        dispatch({ type: "HYDRATE", messages: demoStorage.readMessages(), storage: "unavailable" });
+      });
   }, [loadConversation]);
 
   useEffect(() => {
@@ -416,6 +422,14 @@ export function useAIShopping() {
           });
         }
       } catch (error) {
+        if (error instanceof ApiError && error.status === 401) {
+          dispatch({ type: "HYDRATE", messages: demoStorage.readMessages(), storage: "local" });
+          dispatch({
+            type: "ERROR",
+            message: "Your passkey session expired. Re-authenticate in Profile to save conversations.",
+          });
+          return;
+        }
         if (error instanceof ConversationPersistenceError) {
           dispatch({ type: "SET_STORAGE", storage: "unavailable" });
         }
