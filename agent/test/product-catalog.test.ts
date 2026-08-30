@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import test from 'node:test';
 
 import { HttpBackendAdapter } from '../src/adapters.js';
+import { DemoBackend } from '../src/demo.js';
 
 const backendToken = 'backend-product-token-12345';
 
@@ -183,4 +184,32 @@ test('HTTP backend adapter accepts a legacy search result without lifecycle fiel
   assert.equal(result[0]?.offering.networkId, null);
   assert.equal(result[0]?.offering.active, true);
   assert.equal(result[0]?.endpoint.enabled, true);
+});
+
+test('demo backend provides a self-contained filtered product catalog', async () => {
+  const backend = new DemoBackend();
+
+  const products = await backend.searchProducts({
+    query: 'fones de ouvido',
+    category: 'electronics',
+    maximumAmountMinor: 250,
+    slugs: [],
+    limit: 10,
+  });
+
+  assert.deepEqual(products.map((product) => product.slug), [
+    'noise-cancelling-headphone-index',
+  ]);
+  assert.ok((await backend.listProducts()).length > products.length);
+
+  const pluralProducts = await backend.searchProducts({
+    query: 'headphones',
+    category: 'electronics',
+    maximumAmountMinor: null,
+    slugs: [],
+    limit: 10,
+  });
+  assert.deepEqual(pluralProducts.map((product) => product.slug), [
+    'noise-cancelling-headphone-index',
+  ]);
 });

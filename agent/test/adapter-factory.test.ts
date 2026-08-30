@@ -14,6 +14,7 @@ test('demo mode uses the backend only for persisted conversation context', () =>
 
   assert.ok(adapters.mandates instanceof DemoBackend);
   assert.ok(adapters.conversations instanceof HttpBackendAdapter);
+  assert.equal(adapters.products, adapters.mandates);
 });
 
 test('HTTP mode uses the authoritative backend for every agent adapter', () => {

@@ -41,6 +41,11 @@ also removes the need to keep three separate `.env` files in sync.
 `PORT` is deliberately not in `.env`: the three services need different values,
 so each is set per task in `.vscode/tasks.json`.
 
+The frontend BFF uses `BACKEND_API_URL=http://localhost:3000` and
+`AGENT_SERVICE_URL=http://localhost:3001`. The local frontend task also sets
+these non-secret URLs explicitly, so restarting that task is enough after a
+configuration change.
+
 Because it is consumed by `--env-file`, values must be bare — no quotes, no
 spaces around `=`, no `${VAR}` expansion.
 
@@ -53,9 +58,11 @@ two hops can be rotated independently.
 
 ### Supabase
 
-Leave all `SUPABASE_*` empty to run self-contained. Populate them together to
-exercise the database-backed repositories; the target database must already
-have the migrations from `api/supabase/migrations`.
+Leave all `SUPABASE_*` empty to run self-contained. In `ADAPTER_MODE=demo`, the
+agent uses its in-memory product and flight catalogs while the API keeps its
+database-backed routes disabled. Populate the Supabase variables together to
+exercise the database-backed repositories in `ADAPTER_MODE=http`; the target
+database must already have the migrations from `api/supabase/migrations`.
 
 ## Why node_modules lives in a volume
 

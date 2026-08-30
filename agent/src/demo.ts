@@ -6,10 +6,13 @@ import {
 } from 'node:crypto';
 import type {
   AgentAdapters,
+  CatalogProduct,
   CatalogSearchInput,
+  ProductSearchInput,
   SignatureRequest,
   SignedPresentation,
 } from './adapters.js';
+import { catalogProductSchema } from './adapters.js';
 import {
   agentProofSchema,
   flightOfferSchema,
@@ -86,6 +89,83 @@ export function createDemoOffers(): FlightOffer[] {
   ];
 }
 
+export function createDemoProducts(): CatalogProduct[] {
+  const fixtures = [
+    {
+      slug: 'ultrawide-monitor-buying-guide',
+      name: 'Ultrawide monitor buying guide',
+      description: 'Current comparison data for ultrawide monitors, panels, ports, and ergonomics.',
+      category: 'electronics',
+      keywords: 'monitor monitors tela telas ultrawide',
+      amountMinor: 250,
+    },
+    {
+      slug: 'noise-cancelling-headphone-index',
+      name: 'Noise-cancelling headphone index',
+      description: 'Current headphone pricing, codec, battery, and comfort data.',
+      category: 'electronics',
+      keywords: 'headphone headphones fone fones ouvido audio',
+      amountMinor: 225,
+    },
+    {
+      slug: 'running-shoe-fit-index',
+      name: 'Running shoe fit index',
+      description: 'Current running shoe geometry, cushioning, durability, and fit data.',
+      category: 'sports',
+      keywords: 'shoe shoes running corrida tenis tênis',
+      amountMinor: 160,
+    },
+    {
+      slug: 'travel-luggage-durability-index',
+      name: 'Travel luggage durability index',
+      description: 'Current luggage material, wheel, warranty, capacity, and price data.',
+      category: 'travel',
+      keywords: 'luggage suitcase travel bagagem mala malas viagem',
+      amountMinor: 170,
+    },
+    {
+      slug: 'air-purifier-room-index',
+      name: 'Air purifier room index',
+      description: 'Current clean-air delivery, filter, noise, and room-size comparison.',
+      category: 'home',
+      keywords: 'air purifier purificador ar filtro casa',
+      amountMinor: 195,
+    },
+    {
+      slug: 'project-management-software-index',
+      name: 'Project management software index',
+      description: 'Current project management pricing, controls, integrations, and limits.',
+      category: 'software',
+      keywords: 'project management software projeto projetos gestao gestão',
+      amountMinor: 300,
+    },
+  ];
+
+  return fixtures.map((fixture, index) => catalogProductSchema.parse({
+    id: `demo-product-${index + 1}`,
+    slug: fixture.slug,
+    name: fixture.name,
+    description: fixture.description,
+    status: 'published',
+    metadata: { category: fixture.category, source: 'demo', keywords: fixture.keywords },
+    offering: {
+      id: `demo-offering-${index + 1}`,
+      rail: 'stripe_mpp',
+      amountMinor: fixture.amountMinor,
+      currency: 'usd',
+      scale: 2,
+      networkId: 'profile_test_local_dev_only',
+      active: true,
+    },
+    endpoint: {
+      id: `demo-endpoint-${index + 1}`,
+      method: 'GET',
+      path: `/v1/products/${fixture.slug}/mpp`,
+      enabled: true,
+    },
+  }));
+}
+
 interface AttemptRecord {
   attemptId: string;
   intent: PurchaseIntent;
@@ -102,12 +182,14 @@ export class DemoBackend implements AgentAdapters {
   readonly catalog = this;
   readonly signer = this;
   readonly purchases = this;
+  readonly products = this;
   readonly publicKeyJwk: JsonWebKey;
   readonly presentations: Array<{ path: string; rawBody: string; proof: AgentProof }> = [];
   private readonly privateKey: KeyObject;
   private readonly now: () => Date;
   private mandate: MandateView;
   private offers: FlightOffer[];
+  private productCatalog: CatalogProduct[];
   private readonly usedNonces = new Set<string>();
   private readonly attempts = new Map<string, AttemptRecord>();
   private readonly idempotency = new Map<string, IdempotencyRecord<VerificationResult | ResumeVerificationResult>>();
@@ -116,10 +198,12 @@ export class DemoBackend implements AgentAdapters {
     now = () => new Date(),
     mandate,
     offers,
+    products,
   }: {
     now?: () => Date;
     mandate?: MandateView;
     offers?: FlightOffer[];
+    products?: CatalogProduct[];
   } = {}) {
     const keys = generateKeyPairSync('ed25519');
     this.privateKey = keys.privateKey;
@@ -127,6 +211,7 @@ export class DemoBackend implements AgentAdapters {
     this.now = now;
     this.mandate = mandateViewSchema.parse(mandate ?? createDemoMandate(now()));
     this.offers = (offers ?? createDemoOffers()).map((offer) => flightOfferSchema.parse(offer));
+    this.productCatalog = (products ?? createDemoProducts()).map((product) => catalogProductSchema.parse(product));
   }
 
   setMandate(update: Partial<MandateView>): void {
@@ -146,6 +231,44 @@ export class DemoBackend implements AgentAdapters {
 
   async searchFlights(_input: CatalogSearchInput): Promise<FlightOffer[]> {
     return structuredClone(this.offers);
+  }
+
+  async listProducts(): Promise<CatalogProduct[]> {
+    return structuredClone(this.productCatalog);
+  }
+
+  async searchProducts(input: ProductSearchInput): Promise<CatalogProduct[]> {
+    const normalize = (value: string) => value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+    const query = input.query?.trim() ? normalize(input.query) : null;
+    const category = input.category?.trim().toLowerCase() ?? null;
+    const slugs = new Set(input.slugs);
+    const ignoredTerms = new Set(['a', 'as', 'com', 'da', 'das', 'de', 'do', 'dos', 'e', 'em', 'for', 'of', 'o', 'os', 'para', 'the']);
+    const queryTerms = query?.split(/\s+/).filter((term) => term && !ignoredTerms.has(term)) ?? [];
+    const products = this.productCatalog.filter((product) => {
+      const productCategory = typeof product.metadata.category === 'string'
+        ? product.metadata.category.toLowerCase()
+        : '';
+      const keywords = typeof product.metadata.keywords === 'string' ? product.metadata.keywords : '';
+      const searchable = normalize([product.slug, product.name, product.description, productCategory, keywords]
+        .join(' ')
+      );
+      const matchesQuery = queryTerms.length === 0 || queryTerms.every((term) =>
+        searchable.includes(term)
+        || (term.endsWith('s') && term.length > 3 && searchable.includes(term.slice(0, -1))));
+
+      return product.status === 'published'
+        && product.offering.active
+        && product.endpoint.enabled
+        && (slugs.size === 0 || slugs.has(product.slug))
+        && (!category || productCategory === category)
+        && (input.maximumAmountMinor === null || product.offering.amountMinor <= input.maximumAmountMinor)
+        && matchesQuery;
+    });
+
+    return structuredClone(products.slice(0, input.limit));
   }
 
   async sign(request: SignatureRequest): Promise<AgentProof> {

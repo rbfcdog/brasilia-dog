@@ -36,7 +36,13 @@
       "label": "Dev: front",
       "type": "shell",
       "command": "npm run dev -- --port 3002",
-      "options": { "cwd": "${workspaceFolder}/front" },
+      "options": {
+        "cwd": "${workspaceFolder}/front",
+        "env": {
+          "BACKEND_API_URL": "http://localhost:3000",
+          "AGENT_SERVICE_URL": "http://localhost:3001"
+        }
+      },
       "isBackground": true,
       "problemMatcher": [],
       "presentation": { "group": "dev", "panel": "dedicated", "reveal": "always" }
