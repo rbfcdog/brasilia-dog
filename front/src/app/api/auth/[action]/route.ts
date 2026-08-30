@@ -5,6 +5,8 @@ export const runtime = "nodejs";
 
 const ACCESS_COOKIE = "vero-auth-access";
 const REFRESH_COOKIE = "vero-auth-refresh";
+const DEFAULT_MERCHANT_DEMO_EMAIL = "nomad-e2e-merchant@example.com";
+const DEFAULT_MERCHANT_DEMO_PASSWORD = "Nomad-e2e-sandbox-only-2026!";
 const cookieOptions = {
   httpOnly: true,
   sameSite: "lax" as const,
@@ -107,11 +109,17 @@ export async function POST(request: Request, context: { params: Promise<{ action
     store.delete(REFRESH_COOKIE);
     return Response.json({ signedOut: true });
   }
-  if (action !== "sign-in" && action !== "sign-up") {
+  if (action !== "sign-in" && action !== "sign-up" && action !== "merchant-demo") {
     return Response.json({ error: "not_found" }, { status: 404 });
   }
-  const body = await request.text();
-  let response = await upstream(`v1/auth/${action}`, {
+  const merchantDemo = action === "merchant-demo";
+  const body = merchantDemo
+    ? JSON.stringify({
+        email: process.env.MERCHANT_DEMO_EMAIL?.trim() || DEFAULT_MERCHANT_DEMO_EMAIL,
+        password: process.env.MERCHANT_DEMO_PASSWORD?.trim() || DEFAULT_MERCHANT_DEMO_PASSWORD,
+      })
+    : await request.text();
+  let response = await upstream(`v1/auth/${merchantDemo ? "sign-in" : action}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body,
@@ -134,7 +142,9 @@ export async function POST(request: Request, context: { params: Promise<{ action
     await storeSession(payload);
   }
   const publicPayload = payload && typeof payload === "object" && "session" in payload
-    ? { user: (payload as { session: { user: unknown } }).session.user, confirmationRequired: false }
+    ? merchantDemo
+      ? { user: (payload as { session: { user: unknown } }).session.user, demo: true }
+      : { user: (payload as { session: { user: unknown } }).session.user, confirmationRequired: false }
     : payload;
   return Response.json(publicPayload, { status: response.status });
 }

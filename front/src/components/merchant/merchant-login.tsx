@@ -72,7 +72,35 @@ export function MerchantLogin({
       const result = await authenticatePasskey();
       if (!result.verified) throw new Error("Passkey verification was not approved.");
       router.replace(nextPath);
-      router.refresh();
+    } catch (caught) {
+      setMessage((caught as Error).message);
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function continueWithDemoPasskey() {
+    setPending(true);
+    setMessage("");
+    try {
+      const result = await backendService.demoPasskeyVerify();
+      if (!result.verified) throw new Error("Merchant demo verification was not approved.");
+      router.replace(nextPath);
+    } catch (caught) {
+      setMessage((caught as Error).message);
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function launchMerchantDemo() {
+    setPending(true);
+    setMessage("");
+    try {
+      await authService.merchantDemo();
+      const result = await backendService.demoPasskeyVerify();
+      if (!result.verified) throw new Error("Merchant demo verification was not approved.");
+      router.replace(nextPath);
     } catch (caught) {
       setMessage((caught as Error).message);
     } finally {
@@ -217,6 +245,9 @@ export function MerchantLogin({
               <button type="button" disabled={pending} onClick={() => void enrollFirstPasskey()} className="mt-7 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-medium text-white shadow-soft disabled:opacity-60">
                 {pending ? <Loader2 className="size-4 animate-spin" /> : <Fingerprint className="size-4" />} Set up passkey
               </button>
+              <button type="button" disabled={pending} onClick={() => void continueWithDemoPasskey()} className="mt-3 flex h-10 w-full items-center justify-center rounded-xl border border-warning/40 bg-warning-soft text-xs font-medium text-warning-ink disabled:opacity-60">
+                Continue without passkey (merchant demo)
+              </button>
               {message ? <p role="alert" className="mt-3 text-xs leading-5 text-danger">{message}</p> : null}
             </div>
           ) : pendingPasskey ? (
@@ -226,6 +257,9 @@ export function MerchantLogin({
               <p className="mt-3 text-sm leading-6 text-subtle">A passkey verification is required before entering Merchant OS. Your device may use biometrics, a PIN, or another local verifier.</p>
               <button type="button" disabled={pending} onClick={() => void authenticateForAccess()} className="mt-7 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-medium text-white shadow-soft disabled:opacity-60">
                 {pending ? <Loader2 className="size-4 animate-spin" /> : <Fingerprint className="size-4" />} Continue with passkey
+              </button>
+              <button type="button" disabled={pending} onClick={() => void continueWithDemoPasskey()} className="mt-3 flex h-10 w-full items-center justify-center rounded-xl border border-warning/40 bg-warning-soft text-xs font-medium text-warning-ink disabled:opacity-60">
+                Continue without passkey (merchant demo)
               </button>
               <button type="button" disabled={pending} onClick={() => void switchAccount()} className="mt-3 flex h-10 w-full items-center justify-center rounded-xl border border-line text-xs font-medium text-subtle disabled:opacity-60">
                 Use another account
@@ -255,6 +289,9 @@ export function MerchantLogin({
                 <label className="block"><span className="text-xs font-medium">Password</span><span className="relative mt-2 block"><input name="password" type={showPassword ? "text" : "password"} required minLength={8} autoComplete={mode === "signin" ? "current-password" : "new-password"} className="h-11 w-full rounded-xl border border-line bg-white px-3.5 pr-11 text-sm outline-none transition focus:border-primary focus:ring-3 focus:ring-primary/10" /><button type="button" onClick={() => setShowPassword((value) => !value)} className="absolute inset-y-0 right-0 grid w-11 place-items-center text-muted hover:text-ink" aria-label={showPassword ? "Hide password" : "Show password"}>{showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</button></span></label>
                 {message ? <p role="alert" className="rounded-xl border border-danger/20 bg-danger-soft px-3.5 py-3 text-xs leading-5 text-danger">{message}</p> : null}
                 <button type="submit" disabled={pending} className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-medium text-white shadow-soft transition hover:bg-primary-hover disabled:opacity-60">{pending ? <Loader2 className="size-4 animate-spin" /> : null}{mode === "signin" ? "Enter Merchant OS" : "Create Merchant account"}<ArrowRight className="size-4" /></button>
+                <button type="button" disabled={pending} onClick={() => void launchMerchantDemo()} className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-warning/40 bg-warning-soft px-4 text-sm font-medium text-warning-ink disabled:opacity-60">
+                  <Sparkles className="size-4" /> Launch merchant demo
+                </button>
               </form>
               <p className="mt-5 text-center text-[11px] leading-5 text-muted">First-time accounts set up a passkey here. Catalog and finance commands are authorized by the Node API.</p>
             </div>

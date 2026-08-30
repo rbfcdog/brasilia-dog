@@ -34,4 +34,15 @@ describe("buyer demo route protection", () => {
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe("https://shop.example.test/merchant/login?next=%2Fmerchant%2Fdashboard");
   });
+
+  it("does not redirect the merchant login page from an unverified stale cookie", () => {
+    const request = new NextRequest("https://shop.example.test/merchant/login", {
+      headers: { Cookie: "vero-auth-access=stale-token" },
+    });
+
+    const response = proxy(request);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
+  });
 });

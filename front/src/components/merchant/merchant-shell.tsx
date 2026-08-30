@@ -63,7 +63,6 @@ function MerchantSidebar({
     await authService.signOut();
     close?.();
     router.replace("/merchant/login");
-    router.refresh();
   }
 
   return (

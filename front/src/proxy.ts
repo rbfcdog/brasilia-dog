@@ -24,10 +24,6 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(login);
   }
 
-  if (merchantLogin && merchantAuthenticated) {
-    return NextResponse.redirect(new URL("/merchant/dashboard", request.url));
-  }
-
   return NextResponse.next();
 }
 

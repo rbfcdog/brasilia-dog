@@ -159,4 +159,42 @@ describe("passkey BFF session continuity", () => {
     const init = mocks.fetch.mock.calls[0]?.[1] as RequestInit;
     expect((init.headers as Headers).get("authorization")).toBe("Bearer browser-passkey-session");
   });
+
+  it("uses the account JWT for passkey status when a buyer demo cookie also exists", async () => {
+    process.env.BACKEND_API_URL = "https://api.example.test";
+    mocks.cookies.set("vero-auth-access", "account-token");
+    mocks.cookies.set("vero-passkey-session", "buyer-demo-session");
+    mocks.fetch.mockResolvedValue(new Response(JSON.stringify({ registered: false, credentialCount: 0 }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }));
+    vi.stubGlobal("fetch", mocks.fetch);
+
+    const response = await GET(new Request("https://shop.example.test/api/backend/v1/passkeys/status"), {
+      params: Promise.resolve({ path: ["v1", "passkeys", "status"] }),
+    });
+
+    expect(response.status).toBe(200);
+    const init = mocks.fetch.mock.calls[0]?.[1] as RequestInit;
+    expect((init.headers as Headers).get("authorization")).toBe("Bearer account-token");
+  });
+
+  it("uses the account JWT for merchant commands when a buyer demo cookie also exists", async () => {
+    process.env.BACKEND_API_URL = "https://api.example.test";
+    mocks.cookies.set("vero-auth-access", "merchant-account-token");
+    mocks.cookies.set("vero-passkey-session", "buyer-demo-session");
+    mocks.fetch.mockResolvedValue(new Response(JSON.stringify({ user: {}, profile: {} }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }));
+    vi.stubGlobal("fetch", mocks.fetch);
+
+    const response = await GET(new Request("https://shop.example.test/api/backend/v1/merchant/session"), {
+      params: Promise.resolve({ path: ["v1", "merchant", "session"] }),
+    });
+
+    expect(response.status).toBe(200);
+    const init = mocks.fetch.mock.calls[0]?.[1] as RequestInit;
+    expect((init.headers as Headers).get("authorization")).toBe("Bearer merchant-account-token");
+  });
 });

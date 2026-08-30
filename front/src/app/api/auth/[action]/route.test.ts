@@ -95,4 +95,28 @@ describe("authentication BFF", () => {
     expect(fetchMock.mock.calls[1]?.[1]).toEqual(expect.objectContaining({ method: "POST", body }));
     expect(cookieMocks.set).toHaveBeenCalledWith("vero-auth-access", "access-secret", expect.objectContaining({ httpOnly: true }));
   });
+
+  it("starts the merchant demo without exposing its server-side credentials", async () => {
+    process.env.BACKEND_API_URL = "https://api.example.test";
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      session: {
+        user: { id: "merchant-1", email: "merchant@example.com" },
+        accessToken: "merchant-access-secret",
+        refreshToken: "merchant-refresh-secret",
+      },
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await POST(new Request("http://localhost/api/auth/merchant-demo", {
+      method: "POST",
+    }), { params: Promise.resolve({ action: "merchant-demo" }) });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      user: { id: "merchant-1", email: "merchant@example.com" },
+      demo: true,
+    });
+    expect(fetchMock.mock.calls[0]?.[0].toString()).toBe("https://api.example.test/v1/auth/sign-in");
+    expect(cookieMocks.set).toHaveBeenCalledWith("vero-auth-access", "merchant-access-secret", expect.objectContaining({ httpOnly: true }));
+  });
 });

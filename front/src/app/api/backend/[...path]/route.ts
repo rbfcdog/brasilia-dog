@@ -67,9 +67,12 @@ function backendUrl(pathname: string, search: string): URL | null {
   return baseUrl;
 }
 
-async function ensureFreshAccessToken(cookieStore: Awaited<ReturnType<typeof cookies>>): Promise<string | null> {
+async function ensureFreshAccessToken(
+  cookieStore: Awaited<ReturnType<typeof cookies>>,
+  forceRefresh = false,
+): Promise<string | null> {
   const accessToken = cookieStore.get("vero-auth-access")?.value;
-  if (accessToken) {
+  if (accessToken && !forceRefresh) {
     // Verify it works by checking if it's likely still valid (has JWT structure and not expired)
     try {
       const payload = JSON.parse(atob(accessToken.split(".")[1] ?? ""));
@@ -123,10 +126,18 @@ async function requestHeaders(request: Request, pathname: string): Promise<Heade
   const cookieStore = await cookies();
   const passkeyRoute = /^\/passkey\/(?:register|auth|demo)\//.test(pathname);
   const chatRoute = pathname === "/v1/chat" || pathname === "/v1/conversations" || /^\/v1\/conversations\//.test(pathname);
+  const accountRoute = pathname === "/v1/passkeys/status" || pathname.startsWith("/v1/merchant/");
 
   // Chat and conversation routes: prefer Supabase account token, fall back to
   // passkey session. The BFF is the sole authority for auth headers.
-  if (chatRoute) {
+  if (accountRoute) {
+    // Merchant and account-passkey routes must never inherit a buyer demo
+    // passkey. They require the Supabase account JWT even when both cookies are
+    // present in the same browser.
+    headers.delete("authorization");
+    const accessToken = await ensureFreshAccessToken(cookieStore);
+    if (accessToken) headers.set("authorization", `Bearer ${accessToken}`);
+  } else if (chatRoute) {
     const accessToken = await ensureFreshAccessToken(cookieStore);
     if (!headers.has("authorization") && accessToken) {
       headers.set("authorization", `Bearer ${accessToken}`);
@@ -170,6 +181,7 @@ async function proxy(request: Request, context: RouteContext): Promise<Response>
   const { path } = await context.params;
   const pathname = `/${path.map(encodeURIComponent).join("/")}`;
   const chatRoute = pathname === "/v1/chat" || pathname === "/v1/conversations" || /^\/v1\/conversations\//.test(pathname);
+  const accountRoute = pathname === "/v1/passkeys/status" || pathname.startsWith("/v1/merchant/");
 
   if (!isAllowedPath(pathname)) {
     return NextResponse.json({ error: "backend_path_not_allowed" }, { status: 404 });
@@ -200,10 +212,10 @@ async function proxy(request: Request, context: RouteContext): Promise<Response>
       cache: "no-store",
     });
 
-    // If chat route returns 401, try refreshing the token and retry once
-    if (upstream.status === 401 && chatRoute) {
+    // Account-backed routes get one forced refresh after a rejected JWT.
+    if (upstream.status === 401 && (chatRoute || accountRoute)) {
       const cookieStore = await cookies();
-      const freshToken = await ensureFreshAccessToken(cookieStore);
+      const freshToken = await ensureFreshAccessToken(cookieStore, true);
       if (freshToken) {
         headers.set("authorization", `Bearer ${freshToken}`);
         upstream = await fetch(target, {
