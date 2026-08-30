@@ -224,7 +224,12 @@ export function useAIShopping() {
       const approval = await passkeyBiometricProvider.approve(state.mandate, mode);
       if (!approval.approved) throw new Error("Fresh passkey verification is required.");
       const message = createMessage("assistant", "Mandate approved. The durable agent run is monitoring the authoritative marketplace.");
-      await persistMessage(conversationIdRef, message);
+      try {
+        await persistMessage(conversationIdRef, message);
+      } catch (error) {
+        console.error("Conversation approval message persistence failed.", error);
+        dispatch({ type: "SET_STORAGE", storage: "unavailable" });
+      }
       dispatch({ type: "SEARCHING", message });
       const goal = [...state.messages].reverse().find((item) => item.role === "user")?.content ?? state.mandate.scope;
       const started = await shoppingService.startRun(goal, state.mandate, conversationIdRef.current ?? undefined);
