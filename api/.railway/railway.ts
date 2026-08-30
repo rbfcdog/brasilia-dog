@@ -2,7 +2,7 @@ import { defineRailway, github, preserve, project, service } from "railway/iac";
 
 export default defineRailway(() => {
   const api = service("api", {
-    source: github("rbfcdog/brasilia-dog", {
+    source: github("hackers-brasilia-dog/brasilia-dog", {
       rootDirectory: "api",
     }),
     healthcheck: "/health",
@@ -26,7 +26,7 @@ export default defineRailway(() => {
   });
 
   const agent = service("agent", {
-    source: github("rbfcdog/brasilia-dog", {
+    source: github("hackers-brasilia-dog/brasilia-dog", {
       rootDirectory: "agent",
     }),
     healthcheck: "/health",
