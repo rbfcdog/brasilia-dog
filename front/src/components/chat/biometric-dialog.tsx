@@ -1,8 +1,9 @@
 "use client";
 
 import * as Dialog from "@radix-ui/react-dialog";
-import { Fingerprint, LockKeyhole, ShieldCheck, X } from "lucide-react";
+import { Fingerprint, LockKeyhole, ShieldCheck, Sparkles, X } from "lucide-react";
 import { useState } from "react";
+import type { BiometricApprovalMode } from "@/types/shopping";
 
 export function BiometricDialog({
   open,
@@ -11,21 +12,23 @@ export function BiometricDialog({
 }: {
   open: boolean;
   onCancel: () => void;
-  onConfirm: () => Promise<void>;
+  onConfirm: (mode: BiometricApprovalMode) => Promise<void>;
 }) {
-  const [confirming, setConfirming] = useState(false);
+  const [confirming, setConfirming] = useState<BiometricApprovalMode | null>(null);
 
-  async function confirm() {
-    setConfirming(true);
+  async function confirm(mode: BiometricApprovalMode) {
+    setConfirming(mode);
     try {
-      await onConfirm();
+      await onConfirm(mode);
     } finally {
-      setConfirming(false);
+      setConfirming(null);
     }
   }
 
+  const busy = confirming !== null;
+
   return (
-    <Dialog.Root open={open} onOpenChange={(nextOpen) => !nextOpen && !confirming && onCancel()}>
+    <Dialog.Root open={open} onOpenChange={(nextOpen) => !nextOpen && !busy && onCancel()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-ink/45 backdrop-blur-sm data-[state=open]:animate-fade-in" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-white/10 bg-ink p-6 text-white shadow-2xl focus:outline-none data-[state=open]:animate-dialog-in">
@@ -34,14 +37,14 @@ export function BiometricDialog({
             Confirm this mandate with your device passkey. The browser performs verification locally; biometric data never leaves your device.
           </Dialog.Description>
           <Dialog.Close asChild>
-            <button disabled={confirming} className="absolute right-4 top-4 grid size-9 place-items-center rounded-lg text-white/60 hover:bg-white/10 hover:text-white" aria-label="Close approval dialog">
+            <button disabled={busy} className="absolute right-4 top-4 grid size-9 place-items-center rounded-lg text-white/60 hover:bg-white/10 hover:text-white" aria-label="Close approval dialog">
               <X className="size-4" />
             </button>
           </Dialog.Close>
 
           <div className="my-7 grid place-items-center">
             <div className="relative grid size-24 place-items-center rounded-full border border-primary/50 bg-primary/10 text-primary-light">
-              {confirming ? <span className="absolute inset-2 animate-ping rounded-full border border-primary/30 motion-reduce:animate-none" /> : null}
+              {busy ? <span className="absolute inset-2 animate-ping rounded-full border border-primary/30 motion-reduce:animate-none" /> : null}
               <Fingerprint className="size-11" strokeWidth={1.3} />
             </div>
           </div>
@@ -52,13 +55,22 @@ export function BiometricDialog({
           </div>
 
           <button
-            onClick={confirm}
-            disabled={confirming}
+            onClick={() => void confirm("passkey")}
+            disabled={busy}
             className="mt-5 flex h-12 w-full items-center justify-center rounded-xl bg-success px-5 font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-success-ink transition hover:bg-success/90 disabled:cursor-wait"
           >
-            {confirming ? "Verifying identity…" : "Confirm with passkey"}
+            {confirming === "passkey" ? "Verifying identity…" : "Confirm with passkey"}
           </button>
-          <button onClick={onCancel} disabled={confirming} className="mt-2 h-10 w-full text-xs text-white/55 hover:text-white">
+          <button
+            onClick={() => void confirm("demo")}
+            disabled={busy}
+            className="mt-2 flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.04] px-5 font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-white/75 transition hover:bg-white/10 disabled:cursor-wait"
+          >
+            <Sparkles className="size-4" aria-hidden="true" />
+            {confirming === "demo" ? "Verifying demo identity…" : "Confirm with demo passkey"}
+          </button>
+          <p className="mt-2 text-center text-[11px] text-white/40">The demo passkey verifies a sandbox identity without WebAuthn.</p>
+          <button onClick={onCancel} disabled={busy} className="mt-2 h-10 w-full text-xs text-white/55 hover:text-white">
             Cancel
           </button>
         </Dialog.Content>

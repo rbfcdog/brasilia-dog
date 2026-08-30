@@ -4,7 +4,7 @@ import { useCallback, useEffect, useReducer, useRef } from "react";
 import { passkeyBiometricProvider } from "@/services/biometric-provider";
 import { shoppingService } from "@/services/shopping-service";
 import { backendService } from "@/services/backend-service";
-import type { ChatFlowState, ChatMessage, DiscoveredProduct, Mandate, PublicAgentRun } from "@/types/shopping";
+import type { BiometricApprovalMode, ChatFlowState, ChatMessage, DiscoveredProduct, Mandate, PublicAgentRun } from "@/types/shopping";
 
 export type ConversationStorage = "backend" | "unavailable";
 
@@ -18,6 +18,7 @@ export interface AIShoppingState {
   hydrated: boolean;
   storage: ConversationStorage;
   toast: string | null;
+  approvalIntent: "approve" | "resume" | null;
 }
 
 export type AIShoppingAction =
@@ -27,7 +28,7 @@ export type AIShoppingAction =
   | { type: "MANDATE_READY"; message: ChatMessage; mandate: Mandate }
   | { type: "PRODUCT_RESULTS"; message: ChatMessage; products: DiscoveredProduct[] }
   | { type: "UPDATE_MANDATE"; mandate: Mandate }
-  | { type: "REQUEST_APPROVAL" }
+  | { type: "REQUEST_APPROVAL"; intent: "approve" | "resume" }
   | { type: "CANCEL_APPROVAL" }
   | { type: "SEARCHING"; message: ChatMessage }
   | { type: "RUN_UPDATED"; run: PublicAgentRun }
@@ -35,10 +36,9 @@ export type AIShoppingAction =
   | { type: "SET_STORAGE"; storage: ConversationStorage }
   | { type: "DISMISS_TOAST" }
   | { type: "RESET" };
-
 export const initialAIShoppingState: AIShoppingState = {
   status: "idle", messages: [], mandate: null, run: null, discoveredProducts: [], error: null,
-  hydrated: false, storage: "unavailable", toast: null,
+  hydrated: false, storage: "unavailable", toast: null, approvalIntent: null,
 };
 
 function resultMessage(run: PublicAgentRun): string {
@@ -54,7 +54,7 @@ export function aiShoppingReducer(state: AIShoppingState, action: AIShoppingActi
     case "PRODUCT_RESULTS": return { ...state, status: "clarification", messages: [...state.messages, action.message], discoveredProducts: action.products };
     case "MANDATE_READY": return { ...state, status: "mandate_ready", messages: [...state.messages, action.message], mandate: action.mandate };
     case "UPDATE_MANDATE": return state.status === "mandate_ready" ? { ...state, mandate: action.mandate } : state;
-    case "REQUEST_APPROVAL": return { ...state, status: "biometric_confirmation" };
+    case "REQUEST_APPROVAL": return { ...state, status: "biometric_confirmation", approvalIntent: action.intent };
     case "CANCEL_APPROVAL": return { ...state, status: state.run?.status === "waiting_for_extension" ? "waiting_for_extension" : "mandate_ready" };
     case "SEARCHING": return { ...state, status: "searching", messages: [...state.messages, action.message] };
     case "RUN_UPDATED": {
@@ -196,12 +196,32 @@ export function useAIShopping() {
     }
   }, [state.status]);
 
-  const requestApproval = useCallback(() => { if (state.mandate) dispatch({ type: "REQUEST_APPROVAL" }); }, [state.mandate]);
+  const requestApproval = useCallback(() => {
+    if (state.mandate) dispatch({ type: "REQUEST_APPROVAL", intent: "approve" });
+  }, [state.mandate]);
 
-  const confirmApproval = useCallback(async () => {
-if (!state.mandate) return;
+  const requestResume = useCallback(() => {
+    if (state.run?.status === "waiting_for_extension" && state.mandate) {
+      dispatch({ type: "REQUEST_APPROVAL", intent: "resume" });
+    }
+  }, [state.mandate, state.run]);
+
+  const confirmApproval = useCallback(async (mode: BiometricApprovalMode = "passkey") => {
+    if (!state.mandate) return;
+    if (state.approvalIntent === "resume") {
+      if (!state.run || state.run.status !== "waiting_for_extension") return;
+      try {
+        const approval = await passkeyBiometricProvider.approve(state.mandate, mode);
+        if (!approval.approved) throw new Error("Fresh passkey verification is required to extend the mandate.");
+        await shoppingService.resumeRun(state.run.runId);
+        await poll(state.run.runId);
+      } catch (error) {
+        dispatch({ type: "ERROR", message: error instanceof Error ? error.message : "The mandate could not be extended." });
+      }
+      return;
+    }
     try {
-      const approval = await passkeyBiometricProvider.approve(state.mandate);
+      const approval = await passkeyBiometricProvider.approve(state.mandate, mode);
       if (!approval.approved) throw new Error("Fresh passkey verification is required.");
       const message = createMessage("assistant", "Mandate approved. The durable agent run is monitoring the authoritative marketplace.");
       await persistMessage(conversationIdRef, message);
@@ -212,25 +232,13 @@ if (!state.mandate) return;
     } catch (error) {
       dispatch({ type: "ERROR", message: error instanceof Error ? error.message : "Approval could not be completed." });
     }
-  }, [poll, state.mandate, state.messages]);
-
-  const resume = useCallback(async () => {
-    if (!state.run || state.run.status !== "waiting_for_extension" || !state.mandate) return;
-    try {
-      const approval = await passkeyBiometricProvider.approve(state.mandate);
-      if (!approval.approved) throw new Error("Fresh passkey verification is required to extend the mandate.");
-      await shoppingService.resumeRun(state.run.runId);
-      await poll(state.run.runId);
-    } catch (error) {
-      dispatch({ type: "ERROR", message: error instanceof Error ? error.message : "The mandate could not be extended." });
-    }
-  }, [poll, state.mandate, state.run]);
+  }, [poll, state.approvalIntent, state.mandate, state.messages, state.run]);
 
   return {
     state, sendMessage, requestApproval,
     updateMandate: (mandate: Mandate) => dispatch({ type: "UPDATE_MANDATE", mandate }),
     cancelApproval: () => dispatch({ type: "CANCEL_APPROVAL" }),
-    confirmApproval, resume, reset,
+    confirmApproval, requestResume, reset,
     dismissToast: () => dispatch({ type: "DISMISS_TOAST" }),
   };
 }

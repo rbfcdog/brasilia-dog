@@ -47,7 +47,7 @@ export function ChatExperience() {
     cancelApproval,
     reset,
     dismissToast,
-    resume,
+    requestResume,
   } = useAIShopping();
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -154,7 +154,7 @@ export function ChatExperience() {
               {state.status === "analyzing" || state.status === "searching" || state.status === "waiting_for_extension" ? <AgentActivity status={state.status} run={state.run} /> : null}
 
               {state.mandate ? (
-                <MandateCard mandate={state.mandate} status={state.status} onApprove={requestApproval} onUpdate={updateMandate} onResume={() => void resume()} />
+                <MandateCard mandate={state.mandate} status={state.status} onApprove={requestApproval} onUpdate={updateMandate} onResume={requestResume} />
               ) : null}
 
               {state.discoveredProducts.length > 0 ? <ProductDiscovery products={state.discoveredProducts} /> : null}

@@ -82,7 +82,7 @@ onClick={status === "waiting_for_extension" ? onResume : onApprove}
           <Fingerprint className="size-4" aria-hidden="true" />
           {status === "waiting_for_extension" ? "Extend mandate for 60 seconds" : buttonLabel}
         </button>
-        <p className="mt-3 text-center text-[11px] text-muted">Approval requires a fresh device passkey verification. Payment remains subject to backend authorization.</p>
+        <p className="mt-3 text-center text-[11px] text-muted">Approve with a fresh device passkey or the demo passkey. Payment remains subject to backend authorization.</p>
       </div>
     </article>
   );

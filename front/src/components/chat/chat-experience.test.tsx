@@ -5,7 +5,7 @@ import type { AIShoppingState } from "@/hooks/use-ai-shopping";
 
 const mocks = vi.hoisted(() => ({
   requestApproval: vi.fn(),
-  resume: vi.fn(),
+  requestResume: vi.fn(),
   state: null as AIShoppingState | null,
 }));
 
@@ -19,7 +19,7 @@ vi.mock("@/hooks/use-ai-shopping", () => ({
     cancelApproval: vi.fn(),
     reset: vi.fn(),
     dismissToast: vi.fn(),
-    resume: mocks.resume,
+    requestResume: mocks.requestResume,
   }),
 }));
 
@@ -51,6 +51,7 @@ const baseState: AIShoppingState = {
   hydrated: true,
   storage: "backend",
   toast: null,
+  approvalIntent: null,
 };
 
 describe("real agent-run presentation", () => {

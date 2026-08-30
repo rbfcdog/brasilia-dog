@@ -160,12 +160,14 @@ export interface ApiFailure {
 
 export type ApiEnvelope<T> = ApiSuccess<T> | ApiFailure;
 
+export type BiometricApprovalMode = "passkey" | "demo";
+
 export interface BiometricApprovalResult {
   approved: boolean;
-  method: "passkey";
+  method: BiometricApprovalMode;
   approvedAt: string;
 }
 
 export interface BiometricApprovalProvider {
-  approve(mandate: Mandate): Promise<BiometricApprovalResult>;
+  approve(mandate: Mandate, mode?: BiometricApprovalMode): Promise<BiometricApprovalResult>;
 }
