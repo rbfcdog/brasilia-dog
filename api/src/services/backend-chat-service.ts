@@ -106,20 +106,30 @@ export class BackendChatService {
       content: envelope.data.message,
       createdAt: assistantCreatedAt,
     });
-    await this.conversations.appendEvent({
-      conversationId: conversation.id,
-      ownerId: userId,
-      type: 'agent_response',
-      payload: envelope.data,
-      createdAt: assistantCreatedAt,
-    });
-    if (envelope.data.kind === 'mandate' && isRecord(envelope.data.mandate)) {
+    try {
       await this.conversations.appendEvent({
         conversationId: conversation.id,
         ownerId: userId,
-        type: 'mandate_proposed',
-        payload: envelope.data.mandate,
+        type: 'agent_response',
+        payload: envelope.data,
         createdAt: assistantCreatedAt,
+      });
+      if (envelope.data.kind === 'mandate' && isRecord(envelope.data.mandate)) {
+        await this.conversations.appendEvent({
+          conversationId: conversation.id,
+          ownerId: userId,
+          type: 'mandate_proposed',
+          payload: envelope.data.mandate,
+          createdAt: assistantCreatedAt,
+        });
+      }
+    } catch (error) {
+      // Event storage must not turn a valid chat response into a user-visible
+      // failure. The assistant message is already committed; log the retry
+      // signal while the event writer/migration is unavailable.
+      console.error('Conversation event persistence failed.', {
+        conversationId: conversation.id,
+        error: error instanceof Error ? error.message : String(error),
       });
     }
 
