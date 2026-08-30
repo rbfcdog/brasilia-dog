@@ -136,6 +136,22 @@ test('persists and returns an owner-scoped conversation transcript', async () =>
   assert.deepEqual((await listed.json()).conversations, [conversation]);
 });
 
+test('lists passkey-owned conversations when the agent service token is configured', async () => {
+  const repository = new MockConversationRepository();
+  await repository.createConversation('user-1');
+  const app = createApp({
+    paidHandler,
+    sessionService: testSessionService,
+    conversationRepository: repository as unknown as ConversationRepository,
+    agentServiceToken: 'agent-service-token-12345',
+  });
+
+  const response = await app(authenticatedRequest('session-user-1', 'http://localhost/v1/conversations'));
+
+  assert.equal(response.status, 200);
+  assert.equal((await response.json() as { conversations: Conversation[] }).conversations[0]?.ownerId, 'user-1');
+});
+
 test('persists immutable owner-scoped agent interaction evidence', async () => {
   const repository = new MockConversationRepository();
   const conversation = await repository.createConversation('user-1');

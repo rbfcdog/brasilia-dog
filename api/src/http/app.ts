@@ -1112,28 +1112,6 @@ export function createApp({
       }
     }
 
-    // Agent-accessible conversation list route. Authenticated by AGENT_SERVICE_TOKEN bearer.
-    if (
-      conversationRepository &&
-      agentServiceToken &&
-      request.method === 'GET' &&
-      pathname === '/v1/conversations'
-    ) {
-      const authorization = request.headers.get('authorization');
-      const match = authorization?.match(/^Bearer (.+)$/);
-      if (!match || match[1] !== agentServiceToken) {
-        return json({ error: 'agent_authentication_required' }, 401);
-      }
-      const userId = new URL(request.url).searchParams.get('userId');
-      if (!userId) {
-        return json({ error: 'userId query parameter is required' }, 400);
-      }
-      try {
-        return json({ conversations: await conversationRepository.listConversations(userId) });
-      } catch {
-        return json({ error: 'conversation_list_failed' }, 500);
-      }
-    }
 
     // Conversation routes. Authenticated owners see their conversations;
     // anonymous users share the 'anon' owner so every chat is persisted.
