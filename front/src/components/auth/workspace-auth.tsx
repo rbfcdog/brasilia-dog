@@ -113,6 +113,21 @@ export function WorkspaceAuth() {
     }
   }
 
+  async function continueInDemoMode() {
+    setPending(true);
+    setMessage("Creating a temporary demo passkey.");
+    try {
+      const result = await backendService.demoPasskeyVerify();
+      if (!result.verified || !result.demo) throw new Error("Demo passkey was not verified.");
+      router.push(pendingEnrollment?.destination ?? destination);
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Demo passkey is unavailable.");
+    } finally {
+      setPending(false);
+    }
+  }
+
   async function authenticateForAccess() {
     if (!pendingPasskey) return;
     setPending(true);
@@ -208,6 +223,9 @@ export function WorkspaceAuth() {
           <p className="mt-1 text-xs leading-5 text-white/60">One-time account setup. Your device may use biometrics, a PIN, or another local verifier. Vero never receives biometric data.</p>
           <button type="button" disabled={pending} onClick={() => void registerFirstPasskey()} className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-white text-sm font-medium text-ink disabled:opacity-60">
             {pending ? <Loader2 className="size-4 animate-spin" /> : <Fingerprint className="size-4" />} Set up passkey
+          </button>
+          <button type="button" disabled={pending} onClick={() => void continueInDemoMode()} className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-xl border border-warning/40 text-xs font-medium text-warning disabled:opacity-60">
+            {pending ? <Loader2 className="size-4 animate-spin" /> : null} Continue without passkey (demo)
           </button>
           {message ? <p role="alert" className="mt-3 text-xs leading-5 text-danger">{message}</p> : null}
           <section className="mt-4 rounded-xl border border-white/15 bg-white p-4 text-ink" aria-labelledby="passkey-qr-heading">

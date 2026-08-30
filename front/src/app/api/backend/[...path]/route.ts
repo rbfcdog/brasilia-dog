@@ -26,7 +26,7 @@ function isAllowedPath(pathname: string): boolean {
   return (
     pathname === "/health" ||
     pathname === "/openapi.json" ||
-    /^\/passkey\/(?:register|auth)\/(?:options|verify)$/.test(pathname) ||
+    /^\/passkey\/(?:register|auth|demo)\/(?:options|verify)$/.test(pathname) ||
     /^\/passkey\/session\/(?:verify|revoke)$/.test(pathname) ||
     pathname === "/v1/passkeys/status" ||
     pathname === "/v1/chat" ||
@@ -121,7 +121,7 @@ async function requestHeaders(request: Request, pathname: string): Promise<Heade
     if (value) headers.set(name, value);
   }
   const cookieStore = await cookies();
-  const passkeyRoute = /^\/passkey\/(?:register|auth)\//.test(pathname);
+  const passkeyRoute = /^\/passkey\/(?:register|auth|demo)\//.test(pathname);
   const chatRoute = pathname === "/v1/chat" || pathname === "/v1/conversations" || /^\/v1\/conversations\//.test(pathname);
 
   // Chat and conversation routes: prefer Supabase account token, fall back to
@@ -231,7 +231,7 @@ async function proxy(request: Request, context: RouteContext): Promise<Response>
     if (upstream.ok && /^\/passkey\/(?:register|auth)\/verify$/.test(pathname)) {
       response.headers.append("Set-Cookie", "vero-passkey-enrollment=; Max-Age=0; Path=/api/backend/passkey; HttpOnly; SameSite=Strict");
     }
-    if (upstream.ok && pathname === "/passkey/auth/verify") {
+    if (upstream.ok && (pathname === "/passkey/auth/verify" || pathname === "/passkey/demo/verify")) {
       const payload = JSON.parse(new TextDecoder().decode(responseBody)) as { sessionToken?: unknown };
       if (typeof payload.sessionToken === "string" && payload.sessionToken.length > 0) {
         const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";

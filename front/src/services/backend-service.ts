@@ -133,6 +133,12 @@ export const backendService = {
       body: JSON.stringify({ response }),
     });
   },
+  demoPasskeyVerify(): Promise<PasskeyVerificationResult & { demo: true }> {
+    return apiFetch<PasskeyVerificationResult & { demo: true }>(backendPath("/passkey/demo/verify"), {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+  },
 
   verifyPasskeySession(sessionToken: string): Promise<VerifiedPasskeySession> {
     return apiFetch<VerifiedPasskeySession>(backendPath("/passkey/session/verify"), {

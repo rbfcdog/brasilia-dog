@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 
 import type {
   AppHandler,
@@ -529,9 +529,8 @@ interface AppDeps {
   sellerAgentVerificationService?: SellerAgentVerificationService | null;
   sellerQuoteRepository?: SellerQuoteRepository | null;
   sessionService?: SessionService | null;
+  demoPasskeyEnabled?: boolean;
   agentServiceToken?: string | null;
-  merchantService?: MerchantService | null;
-  authenticateSupabaseUser?: ((accessToken: string) => Promise<{ id: string; email?: string } | null>) | null;
   userAuthService?: UserAuthService | null;
   passkeyEnrollmentService?: PasskeyEnrollmentService | null;
   marketplaceAuthorityService?: MarketplaceAuthorityService | null;
@@ -555,6 +554,7 @@ export function createApp({
   sellerAgentVerificationService = null,
   sellerQuoteRepository = null,
   sessionService = null,
+  demoPasskeyEnabled = false,
   agentServiceToken = null,
   merchantService = null,
   authenticateSupabaseUser = null,
@@ -706,6 +706,14 @@ export function createApp({
       }
     }
 
+    if (sessionService && demoPasskeyEnabled && request.method === 'POST' && pathname === '/passkey/demo/verify') {
+      const accessToken = request.headers.get('authorization')?.match(/^Bearer (.+)$/)?.[1];
+      const user = accessToken && authenticateSupabaseUser ? await authenticateSupabaseUser(accessToken) : null;
+      if (!user) return json({ error: 'authentication_required' }, 401);
+      const credentialId = `demo-passkey-${randomBytes(24).toString('base64url')}`;
+      const session = await sessionService.createSession(user.id, credentialId);
+      return json({ verified: true, demo: true, credentialId, sessionToken: session.token });
+    }
     // Passkey routes
     if (
       passkeyService &&
