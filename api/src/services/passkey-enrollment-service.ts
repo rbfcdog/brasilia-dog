@@ -18,7 +18,7 @@ export class PasskeyEnrollmentService {
       user_id: userId,
       expires_at: expiresAt,
     });
-    if (error) throw new Error('Could not create passkey enrollment grant. Apply migration 20260830050000_user_bound_passkey_enrollment.sql.');
+    if (error) throw new Error(`Could not create passkey enrollment grant: ${error.message}. Apply migration 20260830050000_user_bound_passkey_enrollment.sql if the table is missing.`);
     return { token, expiresAt };
   }
 
