@@ -39,6 +39,12 @@ export function WorkspaceAuth() {
     ? searchParams.get("next")!
     : destinations[role];
 
+  const enterPasskeyChallenge = useCallback(() => {
+    setMessage(null);
+    setPendingEnrollment(null);
+    setPendingPasskey({ destination });
+  }, [destination]);
+
   const completeAccess = useCallback(async (_user: AuthUser) => {
     try {
       const status = await backendService.passkeyStatus();
@@ -51,8 +57,8 @@ export function WorkspaceAuth() {
       // lookup is unavailable or has a stale cookie, continue to the explicit
       // passkey challenge rather than exposing a raw upstream 401.
     }
-    setPendingPasskey({ destination });
-  }, [destination]);
+    enterPasskeyChallenge();
+  }, [destination, enterPasskeyChallenge]);
 
   useEffect(() => {
     void authService.session()
@@ -197,7 +203,12 @@ export function WorkspaceAuth() {
       if (!data.user) throw new Error("Account creation did not return an active session.");
       await completeAccess(data.user);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Authentication failed.");
+      const message = error instanceof Error ? error.message : "Authentication failed.";
+      if (/authentication_required|authentication required/i.test(message)) {
+        enterPasskeyChallenge();
+      } else {
+        setMessage(message);
+      }
     } finally {
       setPending(false);
     }

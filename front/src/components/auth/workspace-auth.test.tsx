@@ -93,6 +93,20 @@ describe("workspace authentication", () => {
     expect(screen.queryByText("authentication_required")).not.toBeInTheDocument();
   });
 
+  it("offers passkey choices when sign-in reports authentication_required", async () => {
+    mocks.signInWithPassword.mockRejectedValue(new Error("authentication_required"));
+    const user = userEvent.setup();
+    render(<WorkspaceAuth />);
+
+    await user.type(screen.getByRole("textbox", { name: "Email" }), "buyer@example.com");
+    await user.type(screen.getByLabelText("Password"), "password123");
+    await user.click(screen.getByRole("button", { name: "Sign in as buyer" }));
+
+    expect(await screen.findByRole("button", { name: "Continue with passkey" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continue with demo passkey" })).toBeInTheDocument();
+    expect(screen.queryByText("authentication_required")).not.toBeInTheDocument();
+  });
+
   it("requires a fresh explicit sign-in after passkey enrollment", async () => {
     mocks.passkeyStatus.mockResolvedValue({ registered: false, credentialCount: 0 });
     mocks.registerPasskey.mockResolvedValue({ verified: true });
