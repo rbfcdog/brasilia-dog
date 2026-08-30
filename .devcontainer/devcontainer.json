@@ -1,0 +1,48 @@
+{
+  "name": "brasilia-dog",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:22",
+
+  // Injects the repository-root .env into every process in the container.
+  // The agent service reads process.env directly and does not load dotenv,
+  // so this is what makes its configuration resolve.
+  "runArgs": ["--env-file", "${localWorkspaceFolder}/.env"],
+
+  // Runs on the host before the container is created. Without a .env file the
+  // --env-file flag above aborts container creation.
+  "initializeCommand": "cp -n .env.example .env 2>/dev/null || true",
+
+  // Container-owned node_modules. The host installs macOS binaries and this
+  // container is Linux; sharing them breaks Next.js SWC and any native module.
+  "mounts": [
+    "source=brasilia-dog-api-modules,target=${containerWorkspaceFolder}/api/node_modules,type=volume",
+    "source=brasilia-dog-agent-modules,target=${containerWorkspaceFolder}/agent/node_modules,type=volume",
+    "source=brasilia-dog-front-modules,target=${containerWorkspaceFolder}/front/node_modules,type=volume"
+  ],
+
+  "postCreateCommand": "sudo chown -R node:node api/node_modules agent/node_modules front/node_modules && npm --prefix api install && npm --prefix agent install && npm --prefix front install",
+
+  "forwardPorts": [3000, 3001, 3002],
+  "portsAttributes": {
+    "3000": { "label": "api", "onAutoForward": "silent" },
+    "3001": { "label": "agent", "onAutoForward": "silent" },
+    "3002": { "label": "front", "onAutoForward": "openBrowserOnce" }
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "bradlc.vscode-tailwindcss",
+        "GitHub.copilot",
+        "GitHub.copilot-chat",
+        "anthropic.claude-code",
+        "openai.chatgpt"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  },
+
+  "remoteUser": "node"
+}
