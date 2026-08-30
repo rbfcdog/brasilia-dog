@@ -1,6 +1,6 @@
 create table public.conversations (
   id uuid primary key default gen_random_uuid(),
-  owner_id uuid not null references auth.users(id) on delete restrict,
+  owner_id text not null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -27,7 +27,7 @@ alter table public.conversation_messages enable row level security;
 
 create or replace function public.append_conversation_message(
   p_conversation_id uuid,
-  p_owner_id uuid,
+  p_owner_id text,
   p_role text,
   p_content text,
   p_created_at timestamptz
