@@ -177,7 +177,6 @@ export function usePasskey() {
       });
   }, []);
 
-  const registrationKey = (userId: string) => `brasilia-dog.passkey-registered.${userId}`;
 
   const register = useCallback(async (userId: string) => {
     if (!isWebAuthnSupported()) {
@@ -188,10 +187,9 @@ export function usePasskey() {
     try {
       const result = await registerEnrolledPasskey();
       if (result.verified) {
-        window.sessionStorage.setItem(registrationKey(userId), "true");
         setState({
           status: "success",
-          message: "Biometric check succeeded. Click Test biometry again to authenticate.",
+          message: "Passkey registered on this device. Authenticate with it to start a session.",
           sessionToken: null,
           userId,
         });
@@ -237,16 +235,7 @@ export function usePasskey() {
     }
   }, []);
 
-  const test = useCallback(
-    async (userId: string) => {
-      if (window.sessionStorage.getItem(registrationKey(userId)) === "true") {
-        await authenticate(userId);
-        return;
-      }
-      await register(userId);
-    },
-    [authenticate, register],
-  );
+  const test = authenticate;
 
   const signOut = useCallback(() => {
     const token = getPasskeySessionToken();
@@ -257,5 +246,5 @@ export function usePasskey() {
     setState({ status: "idle", message: "Signed out.", sessionToken: null, userId: null });
   }, []);
 
-  return { state, test, signOut, supported: isWebAuthnSupported() };
+  return { state, test, register, authenticate, signOut, supported: isWebAuthnSupported() };
 }

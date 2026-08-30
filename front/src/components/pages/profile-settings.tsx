@@ -25,7 +25,7 @@ type BackendStatus = "checking" | "available" | "unavailable";
 export function ProfileSettings() {
   const [sessionState, setSessionState] = useState<SessionState>({ kind: "checking" });
   const [backendStatus, setBackendStatus] = useState<BackendStatus>("checking");
-  const { state: passkeyState, test, signOut, supported } = usePasskey();
+  const { state: passkeyState, register, authenticate, signOut, supported } = usePasskey();
   const [accountUser, setAccountUser] = useState<{ id: string; email: string } | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -226,15 +226,19 @@ export function ProfileSettings() {
                 <div>
                   <p className="text-sm font-medium">Native WebAuthn biometrics</p>
                   <p className="mt-1 text-xs leading-5 text-subtle">
-                    {!accountUser ? "Sign in first. The passkey will be associated with that user." : supported ? "Create or authenticate a passkey associated with your signed-in account." : "WebAuthn is not supported in this browser."}
+                    {!accountUser ? "Sign in first. Passkeys are associated with that account." : supported ? "Authenticate with any passkey already registered to this account, including one on your phone. Register this device only when you want an additional passkey here." : "WebAuthn is not supported in this browser."}
                   </p>
                 </div>
                 <span className={`rounded-full px-2.5 py-1 font-mono text-[9px] uppercase ${authenticated ? "bg-success/40 text-success-ink" : "bg-canvas text-subtle"}`}>{authenticated ? "Active" : supported ? "Ready" : "N/A"}</span>
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
-                <button type="button" onClick={() => passkeyUserId ? void test(passkeyUserId) : undefined} disabled={!supported || !passkeyUserId || passkeyState.status === "loading"} className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-white px-3 py-1.5 text-xs font-medium text-ink transition hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-50">
+                <button type="button" onClick={() => passkeyUserId ? void authenticate(passkeyUserId) : undefined} disabled={!supported || !passkeyUserId || passkeyState.status === "loading"} className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-3 py-1.5 text-xs font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-50">
                   {passkeyState.status === "loading" ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <Fingerprint className="size-3.5" aria-hidden="true" />}
-                  {passkeyState.status === "loading" ? "Working…" : authenticated ? "Verify passkey" : "Create passkey"}
+                  {passkeyState.status === "loading" ? "Working…" : authenticated ? "Verify passkey" : "Authenticate with passkey"}
+                </button>
+                <button type="button" onClick={() => passkeyUserId ? void register(passkeyUserId) : undefined} disabled={!supported || !passkeyUserId || passkeyState.status === "loading"} className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-white px-3 py-1.5 text-xs font-medium text-ink transition hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-50">
+                  <KeyRound className="size-3.5" aria-hidden="true" />
+                  Register this device
                 </button>
                 {authenticated ? <button type="button" onClick={() => { signOut(); setSessionState({ kind: "signed_out" }); }} className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-white px-3 py-1.5 text-xs font-medium text-muted transition hover:bg-canvas">Sign out passkey</button> : null}
               </div>

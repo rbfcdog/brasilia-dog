@@ -6,13 +6,17 @@ const mocks = vi.hoisted(() => ({
   session: vi.fn(),
   health: vi.fn(),
   fetch: vi.fn(),
+  register: vi.fn(),
+  authenticate: vi.fn(),
 }));
 
 vi.mock("@/components/pages/payment-settings", () => ({ PaymentSettings: () => null }));
 vi.mock("@/hooks/use-passkey", () => ({
   usePasskey: () => ({
     state: { status: "idle", message: null, sessionToken: null, userId: null },
-    test: vi.fn(),
+    test: mocks.authenticate,
+    register: mocks.register,
+    authenticate: mocks.authenticate,
     signOut: vi.fn(),
     supported: true,
   }),
@@ -64,5 +68,18 @@ describe("account-bound passkey enrollment QR", () => {
 
     expect(await screen.findByRole("img", { name: /QR code linking to passkey enrollment/i })).toBeInTheDocument();
     expect(mocks.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("authenticates with the account passkey instead of assuming this notebook must register", async () => {
+    mocks.fetch.mockResolvedValue(new Response(JSON.stringify({
+      enrollmentUrl: "https://shop.example.test/api/passkey/enrollment/claim?token=grant",
+      expiresAt: "2026-08-30T03:00:00.000Z",
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    render(<ProfileSettings />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Authenticate with passkey" }));
+
+    expect(mocks.authenticate).toHaveBeenCalledWith("buyer-1");
+    expect(mocks.register).not.toHaveBeenCalled();
   });
 });
