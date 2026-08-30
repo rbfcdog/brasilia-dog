@@ -106,3 +106,27 @@ test('throws a repository error without leaking query details', async () => {
     /Could not load a product endpoint/,
   );
 });
+
+test('unwraps a JSONB array returned by the ranked catalog RPC', async () => {
+  const entry = {
+    id: 'product-1',
+    slug: 'ultrawide-monitor',
+    name: 'Ultrawide monitor',
+    description: 'A catalog listing.',
+    status: 'published',
+    metadata: { category: 'electronics' },
+    offering: { id: 'offering-1', rail: 'stripe_mpp', amountMinor: 29900, currency: 'usd', scale: 2, networkId: 'profile_test_123', active: true },
+    endpoint: { id: 'endpoint-1', method: 'GET', path: '/v1/products/ultrawide-monitor/mpp', enabled: true },
+  };
+  const repository = new ProductRepository({
+    rpc: async () => ({ data: [[entry]], error: null }),
+  } as unknown as SupabaseClient);
+
+  assert.deepEqual(await repository.searchCatalog({
+    query: 'ultrawide monitor',
+    category: null,
+    maximumAmountMinor: 30_000,
+    slugs: [],
+    limit: 10,
+  }), [entry]);
+});

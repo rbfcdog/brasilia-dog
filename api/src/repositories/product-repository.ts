@@ -96,6 +96,18 @@ function mapCatalogEntry(row: CatalogRow): ProductCatalogEntry {
   };
 }
 
+function rpcCatalogEntries(data: unknown): ProductCatalogEntry[] | null {
+  if (Array.isArray(data)) {
+    if (data.length === 1 && Array.isArray(data[0])) return data[0] as ProductCatalogEntry[];
+    return data as ProductCatalogEntry[];
+  }
+  if (typeof data === 'object' && data !== null) {
+    const values = Object.values(data);
+    if (values.length === 1 && Array.isArray(values[0])) return values[0] as ProductCatalogEntry[];
+  }
+  return null;
+}
+
 export class ProductRepository {
   constructor(private readonly client: SupabaseClient) {}
 
@@ -155,10 +167,11 @@ export class ProductRepository {
       p_limit: input.limit,
     });
 
-    if (error || !Array.isArray(data)) {
+    const entries = rpcCatalogEntries(data);
+    if (error || !entries) {
       throw new Error('Could not search the product catalog.');
     }
 
-    return data as ProductCatalogEntry[];
+    return entries;
   }
 }
