@@ -62,16 +62,9 @@ export function WorkspaceAuth() {
 
   useEffect(() => {
     void authService.session()
-      .then(({ user }) => completeAccess(user))
+      .then(({ user }) => user ? completeAccess(user) : undefined)
       .catch(() => {});
   }, [completeAccess]);
-
-  useEffect(() => {
-    if (!pendingEnrollment || enrollment) return;
-    void backendService.createPasskeyEnrollment()
-      .then(setEnrollment)
-      .catch(() => setMessage("Secure-device enrollment is unavailable right now."));
-  }, [pendingEnrollment, enrollment]);
 
   useEffect(() => {
     if (!enrollment) return;
@@ -135,6 +128,21 @@ export function WorkspaceAuth() {
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Demo passkey is unavailable.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function startBuyerDemo() {
+    setPending(true);
+    setMessage("Opening the buyer demo…");
+    try {
+      const result = await backendService.demoPasskeyVerify();
+      if (!result.verified || !result.demo) throw new Error("Demo passkey was not verified.");
+      router.push("/assistant");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Buyer demo is unavailable.");
     } finally {
       setPending(false);
     }
@@ -248,11 +256,11 @@ export function WorkspaceAuth() {
           <Fingerprint className="size-6 text-success" aria-hidden="true" />
           <p className="mt-3 text-sm font-medium">Set up your device passkey</p>
           <p className="mt-1 text-xs leading-5 text-white/60">One-time account setup. Your device may use biometrics, a PIN, or another local verifier. Vero never receives biometric data.</p>
-          <button type="button" disabled={pending} onClick={() => void registerFirstPasskey()} className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-white text-sm font-medium text-ink disabled:opacity-60">
-            {pending ? <Loader2 className="size-4 animate-spin" /> : <Fingerprint className="size-4" />} Set up passkey
+          <button type="button" disabled={pending} onClick={() => void continueInDemoMode()} className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-white text-sm font-medium text-ink disabled:opacity-60">
+            {pending ? <Loader2 className="size-4 animate-spin" /> : null} Continue with demo passkey
           </button>
-          <button type="button" disabled={pending} onClick={() => void continueInDemoMode()} className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-xl border border-warning/40 text-xs font-medium text-warning disabled:opacity-60">
-            {pending ? <Loader2 className="size-4 animate-spin" /> : null} Continue without passkey (demo)
+          <button type="button" disabled={pending} onClick={() => void registerFirstPasskey()} className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-white/20 text-xs font-medium text-white/80 disabled:opacity-60">
+            <Fingerprint className="size-4" /> Set up a real passkey
           </button>
           {message ? <p role="alert" className="mt-3 text-xs leading-5 text-danger">{message}</p> : null}
           <section className="mt-4 rounded-xl border border-white/15 bg-white p-4 text-ink" aria-labelledby="passkey-qr-heading">
@@ -263,7 +271,7 @@ export function WorkspaceAuth() {
                 <p className="mt-1 text-xs leading-5 text-ink/70">
                   {enrollment
                     ? `Open this QR code on a secure device. It expires at ${new Date(enrollment.expiresAt).toLocaleString()}.`
-                    : "Preparing your passkey enrollment QR code…"}
+                    : "Load a one-time QR code only if you want to test real WebAuthn enrollment."}
                 </p>
               </div>
             </div>
@@ -288,11 +296,11 @@ export function WorkspaceAuth() {
           <Fingerprint className="size-6 text-success" aria-hidden="true" />
           <p className="mt-3 text-sm font-medium">Verify your device passkey</p>
           <p className="mt-1 text-xs leading-5 text-white/60">A passkey verification is required before entering this workspace. Your device may use biometrics, a PIN, or another local verifier.</p>
-          <button type="button" disabled={pending} onClick={() => void authenticateForAccess()} className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-white text-sm font-medium text-ink disabled:opacity-60">
-            {pending ? <Loader2 className="size-4 animate-spin" /> : <Fingerprint className="size-4" />} Continue with passkey
-          </button>
-          <button type="button" disabled={pending} onClick={() => void continueInDemoMode()} className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-xl border border-warning/40 text-xs font-medium text-warning disabled:opacity-60">
+          <button type="button" disabled={pending} onClick={() => void continueInDemoMode()} className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-white text-sm font-medium text-ink disabled:opacity-60">
             {pending ? <Loader2 className="size-4 animate-spin" /> : null} Continue with demo passkey
+          </button>
+          <button type="button" disabled={pending} onClick={() => void authenticateForAccess()} className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-white/20 text-xs font-medium text-white/80 disabled:opacity-60">
+            <Fingerprint className="size-4" /> Continue with a real passkey
           </button>
           <button type="button" disabled={pending} onClick={() => void switchAccount()} className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-xl border border-white/20 text-xs font-medium text-white/80 disabled:opacity-60">
             Use another account
@@ -301,6 +309,10 @@ export function WorkspaceAuth() {
         </div>
       ) : (
         <form onSubmit={submit} className="mt-5 space-y-3 rounded-2xl border border-white/12 bg-white/[0.07] p-4">
+          <button type="button" disabled={pending} onClick={() => void startBuyerDemo()} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-success text-sm font-semibold text-ink disabled:opacity-60">
+            {pending ? <Loader2 className="size-4 animate-spin" /> : <Bot className="size-4" />} Launch buyer demo — no account needed
+          </button>
+          <div className="flex items-center gap-3 py-1 font-mono text-[9px] uppercase tracking-[0.14em] text-white/35"><span className="h-px flex-1 bg-white/10" /> or use an account <span className="h-px flex-1 bg-white/10" /></div>
           <div className="flex gap-2 text-xs">
             <button type="button" onClick={() => setMode("signin")} className={`rounded-lg px-3 py-1.5 ${mode === "signin" ? "bg-white text-ink" : "text-white/60"}`}>Sign in</button>
             <button type="button" onClick={() => setMode("signup")} className={`rounded-lg px-3 py-1.5 ${mode === "signup" ? "bg-white text-ink" : "text-white/60"}`}>Create account</button>

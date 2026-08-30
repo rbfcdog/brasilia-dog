@@ -26,7 +26,7 @@ import type { SellerQuoteRepository } from '../repositories/seller-quote-reposit
 import type { ConversationRepository } from '../repositories/conversation-repository.js';
 import { MerchantCommandError, type MerchantService } from '../services/merchant-service.js';
 import type { UserAuthService } from '../services/user-auth-service.js';
-import type { PasskeyEnrollmentService } from '../services/passkey-enrollment-service.js';
+import type { PasskeyEnrollmentAuthority } from '../services/passkey-enrollment-service.js';
 import { BackendChatError, type BackendChatService } from '../services/backend-chat-service.js';
 import type { MarketplaceAuthorityService } from '../services/marketplace-authority-service.js';
 import { parseMarketplaceScope } from '../services/marketplace-policy.js';
@@ -537,7 +537,7 @@ interface AppDeps {
   demoPasskeyEnabled?: boolean;
   agentServiceToken?: string | null;
   userAuthService?: UserAuthService | null;
-  passkeyEnrollmentService?: PasskeyEnrollmentService | null;
+  passkeyEnrollmentService?: PasskeyEnrollmentAuthority | null;
   marketplaceAuthorityService?: MarketplaceAuthorityService | null;
 }
 

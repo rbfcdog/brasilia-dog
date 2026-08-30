@@ -24,7 +24,7 @@ import { SellerAgentVerificationService } from '../services/seller-agent-verific
 import { createSupabaseClient } from '../integrations/supabase.js';
 import { MerchantService } from '../services/merchant-service.js';
 import { UserAuthService } from '../services/user-auth-service.js';
-import { PasskeyEnrollmentService } from '../services/passkey-enrollment-service.js';
+import { InMemoryPasskeyEnrollmentService, PasskeyEnrollmentService } from '../services/passkey-enrollment-service.js';
 import { BackendChatService } from '../services/backend-chat-service.js';
 import { MarketplaceAuthorityService } from '../services/marketplace-authority-service.js';
 
@@ -49,7 +49,11 @@ const merchantService = supabase && config.supabase
   ? new MerchantService(supabase, config.stripeProfileId, config.supabase)
   : null;
 const userAuthService = supabase ? new UserAuthService(supabase) : null;
-const passkeyEnrollmentService = supabase ? new PasskeyEnrollmentService(supabase) : null;
+const passkeyEnrollmentService = config.mode === 'sandbox'
+  ? new InMemoryPasskeyEnrollmentService()
+  : supabase
+    ? new PasskeyEnrollmentService(supabase)
+    : null;
 const backendChatService = conversationRepository && config.agentServiceUrl && config.agentServiceOutboundToken
   ? new BackendChatService(conversationRepository, config.agentServiceUrl, config.agentServiceOutboundToken)
   : null;
@@ -69,7 +73,13 @@ const passkeyService = new PasskeyService({
   rpName: config.passkey.rpName,
   rpId: config.passkey.rpId,
   origin: config.passkey.origin,
-  store: supabase ? new SupabasePasskeyStore(supabase) : new InMemoryPasskeyStore(),
+  // Sandbox passkeys are deliberately ephemeral. This keeps the public demo
+  // independent of Supabase service-role grants while live mode stays durable.
+  store: config.mode === 'sandbox'
+    ? new InMemoryPasskeyStore()
+    : supabase
+      ? new SupabasePasskeyStore(supabase)
+      : new InMemoryPasskeyStore(),
   sessionService,
 });
 

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { PasskeyEnrollmentService } from '../src/services/passkey-enrollment-service.js';
+import { InMemoryPasskeyEnrollmentService, PasskeyEnrollmentService } from '../src/services/passkey-enrollment-service.js';
 
 function fakeClient() {
   const rows = new Map<string, Record<string, unknown>>();
@@ -46,6 +46,17 @@ function fakeClient() {
 test('enrollment grant is bound to one user and consumed once', async () => {
   const { client } = fakeClient();
   const service = new PasskeyEnrollmentService(client);
+  const grant = await service.create('user-1');
+
+  assert.equal((await service.resolve(grant.token))?.userId, 'user-1');
+  assert.equal(await service.consume(grant.token, 'user-2'), false);
+  assert.equal(await service.consume(grant.token, 'user-1'), true);
+  assert.equal(await service.resolve(grant.token), null);
+  assert.equal(await service.consume(grant.token, 'user-1'), false);
+});
+
+test('sandbox enrollment grant is bound to one user and consumed once in memory', async () => {
+  const service = new InMemoryPasskeyEnrollmentService();
   const grant = await service.create('user-1');
 
   assert.equal((await service.resolve(grant.token))?.userId, 'user-1');

@@ -53,13 +53,21 @@ async function refreshSession(): Promise<{ accessToken: string; payload: unknown
   return { accessToken: session.accessToken, payload };
 }
 
+function signedOutResponse(): Response {
+  return Response.json({ user: null }, { headers: { "Cache-Control": "no-store" } });
+}
+
 export async function GET(_request: Request, context: { params: Promise<{ action: string }> }): Promise<Response> {
   const { action } = await context.params;
   if (action !== "session") return Response.json({ error: "not_found" }, { status: 404 });
   const store = await cookies();
   let accessToken = store.get(ACCESS_COOKIE)?.value;
   if (!accessToken) accessToken = (await refreshSession())?.accessToken;
-  if (!accessToken) return Response.json({ user: null }, { status: 401 });
+  if (!accessToken) {
+    store.delete(ACCESS_COOKIE);
+    store.delete(REFRESH_COOKIE);
+    return signedOutResponse();
+  }
 
   let response = await upstream("v1/auth/session", {
     method: "GET",
@@ -71,6 +79,11 @@ export async function GET(_request: Request, context: { params: Promise<{ action
       method: "GET",
       headers: { Authorization: `Bearer ${refreshed.accessToken}` },
     });
+  }
+  if (response.status === 401) {
+    store.delete(ACCESS_COOKIE);
+    store.delete(REFRESH_COOKIE);
+    return signedOutResponse();
   }
   return new Response(await response.text(), {
     status: response.status,

@@ -52,9 +52,10 @@ describe("workspace authentication", () => {
   beforeEach(() => {
     mocks.search = "";
     mocks.push.mockClear();
-    mocks.session.mockRejectedValue(new Error("signed out"));
+    mocks.session.mockResolvedValue({ user: null });
     mocks.signInWithPassword.mockReset();
     mocks.passkeyStatus.mockResolvedValue({ registered: true, credentialCount: 1 });
+    mocks.demoPasskeyVerify.mockReset();
     mocks.demoPasskeyVerify.mockResolvedValue({ verified: true, demo: true, sessionToken: "demo-session" });
     mocks.registerPasskey.mockReset();
     mocks.authenticatePasskey.mockReset();
@@ -66,6 +67,18 @@ describe("workspace authentication", () => {
     });
     mocks.signUp.mockReset();
   });
+
+  it("opens the buyer demo without requiring an account", async () => {
+    const user = userEvent.setup();
+    render(<WorkspaceAuth />);
+
+    await user.click(screen.getByRole("button", { name: "Launch buyer demo — no account needed" }));
+
+    expect(mocks.demoPasskeyVerify).toHaveBeenCalledOnce();
+    expect(mocks.signInWithPassword).not.toHaveBeenCalled();
+    expect(mocks.push).toHaveBeenCalledWith("/assistant");
+  });
+
   it("requires a passkey before routing a buyer to the assistant", async () => {
     mocks.signInWithPassword.mockResolvedValue({ user: { id: "buyer-1", email: "buyer@example.com" } });
     mocks.authenticatePasskey.mockResolvedValue({ verified: true, sessionToken: "passkey-session" });
@@ -77,7 +90,7 @@ describe("workspace authentication", () => {
     await user.click(screen.getByRole("button", { name: "Sign in as buyer" }));
     expect(mocks.push).not.toHaveBeenCalled();
 
-    await user.click(await screen.findByRole("button", { name: "Continue with passkey" }));
+    await user.click(await screen.findByRole("button", { name: "Continue with a real passkey" }));
     expect(mocks.authenticatePasskey).toHaveBeenCalledOnce();
     expect(mocks.push).toHaveBeenCalledWith("/assistant");
   });
@@ -92,7 +105,7 @@ describe("workspace authentication", () => {
     await user.type(screen.getByLabelText("Password"), "password123");
     await user.click(screen.getByRole("button", { name: "Sign in as buyer" }));
 
-    expect(await screen.findByRole("button", { name: "Continue with passkey" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Continue with a real passkey" })).toBeInTheDocument();
     expect(screen.queryByText("authentication_required")).not.toBeInTheDocument();
   });
 
@@ -105,7 +118,7 @@ describe("workspace authentication", () => {
     await user.type(screen.getByLabelText("Password"), "password123");
     await user.click(screen.getByRole("button", { name: "Sign in as buyer" }));
 
-    expect(await screen.findByRole("button", { name: "Continue with passkey" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Continue with a real passkey" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Continue with demo passkey" })).toBeInTheDocument();
     expect(screen.queryByText("authentication_required")).not.toBeInTheDocument();
   });
@@ -119,7 +132,7 @@ describe("workspace authentication", () => {
     await user.type(screen.getByRole("textbox", { name: "Email" }), "buyer@example.com");
     await user.type(screen.getByLabelText("Password"), "password123");
     await user.click(screen.getByRole("button", { name: "Sign in as buyer" }));
-    await user.click(await screen.findByRole("button", { name: "Continue with passkey" }));
+    await user.click(await screen.findByRole("button", { name: "Continue with a real passkey" }));
 
     expect(mocks.demoPasskeyVerify).toHaveBeenCalledOnce();
     expect(mocks.push).toHaveBeenCalledWith("/assistant");
@@ -136,7 +149,7 @@ describe("workspace authentication", () => {
     await user.type(screen.getByLabelText("Password"), "password123");
     await user.click(screen.getByRole("button", { name: "Sign in as buyer" }));
 
-    await user.click(await screen.findByRole("button", { name: "Set up passkey" }));
+    await user.click(await screen.findByRole("button", { name: "Set up a real passkey" }));
     expect(mocks.registerPasskey).toHaveBeenCalledOnce();
     expect(mocks.signOut).toHaveBeenCalledOnce();
     expect(await screen.findByRole("button", { name: "Sign in as buyer" })).toBeInTheDocument();
@@ -153,7 +166,7 @@ describe("workspace authentication", () => {
     await user.type(screen.getByRole("textbox", { name: "Email" }), "merchant@example.com");
     await user.type(screen.getByLabelText("Password"), "password123");
     await user.click(screen.getByRole("button", { name: "Sign in as merchant" }));
-    await user.click(await screen.findByRole("button", { name: "Continue with passkey" }));
+    await user.click(await screen.findByRole("button", { name: "Continue with a real passkey" }));
 
     expect(mocks.push).toHaveBeenCalledWith("/merchant/dashboard");
   });
@@ -168,7 +181,7 @@ describe("workspace authentication", () => {
     await user.type(screen.getByRole("textbox", { name: "Email" }), "buyer@example.com");
     await user.type(screen.getByLabelText("Password"), "password123");
     await user.click(screen.getByRole("button", { name: "Sign in as buyer" }));
-    await user.click(await screen.findByRole("button", { name: "Continue with passkey" }));
+    await user.click(await screen.findByRole("button", { name: "Continue with a real passkey" }));
 
     expect(mocks.push).toHaveBeenCalledWith("/profile?enroll=passkey");
   });
@@ -217,7 +230,7 @@ describe("workspace authentication", () => {
     await user.type(screen.getByRole("textbox", { name: "CPF" }), "529.982.247-25");
     await user.type(screen.getByLabelText("Password"), "password123");
     await user.click(screen.getByRole("button", { name: "Create buyer account" }));
-    await user.click(await screen.findByRole("button", { name: "Set up passkey" }));
+    await user.click(await screen.findByRole("button", { name: "Set up a real passkey" }));
 
     expect(mocks.registerPasskey).toHaveBeenCalledOnce();
     expect(mocks.signOut).toHaveBeenCalledOnce();
@@ -239,7 +252,7 @@ describe("workspace authentication", () => {
     await user.type(screen.getByRole("textbox", { name: "Email" }), "buyer@example.com");
     await user.type(screen.getByLabelText("Password"), "password123");
     await user.click(screen.getByRole("button", { name: "Sign in as buyer" }));
-    await user.click(await screen.findByRole("button", { name: "Set up passkey" }));
+    await user.click(await screen.findByRole("button", { name: "Set up a real passkey" }));
 
     expect(mocks.createPasskeyEnrollment).toHaveBeenCalled();
     expect(await screen.findByRole("img", { name: "Passkey enrollment QR code" })).toBeInTheDocument();

@@ -54,6 +54,10 @@ function SidebarContent({ closeMenu }: { closeMenu?: () => void }) {
   useEffect(() => {
     void authService.session()
       .then(({ user }) => {
+        if (!user) {
+          setAccount(null);
+          return;
+        }
         const email = user.email?.trim();
         setAccount(email ? {
           email,

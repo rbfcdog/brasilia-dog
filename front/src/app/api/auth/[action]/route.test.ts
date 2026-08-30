@@ -1,17 +1,35 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const cookieSet = vi.hoisted(() => vi.fn());
+const cookieMocks = vi.hoisted(() => ({
+  get: vi.fn(),
+  set: vi.fn(),
+  delete: vi.fn(),
+}));
 vi.mock("next/headers", () => ({
-  cookies: async () => ({ get: vi.fn(), set: cookieSet, delete: vi.fn() }),
+  cookies: async () => cookieMocks,
 }));
 
-import { POST } from "@/app/api/auth/[action]/route";
+import { GET, POST } from "@/app/api/auth/[action]/route";
 
 describe("authentication BFF", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
-    cookieSet.mockClear();
+    vi.clearAllMocks();
     delete process.env.BACKEND_API_URL;
+  });
+
+  it("treats a missing browser session as a successful signed-out state", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await GET(new Request("http://localhost/api/auth/session"), {
+      params: Promise.resolve({ action: "session" }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    await expect(response.json()).resolves.toEqual({ user: null });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("stores API auth tokens in HttpOnly cookies and never returns them to browser code", async () => {
@@ -35,7 +53,7 @@ describe("authentication BFF", () => {
       user: { id: "user-1", email: "buyer@example.com" },
       confirmationRequired: false,
     });
-    expect(cookieSet).toHaveBeenCalledWith("vero-auth-access", "access-secret", expect.objectContaining({ httpOnly: true }));
-    expect(cookieSet).toHaveBeenCalledWith("vero-auth-refresh", "refresh-secret", expect.objectContaining({ httpOnly: true }));
+    expect(cookieMocks.set).toHaveBeenCalledWith("vero-auth-access", "access-secret", expect.objectContaining({ httpOnly: true }));
+    expect(cookieMocks.set).toHaveBeenCalledWith("vero-auth-refresh", "refresh-secret", expect.objectContaining({ httpOnly: true }));
   });
 });

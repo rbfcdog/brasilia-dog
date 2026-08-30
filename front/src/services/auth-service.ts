@@ -21,7 +21,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const authService = {
-  session: () => request<{ user: AuthUser }>("session"),
+  session: () => request<{ user: AuthUser | null }>("session"),
   signIn: (email: string, password: string) => request<{ user: AuthUser }>("sign-in", {
     method: "POST",
     body: JSON.stringify({ email, password }),
