@@ -63,12 +63,21 @@ async function registerPasskey(userId: string, username: string): Promise<Passke
     challenge: fromBase64url(options.challenge),
     rp: options.rp,
     user: {
-      id: fromBase64url(typeof options.user.id === "string" ? options.user.id : btoa(options.user.id)),
+      id: fromBase64url(options.user.id),
       name: options.user.name,
       displayName: options.user.displayName,
     },
-    pubKeyCredParams: options.pubKeyCredentialParameters as PublicKeyCredentialParameters[],
-    ...(options.authenticatorSelection ? { authenticatorSelection: options.authenticatorSelection as AuthenticatorSelectionCriteria } : {}),
+    pubKeyCredParams: options.pubKeyCredParams,
+    ...(options.excludeCredentials
+      ? {
+          excludeCredentials: options.excludeCredentials.map(({ id, transports, type }) => ({
+            id: fromBase64url(id),
+            type: type as PublicKeyCredentialType,
+            ...(transports ? { transports: transports as AuthenticatorTransport[] } : {}),
+          })),
+        }
+      : {}),
+    ...(options.authenticatorSelection ? { authenticatorSelection: options.authenticatorSelection } : {}),
     ...(options.timeout ? { timeout: options.timeout } : {}),
   };
 
@@ -103,16 +112,17 @@ async function authenticatePasskey(userId: string): Promise<PasskeyVerificationR
 
   const publicKey: PublicKeyCredentialRequestOptions = {
     challenge: fromBase64url(options.challenge),
-    rpId: options.rpId,
+    ...(options.rpId ? { rpId: options.rpId } : {}),
     ...(options.allowCredentials
       ? {
-          allowCredentials: options.allowCredentials.map((cred) => ({
-            type: cred.type,
-            id: fromBase64url(cred.id),
+          allowCredentials: options.allowCredentials.map(({ id, transports, type }) => ({
+            id: fromBase64url(id),
+            type: type as PublicKeyCredentialType,
+            ...(transports ? { transports: transports as AuthenticatorTransport[] } : {}),
           })),
         }
       : {}),
-    userVerification: (options.userVerification as UserVerificationRequirement) ?? "preferred",
+    ...(options.userVerification ? { userVerification: options.userVerification } : {}),
     ...(options.timeout ? { timeout: options.timeout } : {}),
   };
 
@@ -167,6 +177,8 @@ export function usePasskey() {
       });
   }, []);
 
+  const registrationKey = (userId: string) => `brasilia-dog.passkey-registered.${userId}`;
+
   const register = useCallback(async (userId: string, username: string) => {
     if (!isWebAuthnSupported()) {
       setState({ status: "error", message: "WebAuthn is not supported in this browser.", sessionToken: null, userId: null });
@@ -176,11 +188,10 @@ export function usePasskey() {
     try {
       const result = await registerPasskey(userId, username);
       if (result.verified) {
+        window.sessionStorage.setItem(registrationKey(userId), "true");
         setState({
           status: "success",
-          message: result.credentialId
-            ? `Passkey registered (credential: ${result.credentialId.slice(0, 8)}...).`
-            : "Passkey registered.",
+          message: "Biometric check succeeded. Click Test biometry again to authenticate.",
           sessionToken: null,
           userId,
         });
@@ -211,7 +222,7 @@ export function usePasskey() {
           status: "success",
           message: "Authentication successful.",
           sessionToken: result.sessionToken,
-          userId: result.userId ?? userId,
+          userId,
         });
       } else {
         setState({ status: "error", message: "Authentication verification failed.", sessionToken: null, userId: null });
@@ -226,6 +237,17 @@ export function usePasskey() {
     }
   }, []);
 
+  const test = useCallback(
+    async (userId: string, username: string) => {
+      if (window.sessionStorage.getItem(registrationKey(userId)) === "true") {
+        await authenticate(userId);
+        return;
+      }
+      await register(userId, username);
+    },
+    [authenticate, register],
+  );
+
   const signOut = useCallback(() => {
     const token = getPasskeySessionToken();
     if (token) {
@@ -235,5 +257,5 @@ export function usePasskey() {
     setState({ status: "idle", message: "Signed out.", sessionToken: null, userId: null });
   }, []);
 
-  return { state, register, authenticate, signOut, supported: isWebAuthnSupported() };
+  return { state, test, signOut, supported: isWebAuthnSupported() };
 }

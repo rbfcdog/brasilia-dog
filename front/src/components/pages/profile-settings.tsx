@@ -21,7 +21,7 @@ type BackendStatus = "checking" | "available" | "unavailable";
 export function ProfileSettings() {
   const [sessionState, setSessionState] = useState<SessionState>({ kind: "checking" });
   const [backendStatus, setBackendStatus] = useState<BackendStatus>("checking");
-  const { state: passkeyState, register, authenticate, signOut, supported } = usePasskey();
+  const { state: passkeyState, test, signOut, supported } = usePasskey();
 
   useEffect(() => {
     void backendService
@@ -115,7 +115,7 @@ export function ProfileSettings() {
                   <p className="text-sm font-medium">Native WebAuthn biometrics</p>
                   <p className="mt-1 text-xs leading-5 text-subtle">
                     {supported
-                      ? "Register a passkey or authenticate with an existing one using your device biometric."
+                      ? "Test device biometric verification. The first test registers a passkey; later tests authenticate with it."
                       : "WebAuthn is not supported in this browser."}
                   </p>
                 </div>
@@ -126,21 +126,12 @@ export function ProfileSettings() {
               <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => void register(testUserId, testUsername)}
+                  onClick={() => void test(testUserId, testUsername)}
                   disabled={!supported || passkeyState.status === "loading"}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-white px-3 py-1.5 text-xs font-medium text-ink transition hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {passkeyState.status === "loading" ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <Fingerprint className="size-3.5" aria-hidden="true" />}
-                  Register passkey
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void authenticate(testUserId)}
-                  disabled={!supported || passkeyState.status === "loading"}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-white px-3 py-1.5 text-xs font-medium text-ink transition hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {passkeyState.status === "loading" ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <KeyRound className="size-3.5" aria-hidden="true" />}
-                  Authenticate
+                  Test biometry
                 </button>
                 {authenticated && (
                   <button

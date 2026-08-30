@@ -25,29 +25,27 @@ function backendPath(pathname: string): string {
 
 export interface PasskeyRegistrationOptions {
   challenge: string;
-  rp: { name: string; id: string };
+  rp: { name: string; id?: string };
   user: { id: string; name: string; displayName: string };
-  pubKeyCredentialParameters: Array<{ type: "public-key"; alg: number }>;
-  authenticatorSelection?: Record<string, unknown>;
+  pubKeyCredParams: PublicKeyCredentialParameters[];
+  excludeCredentials?: PublicKeyCredentialDescriptorJSON[];
+  authenticatorSelection?: AuthenticatorSelectionCriteria;
   timeout?: number;
-  [key: string]: unknown;
 }
 
 export interface PasskeyAuthOptions {
   challenge: string;
-  rpId: string;
-  allowCredentials?: Array<{ type: "public-key"; id: string }>;
-  userVerification?: string;
+  rpId?: string;
+  allowCredentials?: PublicKeyCredentialDescriptorJSON[];
+  userVerification?: UserVerificationRequirement;
   timeout?: number;
-  [key: string]: unknown;
 }
 
 export interface PasskeyVerificationResult {
   verified: boolean;
   credentialId?: string;
   sessionToken?: string;
-  userId?: string;
-  expiresAt?: string;
+  sessionExpiresAt?: number;
 }
 
 export interface BackendConversation {
