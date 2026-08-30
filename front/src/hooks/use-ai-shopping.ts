@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useReducer, useRef } from "react";
 import { ApiError, PaymentChallengeError } from "@/lib/api";
-import { hasPasskeySession } from "@/lib/passkey-session";
+import { hasAccountSession, hasPasskeySession } from "@/lib/passkey-session";
 import { demoStorage } from "@/lib/demo-storage";
 import { passkeyBiometricProvider } from "@/services/biometric-provider";
 import { shoppingService } from "@/services/shopping-service";
@@ -290,7 +290,7 @@ export function useAIShopping() {
 
   // Hydrate the selected backend conversation, or the most recent one.
   useEffect(() => {
-    if (!hasPasskeySession()) {
+    if (!hasAccountSession()) {
       dispatch({ type: "HYDRATE", messages: demoStorage.readMessages(), storage: "local" });
       return;
     }
@@ -361,7 +361,7 @@ export function useAIShopping() {
       dispatch({ type: "SUBMIT", message: userMessage });
 
       try {
-        if (hasPasskeySession()) {
+        if (hasAccountSession()) {
           const response = await shoppingService.analyze(trimmed, conversationIdRef.current ?? undefined);
           conversationIdRef.current = response.conversationId;
           dispatch({ type: "SET_STORAGE", storage: "backend" });

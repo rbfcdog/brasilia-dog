@@ -34,6 +34,7 @@ const mockData = vi.hoisted(() => ({
 vi.mock("@/lib/passkey-session", () => ({
   getPasskeySessionToken: () => mockData.sessionToken,
   hasPasskeySession: () => Boolean(mockData.sessionToken),
+  hasAccountSession: () => Boolean(mockData.sessionToken),
   clearPasskeySessionToken: vi.fn(),
   storePasskeySessionToken: vi.fn(),
 }));

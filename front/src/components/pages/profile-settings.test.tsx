@@ -72,17 +72,14 @@ describe("account-bound passkey enrollment QR", () => {
     expect(mocks.fetch).toHaveBeenCalledTimes(2);
   });
 
-  it("authenticates with the account passkey instead of assuming this notebook must register", async () => {
+  it("shows Active when the account has a registered passkey", async () => {
     mocks.fetch.mockResolvedValue(new Response(JSON.stringify({
       enrollmentUrl: "https://shop.example.test/api/passkey/enrollment/claim?token=grant",
       expiresAt: "2026-08-30T03:00:00.000Z",
     }), { status: 200, headers: { "Content-Type": "application/json" } }));
     render(<ProfileSettings />);
 
-    await userEvent.click(await screen.findByRole("button", { name: "Authenticate with passkey" }));
-    expect(await screen.findByText("Registered")).toBeInTheDocument();
-
-    expect(mocks.authenticate).toHaveBeenCalledWith("buyer-1");
-    expect(mocks.register).not.toHaveBeenCalled();
+    expect(await screen.findByText("Active")).toBeInTheDocument();
+    expect(screen.queryByText("Registered")).not.toBeInTheDocument();
   });
 });

@@ -51,6 +51,15 @@ function agentReply(payload: unknown): { content: string; evidence: Record<strin
   return { content: payload.data.message.trim(), evidence: payload.data };
 }
 
+function isCatalogUnavailable(payload: unknown): boolean {
+  if (!isRecord(payload) || payload.ok !== false || !isRecord(payload.error)) return false;
+
+  if (payload.error.code === "PRODUCT_CATALOG_UNAVAILABLE") return true;
+  return payload.error.code === "BACKEND_REQUEST_FAILED"
+    && payload.error.message === "The backend returned HTTP 404.";
+}
+
+
 function mandateProposal(evidence: Record<string, unknown>): Record<string, unknown> | null {
   return evidence.kind === "mandate" && isRecord(evidence.mandate) ? evidence.mandate : null;
 }
@@ -149,6 +158,22 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const responseBody = await upstream.text();
+  if (!upstream.ok) {
+    let payload: unknown = null;
+    try {
+      payload = JSON.parse(responseBody);
+    } catch {
+      // Preserve non-JSON upstream failures unchanged.
+    }
+    if (isCatalogUnavailable(payload)) {
+      return errorResponse(
+        "PRODUCT_CATALOG_UNAVAILABLE",
+        "The product catalog is temporarily unavailable. No approval or purchase was attempted.",
+        503,
+      );
+    }
+  }
+
   if (upstream.ok && input.conversationId && request.headers.has("authorization")) {
     let payload: unknown;
     try {

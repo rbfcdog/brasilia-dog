@@ -13,6 +13,12 @@ export function hasPasskeySession(): boolean {
     document.cookie.split("; ").some((cookie) => cookie === `${PASSKEY_SESSION_MARKER}=1`);
 }
 
+export function hasAccountSession(): boolean {
+  if (typeof document === "undefined") return false;
+  return hasPasskeySession() ||
+    document.cookie.split("; ").some((cookie) => cookie.startsWith("nomad-auth-access="));
+}
+
 export function storePasskeySessionToken(token: string): void {
   if (typeof window === "undefined") return;
 

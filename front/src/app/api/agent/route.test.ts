@@ -51,6 +51,36 @@ describe("agent chat BFF", () => {
     });
   });
 
+  it("converts a legacy catalog 404 into a safe retryable buyer error", async () => {
+    process.env.AGENT_SERVICE_URL = "https://agent.example.test";
+    process.env.AGENT_SERVICE_TOKEN = "agent-service-token-12345";
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      ok: false,
+      error: {
+        code: "BACKEND_REQUEST_FAILED",
+        message: "The backend returned HTTP 404.",
+      },
+    }), {
+      status: 502,
+      headers: { "Content-Type": "application/json" },
+    })));
+
+    const response = await POST(new Request("http://localhost/api/agent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "Buy an appliance for $100." }),
+    }));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: {
+        code: "PRODUCT_CATALOG_UNAVAILABLE",
+        message: "The product catalog is temporarily unavailable. No approval or purchase was attempted.",
+      },
+    });
+  });
+
   it("persists an authenticated agent reply before returning it", async () => {
     process.env.AGENT_SERVICE_URL = "https://agent.example.test";
     process.env.AGENT_SERVICE_TOKEN = "agent-service-token-12345";

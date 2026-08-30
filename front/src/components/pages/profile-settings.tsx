@@ -237,10 +237,10 @@ export function ProfileSettings() {
                 <div>
                   <p className="text-sm font-medium">Native WebAuthn biometrics</p>
                   <p className="mt-1 text-xs leading-5 text-subtle">
-                    {!accountUser ? "Sign in first. Passkeys are associated with that account." : passkeyRegistered ? "This account has a registered passkey. Authenticate with it, including from your phone through the browser's cross-device flow. Register this device only to add another credential." : passkeyRegistered === false ? "No passkey is registered for this account yet. Register this device or use the enrollment QR." : "Checking this account for registered passkeys…"}
+                    {!accountUser ? "Sign in first. Passkeys are associated with that account." : passkeyRegistered ? "This account has a registered passkey. Chat and search are active. The biometric prompt appears only when the agent executes a purchase." : passkeyRegistered === false ? "No passkey is registered for this account yet. Register this device or use the enrollment QR." : "Checking this account for registered passkeys…"}
                   </p>
                 </div>
-                <span className={`rounded-full px-2.5 py-1 font-mono text-[9px] uppercase ${authenticated ? "bg-success/40 text-success-ink" : passkeyRegistered ? "bg-primary-soft text-primary" : "bg-canvas text-subtle"}`}>{authenticated ? "Active" : passkeyRegistered ? "Registered" : passkeyRegistered === false ? "Not registered" : "Checking"}</span>
+                <span className={`rounded-full px-2.5 py-1 font-mono text-[9px] uppercase ${authenticated || passkeyRegistered ? "bg-success/40 text-success-ink" : "bg-canvas text-subtle"}`}>{authenticated || passkeyRegistered ? "Active" : passkeyRegistered === false ? "Not registered" : "Checking"}</span>
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <button type="button" onClick={() => passkeyUserId ? void authenticate(passkeyUserId) : undefined} disabled={!supported || !passkeyUserId || passkeyState.status === "loading"} className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-3 py-1.5 text-xs font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-50">
