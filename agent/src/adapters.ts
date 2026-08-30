@@ -117,12 +117,6 @@ const successEnvelopeSchema = z.strictObject({
 });
 
 const conversationMessagesSchema = z.strictObject({
-  conversation: z.strictObject({
-    id: z.string().trim().min(1),
-    ownerId: z.string().uuid(),
-    createdAt: z.string().datetime({ offset: true }),
-    updatedAt: z.string().datetime({ offset: true }),
-  }),
   messages: z.array(z.strictObject({
     id: z.string().trim().min(1),
     conversationId: z.string().trim().min(1),
