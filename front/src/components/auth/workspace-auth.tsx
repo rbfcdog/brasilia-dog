@@ -264,6 +264,9 @@ export function WorkspaceAuth() {
           <button type="button" disabled={pending} onClick={() => void authenticateForAccess()} className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-white text-sm font-medium text-ink disabled:opacity-60">
             {pending ? <Loader2 className="size-4 animate-spin" /> : <Fingerprint className="size-4" />} Continue with passkey
           </button>
+          <button type="button" disabled={pending} onClick={() => void continueInDemoMode()} className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-xl border border-warning/40 text-xs font-medium text-warning disabled:opacity-60">
+            {pending ? <Loader2 className="size-4 animate-spin" /> : null} Continue with demo passkey
+          </button>
           <button type="button" disabled={pending} onClick={() => void switchAccount()} className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-xl border border-white/20 text-xs font-medium text-white/80 disabled:opacity-60">
             Use another account
           </button>
