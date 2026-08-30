@@ -68,13 +68,13 @@ export const catalogProductSchema = z.strictObject({
   // Search is a compatibility boundary: the agent needs stable product
   // identity, price, and executable endpoint, not backend-only lifecycle
   // fields. Older deployed search RPCs omit those fields.
-  status: z.enum(['draft', 'published', 'archived']).optional().default('published'),
-  metadata: z.record(z.string(), z.unknown()).optional().default({}),
+  status: z.enum(['draft', 'published', 'archived']).nullish().transform((value) => value ?? 'published'),
+  metadata: z.record(z.string(), z.unknown()).nullable().optional().transform((value) => value ?? {}),
   offering: z.strictObject({
     id: z.string().trim().min(1),
     rail: z.literal('stripe_mpp'),
     amountMinor: z.number().int().positive(),
-    currency: z.literal('usd'),
+    currency: z.string().transform((value) => value.toLowerCase()).pipe(z.literal('usd')),
     scale: z.literal(2),
     networkId: z.string().nullable().optional().default(null),
     active: z.boolean().optional().default(true),
