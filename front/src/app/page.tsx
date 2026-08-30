@@ -8,6 +8,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
+import { Suspense } from "react";
 import { WorkspaceAuth } from "@/components/auth/workspace-auth";
 
 const principles = [
@@ -67,7 +68,9 @@ export default function LandingPage() {
           <div id="workspace-auth" className="relative mx-auto w-full max-w-xl scroll-mt-6">
             <div className="absolute -inset-3 rotate-2 rounded-[28px] border border-primary/15 bg-primary/5" />
             <div className="relative rounded-[26px] border border-black/[0.08] bg-white p-3 shadow-[0_30px_90px_rgb(16_17_20/0.14)]">
-              <WorkspaceAuth />
+              <Suspense fallback={<div className="rounded-[20px] bg-ink p-6 text-sm text-white/60">Loading secure sign-in…</div>}>
+                <WorkspaceAuth />
+              </Suspense>
 
               <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-3 py-4 font-mono text-[9px] uppercase tracking-[0.1em] text-muted">
                 <span className="flex items-center gap-1.5"><CheckCircle2 className="size-3 text-success-ink" /> No auctions</span>
