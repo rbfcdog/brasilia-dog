@@ -17,7 +17,7 @@ export default defineRailway(() => {
       AGENT_SERVICE_URL: preserve(),
       AGENT_SERVICE_OUTBOUND_TOKEN: preserve(),
       SUPABASE_URL: preserve(),
-      SUPABASE_SECRET_KEY: preserve(),
+      SUPABASE_PUBLISHABLE_KEY: preserve(),
       SUPABASE_SERVICE_ROLE_KEY: preserve(),
       PASSKEY_RP_NAME: preserve(),
       PASSKEY_RP_ID: preserve(),

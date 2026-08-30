@@ -74,28 +74,27 @@ test('does not configure Supabase when no Supabase variables are supplied', () =
 test('rejects partial Supabase configuration', () => {
   assert.throws(
     () => loadSupabaseConfig({ SUPABASE_URL: 'https://example.supabase.co' }),
-    /SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY is required/,
+    /SUPABASE_SERVICE_ROLE_KEY is required/,
   );
 });
 
-test('rejects conflicting Supabase server credentials', () => {
+test('does not accept the retired Supabase secret-key variable', () => {
   assert.throws(
     () => loadSupabaseConfig({
       SUPABASE_URL: 'https://example.supabase.co',
       SUPABASE_SECRET_KEY: 'sb_secret_example',
-      SUPABASE_SERVICE_ROLE_KEY: 'legacy-service-role-example',
     }),
-    /Configure only one/,
+    /SUPABASE_SERVICE_ROLE_KEY is required/,
   );
 });
 
-test('loads a server-only Supabase secret key', () => {
+test('loads the server-only Supabase service-role key', () => {
   assert.deepEqual(loadSupabaseConfig({
     SUPABASE_URL: 'https://example.supabase.co',
-    SUPABASE_SECRET_KEY: 'sb_secret_example',
+    SUPABASE_SERVICE_ROLE_KEY: 'legacy-service-role-example',
   }), {
     url: 'https://example.supabase.co',
-    key: 'sb_secret_example',
+    key: 'legacy-service-role-example',
   });
 });
 

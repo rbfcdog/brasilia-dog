@@ -32,15 +32,18 @@ function isStripeMode(value: string): value is StripeMode {
 
 export function loadSupabaseConfig(environment: NodeJS.ProcessEnv = process.env): SupabaseConfig | null {
   const url = optionalValue(environment, 'SUPABASE_URL');
-  const secretKey = optionalValue(environment, 'SUPABASE_SECRET_KEY');
-  const legacyServiceRoleKey = optionalValue(environment, 'SUPABASE_SERVICE_ROLE_KEY');
+  const serviceRoleKey = optionalValue(environment, 'SUPABASE_SERVICE_ROLE_KEY');
 
-  if (!url && !secretKey && !legacyServiceRoleKey) {
+  if (!url && !serviceRoleKey) {
     return null;
   }
 
   if (!url) {
-    throw new Error('SUPABASE_URL is required when Supabase credentials are configured.');
+    throw new Error('SUPABASE_URL is required when SUPABASE_SERVICE_ROLE_KEY is configured.');
+  }
+
+  if (!serviceRoleKey) {
+    throw new Error('SUPABASE_SERVICE_ROLE_KEY is required when SUPABASE_URL is configured.');
   }
 
   try {
@@ -52,14 +55,7 @@ export function loadSupabaseConfig(environment: NodeJS.ProcessEnv = process.env)
     throw new Error('SUPABASE_URL must be an HTTP or HTTPS URL.');
   }
 
-  if (secretKey && legacyServiceRoleKey) {
-    throw new Error('Configure only one of SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY.');
-  }
-
-  const key = secretKey ?? legacyServiceRoleKey;
-  if (!key) {
-    throw new Error('SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY is required when SUPABASE_URL is configured.');
-  }
+  const key = serviceRoleKey;
 
   return {
     url,

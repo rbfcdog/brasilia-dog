@@ -12,8 +12,8 @@
 
 ## Global Constraints
 
-- `SUPABASE_SECRET_KEY` or legacy `SUPABASE_SERVICE_ROLE_KEY` is Node-only, never browser-visible, logged, committed, or passed to workers.
-- The browser receives only Supabase publishable credentials, if a browser is added later. It must never write products, payment attempts, access grants, or audit events.
+- `SUPABASE_SERVICE_ROLE_KEY` is Node-only, never browser-visible, logged, committed, or passed to workers.
+- The browser receives only `SUPABASE_PUBLISHABLE_KEY`, if a browser is added later. It must never write products, payment attempts, access grants, or audit events.
 - A Supabase service key bypasses RLS. Node remains the only process that can invoke authority-bearing writes.
 - Stripe MPP and Stellar x402 are distinct rails. No Stripe credential is reused for x402, and no x402 route is enabled without Stellar/OZ credentials.
 - Payment provider calls occur after durable local intent recording. Provider receipts and payment headers are never stored verbatim if they contain credentials.
@@ -111,8 +111,7 @@
 
 | Purpose | Variable or credential | Where it belongs |
 | --- | --- | --- |
-| Node runtime database access | `SUPABASE_URL`, `SUPABASE_SECRET_KEY` | Railway Variables only |
-| Legacy Node runtime access | `SUPABASE_SERVICE_ROLE_KEY` | Railway Variables only, only when no secret key exists |
+| Node runtime database access | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Railway API service only |
 | Browser reads, future UI only | `SUPABASE_PUBLISHABLE_KEY` | Browser build environment, never used for authority writes |
 | Supabase CLI project management | `SUPABASE_ACCESS_TOKEN`, project ref, database password | Operator terminal or CI secret store, never API runtime |
 | Stripe MPP endpoint | existing test Stripe key, test profile ID, MPP challenge secret | Node runtime only |
