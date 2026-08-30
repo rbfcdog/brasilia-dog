@@ -2,13 +2,17 @@
 -- until an operator supplies the API's exact sandbox Stripe profile ID through
 -- activate_agent_mpp_seed_catalog(). Live profiles are deliberately rejected.
 
-create temporary table agent_mpp_seed_products (
+create temporary table pg_temp.agent_mpp_seed_products (
   slug text primary key,
   name text not null,
   description text not null,
   category text not null,
   amount_minor bigint not null
 ) on commit drop;
+
+-- Temporary tables are session-local and never exposed by PostgREST. Enable RLS
+-- explicitly as defense in depth and to satisfy Supabase SQL security analysis.
+alter table pg_temp.agent_mpp_seed_products enable row level security;
 
 insert into agent_mpp_seed_products (slug, name, description, category, amount_minor) values
   ('ultrawide-monitor-buying-guide', 'Ultrawide monitor buying guide', 'Current comparison data for ultrawide monitors, panels, ports, and ergonomics.', 'electronics', 250),
