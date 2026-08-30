@@ -445,6 +445,15 @@ export class OpenAIShoppingResponder implements ChatResponder {
         activity,
       });
     } catch (error) {
+      if (catalogProducts.length > 0) {
+        console.error('Discarding invalid model product selection.', error instanceof Error ? error.message : 'Unknown error');
+        return chatResponseSchema.parse({
+          kind: 'products',
+          message: catalogResultMessage(catalogProducts),
+          products: catalogProducts,
+          activity,
+        });
+      }
       throw new AgentError('MODEL_OUTPUT_INVALID', 'The agent returned an invalid shopping response.', 502, {
         cause: error,
       });

@@ -1,4 +1,3 @@
-import { clearPasskeySessionToken } from "@/lib/passkey-session";
 import type { ApiEnvelope, PaymentChallenge } from "@/types/shopping";
 
 export class ApiError extends Error {
@@ -82,14 +81,12 @@ export async function apiFetch<T>(
 
   const contentType = response.headers.get("content-type") ?? "";
   if (!contentType.toLowerCase().includes("json")) {
-    if (response.status === 401) clearPasskeySessionToken();
     throw new InvalidJsonResponseError(response.status);
   }
 
   const payload = (await response.json()) as T | ApiEnvelope<T>;
   if (isApiEnvelope<T>(payload)) {
     if (!response.ok || !payload.ok) {
-      if (response.status === 401) clearPasskeySessionToken();
       const error = payload.ok
         ? new ApiError(`Request failed with status ${response.status}.`, response.status)
         : new ApiError(payload.error.message, response.status, payload.error.code);
@@ -100,7 +97,6 @@ export async function apiFetch<T>(
   }
 
   if (!response.ok) {
-    if (response.status === 401) clearPasskeySessionToken();
     throw errorFromPayload(payload, response.status);
   }
 

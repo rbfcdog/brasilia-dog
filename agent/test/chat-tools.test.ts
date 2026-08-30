@@ -288,3 +288,57 @@ test('shopping responder preserves backend catalog failures', async () => {
     (error: unknown) => error === backendFailure,
   );
 });
+
+test('shopping responder returns verified tool results when the model selection is invalid', async () => {
+  const catalog = {
+    listProducts: async () => [product],
+    searchProducts: async () => [product],
+  };
+  const responses = [
+    {
+      output_text: '',
+      output: [{
+        type: 'function_call',
+        name: 'search_products',
+        call_id: 'call-search',
+        arguments: JSON.stringify({ category: 'home', query: null, maximumAmount: 100 }),
+      }],
+    },
+    {
+      output_text: '{"message":"missing required fields"}',
+      output: [],
+    },
+  ];
+  const client = {
+    responses: {
+      create: async () => {
+        const response = responses.shift();
+        if (!response) throw new Error('Unexpected OpenAI request.');
+        return response;
+      },
+    },
+  } as unknown as OpenAI;
+  const responder = new OpenAIShoppingResponder({ apiKey: 'test-key', model: 'test-model', client });
+
+  const result = await responder.respond({ message: 'Show home products under $100', catalog });
+
+  assert.deepEqual(result, {
+    kind: 'products',
+    message: 'I found 1 current catalog product matching your search.',
+    products: [{
+      slug: product.slug,
+      name: product.name,
+      description: product.description,
+      category: 'home',
+      price: 95,
+      currency: 'USD',
+    }],
+    activity: [{
+      type: 'catalog_search',
+      category: 'home',
+      query: null,
+      maximumAmount: 100,
+      resultSlugs: [product.slug],
+    }],
+  });
+});

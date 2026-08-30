@@ -6,9 +6,17 @@ import {
   InvalidJsonResponseError,
   PaymentChallengeError,
 } from "@/lib/api";
+import {
+  clearPasskeySessionToken,
+  getPasskeySessionToken,
+  storePasskeySessionToken,
+} from "@/lib/passkey-session";
 
 describe("apiFetch", () => {
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    clearPasskeySessionToken();
+    vi.restoreAllMocks();
+  });
 
   it("unwraps JSON success responses", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
@@ -40,5 +48,17 @@ describe("apiFetch", () => {
       new Response("Service unavailable", { status: 503, headers: { "content-type": "text/plain" } }),
     );
     await expect(apiFetch("/test")).rejects.toBeInstanceOf(InvalidJsonResponseError);
+  });
+
+  it("preserves a passkey session when an unrelated request is unauthorized", async () => {
+    storePasskeySessionToken("passkey-session");
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json({ error: "agent_authentication_required" }, { status: 401 }),
+    );
+
+    await expect(apiFetch("/api/backend/v1/conversations/example/messages")).rejects.toThrow(
+      "agent_authentication_required",
+    );
+    expect(getPasskeySessionToken()).toBe("passkey-session");
   });
 });
