@@ -1,8 +1,8 @@
 import { cookies } from "next/headers";
 
-// Must stay aligned with the cookie set by /api/backend after passkey or demo
-// verification (see app/api/backend/[...path]/route.ts).
-const PASSKEY_SESSION_COOKIE = "vero-passkey-session";
+// Keep the current cookie name first; accept the legacy name while existing
+// authenticated browser sessions age out.
+const PASSKEY_SESSION_COOKIES = ["vero-passkey-session", "nomad-passkey-session"] as const;
 
 // Must match MANDATE_VALIDITY_MS in agent/src/chat.ts: the authority granted here has to
 // be the same window the user saw and approved on the mandate card.
@@ -72,7 +72,11 @@ async function passkeySessionToken(request: Request): Promise<string | null> {
   // /api/backend proxy.
   try {
     const store = await cookies();
-    return store.get(PASSKEY_SESSION_COOKIE)?.value?.trim() || null;
+    for (const name of PASSKEY_SESSION_COOKIES) {
+      const token = store.get(name)?.value?.trim();
+      if (token) return token;
+    }
+    return null;
   } catch {
     return null;
   }
