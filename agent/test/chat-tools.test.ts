@@ -514,3 +514,70 @@ test('shopping responder forces exact-slug comparison only for explicit comparis
 
   assert.deepEqual(requests[0]?.tool_choice, { type: 'function', name: 'compare_products' });
 });
+
+test('shopping responder retries a filtered search without a stale category filter', async () => {
+  const searches: unknown[] = [];
+  const catalog = {
+    listProducts: async () => {
+      throw new Error('search must not download the full catalog');
+    },
+    searchProducts: async (input: { category: string | null }) => {
+      searches.push(input);
+      return input.category ? [] : [product];
+    },
+  };
+  const responses = [
+    {
+      output_text: '',
+      output: [{
+        type: 'function_call',
+        name: 'search_products',
+        call_id: 'call-search',
+        arguments: JSON.stringify({ category: 'electronics', query: 'monitor', maximumAmount: 300 }),
+      }],
+    },
+    {
+      output_text: JSON.stringify({
+        message: 'I found a matching current product.',
+        scope: null,
+        maximumAmount: null,
+        minimumScreenSize: null,
+        category: null,
+        products: [{
+          slug: product.slug,
+          name: product.name,
+          description: product.description,
+          category: 'home',
+          price: 95,
+          currency: 'USD',
+        }],
+      }),
+      output: [],
+    },
+  ];
+  const client = {
+    responses: {
+      create: async () => {
+        const response = responses.shift();
+        if (!response) throw new Error('Unexpected OpenAI request.');
+        return response;
+      },
+    },
+  } as unknown as OpenAI;
+  const responder = new OpenAIShoppingResponder({ apiKey: 'test-key', model: 'test-model', client });
+
+  const result = await responder.respond({ message: 'Show an electronics monitor under $300', catalog });
+
+  assert.deepEqual(searches, [
+    { query: 'monitor', category: 'electronics', maximumAmountMinor: 30_000, slugs: [], limit: 10 },
+    { query: 'monitor', category: null, maximumAmountMinor: 30_000, slugs: [], limit: 10 },
+  ]);
+  assert.equal(result.kind, 'products');
+  assert.deepEqual(result.activity, [{
+    type: 'catalog_search',
+    category: null,
+    query: 'monitor',
+    maximumAmount: 300,
+    resultSlugs: [product.slug],
+  }]);
+});

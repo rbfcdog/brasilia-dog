@@ -322,17 +322,33 @@ async function executeCatalogTool(
   }
   if (name === 'search_products') {
     const input = searchToolArgumentsSchema.parse(JSON.parse(argumentsJson));
-    const category = normalizeCategory(input.category);
+    const requestedCategory = normalizeCategory(input.category);
     const query = input.query?.trim() || null;
-    const products = (await catalog.searchProducts({
+    const maximumAmountMinor = input.maximumAmount === null
+      ? null
+      : Math.round(input.maximumAmount * 100);
+    let category = requestedCategory;
+    let results = await catalog.searchProducts({
       query,
       category,
-      maximumAmountMinor: input.maximumAmount === null
-        ? null
-        : Math.round(input.maximumAmount * 100),
+      maximumAmountMinor,
       slugs: [],
       limit: 10,
-    })).map(productProjection);
+    });
+    // A model-provided category can be stale or use a synonym not represented
+    // in merchant metadata. Preserve the authoritative query and budget while
+    // retrying without that optional filter.
+    if (results.length === 0 && category && query) {
+      category = null;
+      results = await catalog.searchProducts({
+        query,
+        category,
+        maximumAmountMinor,
+        slugs: [],
+        limit: 10,
+      });
+    }
+    const products = results.map(productProjection);
     return {
       output: JSON.stringify({ products }),
       activity: {
@@ -345,7 +361,7 @@ async function executeCatalogTool(
       products,
     };
   }
-  throw new AgentError('UNKNOWN_TOOL', `The model requested unsupported tool ${name}.`, 502);
+  throw new AgentError('MODEL_OUTPUT_INVALID', `Unsupported catalog tool: ${name}`, 502);
 }
 
 export class OpenAIShoppingResponder implements ChatResponder {
