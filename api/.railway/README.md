@@ -28,11 +28,12 @@ railway config apply
 
 ## What this file manages
 
-- Service name: `api`
-- Source: `rbfcdog/brasilia-dog` GitHub repository, root directory `api`
-- Build: Dockerfile detected automatically inside `api/`
-- Health check: `GET /health` with a 30 second timeout
-- Environment variables: preserved on Railway, not written into Git
+- Service `api`: source `rbfcdog/brasilia-dog`, root directory `api`
+  - Health check: `GET /health` with a 30 second timeout
+  - Environment variables: `STRIPE_MODE`, `STRIPE_SECRET_KEY`, `STRIPE_PROFILE_ID`, `MPP_SECRET_KEY`, `SESSION_SECRET`, `AGENT_SERVICE_TOKEN`
+- Service `agent`: source `rbfcdog/brasilia-dog`, root directory `agent`
+  - Health check: `GET /health` with a 30 second timeout
+  - Environment variables: `AGENT_SERVICE_TOKEN`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `ADAPTER_MODE`
 
 ## Variable handling
 

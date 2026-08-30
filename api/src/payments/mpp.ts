@@ -37,6 +37,9 @@ export function createMppHandler(
       paymentMethodTypes: ['card', 'link'],
       decimals: 2,
     })],
+    // Keep the passkey session in Authorization and require MPP credentials
+    // in Payment-Authorization.
+    requiresAuth: true,
     secretKey: config.mppSecretKey,
   });
 

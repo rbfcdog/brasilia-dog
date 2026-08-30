@@ -17,9 +17,36 @@ import type { PaymentHistoryRepository } from '../repositories/payment-history-r
 import type { PurchaseRequest, PurchaseService } from '../services/purchase-service.js';
 import type { SessionService } from '../services/session-service.js';
 import { canonicalJson } from '../services/canonical-json.js';
+import type { CrossCredentialAuth } from '../services/cross-credential-auth.js';
+import type { SellerAgentVerificationService } from '../services/seller-agent-verification.js';
+import type { SellerQuoteRepository } from '../repositories/seller-quote-repository.js';
+import type { ConversationRepository } from '../repositories/conversation-repository.js';
+
 
 function json(value: unknown, status = 200): Response {
   return Response.json(value, { status });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isAgentProof(value: unknown): value is PurchaseRequest['agentProof'] {
+  if (!isRecord(value)) return false;
+
+  return (
+    typeof value.agentId === 'string' &&
+    typeof value.agentKeyId === 'string' &&
+    typeof value.bodySha256 === 'string' &&
+    typeof value.expiresAt === 'number' &&
+    typeof value.issuedAt === 'number' &&
+    typeof value.mandateId === 'string' &&
+    typeof value.mandateVersion === 'number' &&
+    typeof value.method === 'string' &&
+    typeof value.nonce === 'string' &&
+    typeof value.path === 'string' &&
+    typeof value.signature === 'string'
+  );
 }
 
 async function authenticatedSession(
@@ -140,6 +167,39 @@ const OPENAPI_DOCUMENT = Object.freeze({
         },
       },
     },
+    '/v1/seller/quote-requests': {
+      post: {
+        summary: 'Create a bounded seller quote request',
+        description: 'Requires a passkey bearer session, a valid Ed25519 agent proof, and a mandate sellerPriceDisclosure scope for the named merchant.',
+        responses: {
+          '201': { description: 'Seller quote request created' },
+          '401': { description: 'Passkey session or agent proof failed' },
+          '403': { description: 'Seller is not authorized by the mandate disclosure scope' },
+        },
+      },
+    },
+    '/v1/seller/quote-requests/{id}': {
+      get: {
+        summary: 'Read a seller quote request',
+        description: 'Requires an active seller integration API key in X-Merchant-Api-Key.',
+        responses: {
+          '200': { description: 'Seller-scoped agent verification hash and quote constraints' },
+          '401': { description: 'Seller API key is missing' },
+          '404': { description: 'Quote request is unknown, expired, or belongs to another seller' },
+        },
+      },
+    },
+    '/v1/seller/quote-requests/{id}/verify': {
+      post: {
+        summary: 'Verify seller-scoped agent evidence',
+        description: 'Requires an active seller integration API key in X-Merchant-Api-Key.',
+        responses: {
+          '200': { description: 'Seller-scoped agent evidence verification result' },
+          '401': { description: 'Seller API key or verification hash is missing' },
+          '404': { description: 'Quote request is unknown, expired, or belongs to another seller' },
+        },
+      },
+    },
     '/v1/agents': {
       post: {
         summary: 'Register a new agent identity',
@@ -233,6 +293,41 @@ const OPENAPI_DOCUMENT = Object.freeze({
         },
       },
     },
+    '/v1/conversations': {
+      post: {
+        summary: 'Create an owner-scoped chat conversation',
+        responses: {
+          '201': { description: 'Conversation created' },
+          '401': { description: 'Passkey session is required' },
+        },
+      },
+      get: {
+        summary: 'List conversations (passkey session or agent service token)',
+        responses: {
+          '200': { description: 'Conversations ordered by recent activity' },
+          '401': { description: 'Passkey session or agent service token is required' },
+        },
+      },
+    },
+    '/v1/conversations/{id}/messages': {
+      get: {
+        summary: 'Read a conversation transcript (passkey session or agent service token)',
+        responses: {
+          '200': { description: 'Messages in chronological order' },
+          '401': { description: 'Passkey session or agent service token is required' },
+          '404': { description: 'Conversation not found' },
+        },
+      },
+      post: {
+        summary: 'Persist one conversation message',
+        responses: {
+          '201': { description: 'Message persisted' },
+          '400': { description: 'Invalid message payload' },
+          '401': { description: 'Passkey session is required' },
+          '404': { description: 'Conversation not found' },
+        },
+      },
+    },
   },
 });
 
@@ -245,9 +340,14 @@ interface AppDeps {
   productInfoRepository?: ProductInfoRepository | null;
   agentIdentityRepository?: AgentIdentityRepository | null;
   mandateRepository?: MandateRepository | null;
+  conversationRepository?: ConversationRepository | null;
   paymentHistoryRepository?: PaymentHistoryRepository | null;
   purchaseService?: PurchaseService | null;
+  crossCredentialAuth?: CrossCredentialAuth | null;
+  sellerAgentVerificationService?: SellerAgentVerificationService | null;
+  sellerQuoteRepository?: SellerQuoteRepository | null;
   sessionService?: SessionService | null;
+  agentServiceToken?: string | null;
 }
 
 export function createApp({
@@ -260,8 +360,13 @@ export function createApp({
   agentIdentityRepository = null,
   mandateRepository = null,
   paymentHistoryRepository = null,
+  conversationRepository = null,
   purchaseService = null,
+  crossCredentialAuth = null,
+  sellerAgentVerificationService = null,
+  sellerQuoteRepository = null,
   sessionService = null,
+  agentServiceToken = null,
 }: AppDeps): AppHandler {
   return async function app(request: Request): Promise<Response> {
     const { pathname } = new URL(request.url);
@@ -408,9 +513,11 @@ export function createApp({
           canonicalJson(body.intent),
           { sessionToken: session.token, agentProof: body.agentProof },
         );
+        const paymentHeaders = new Headers(request.headers);
+        paymentHeaders.set('x-agent-execution-proof-id', authorization.executionProofId);
         const paymentRequest = new Request(request.url, {
           method: request.method,
-          headers: request.headers,
+          headers: paymentHeaders,
           body: rawBody,
         });
         const response = await paymentService.serve(authorization.endpoint, paymentRequest);
@@ -428,6 +535,302 @@ export function createApp({
           return json({ error: 'product_endpoint_not_found', detail: message }, 404);
         }
         return json({ error: 'purchase_failed', detail: message }, 500);
+      }
+    }
+    // A dual-credential request can disclose an explicit mandate price limit to
+    // one authorized seller. The seller receives only the derived agent hash,
+    // never the passkey credential, biometric material, or owner identity.
+    if (
+      crossCredentialAuth &&
+      sellerAgentVerificationService &&
+      sellerQuoteRepository &&
+      purchaseService &&
+      request.method === 'POST' &&
+      pathname === '/v1/seller/quote-requests'
+    ) {
+      const session = await authenticatedSession(request, sessionService);
+      if (!session) {
+        return json({ error: 'authentication_required' }, 401);
+      }
+
+      const body = await request.json().catch(() => null);
+      if (
+        !isRecord(body) ||
+        typeof body.merchantId !== 'string' ||
+        !isRecord(body.intent) ||
+        !isAgentProof(body.agentProof)
+      ) {
+        return json({ error: 'merchantId, intent, and agentProof are required' }, 400);
+      }
+
+      const priceLimitMinor = body.intent.priceLimitMinor;
+      const requirements = Array.isArray(body.intent.requirements) ? body.intent.requirements : [];
+      if (
+        typeof priceLimitMinor !== 'number' ||
+        !Number.isSafeInteger(priceLimitMinor) ||
+        !requirements.every((item) => typeof item === 'string')
+      ) {
+        return json({ error: 'intent.priceLimitMinor and string requirements are required' }, 400);
+      }
+
+      try {
+        const canonicalIntent = canonicalJson(body.intent);
+        const authorization = await crossCredentialAuth.authorize({
+          sessionToken: session.token,
+          agentProof: body.agentProof,
+          method: request.method,
+          path: pathname,
+          body: canonicalIntent,
+        });
+        crossCredentialAuth.checkSellerPriceDisclosure(
+          authorization.mandate,
+          body.merchantId,
+          priceLimitMinor,
+          requirements,
+        );
+        await purchaseService.recordProofForAuthorization(
+          authorization,
+          request.method,
+          pathname,
+          canonicalIntent,
+          body.agentProof,
+        );
+
+        const expiresAt = new Date(Math.min(
+          new Date(authorization.mandate.expiresAt).getTime(),
+          Date.now() + 24 * 60 * 60 * 1000,
+        )).toISOString();
+        const verification = sellerAgentVerificationService.issue({
+          userId: authorization.session.userId,
+          passkeyCredentialId: authorization.session.credentialId,
+          agentIdentityId: authorization.agent.id,
+          mandateId: authorization.mandate.id,
+          merchantId: body.merchantId,
+          expiresAt,
+        });
+        const quoteRequest = await sellerQuoteRepository.create({
+          merchantId: body.merchantId,
+          ownerId: authorization.session.userId,
+          agentIdentityId: authorization.agent.id,
+          mandateId: authorization.mandate.id,
+          credentialCommitment: verification.credentialCommitment,
+          agentVerificationHash: verification.agentVerificationHash,
+          priceLimitMinor,
+          currency: authorization.mandate.currency,
+          requirements,
+          expiresAt,
+        });
+
+        return json({
+          quoteRequest: {
+            id: quoteRequest.id,
+            merchantId: quoteRequest.merchantId,
+            priceLimitMinor: quoteRequest.priceLimitMinor,
+            currency: quoteRequest.currency,
+            requirements: quoteRequest.requirements,
+            expiresAt: quoteRequest.expiresAt,
+          },
+        }, 201);
+      } catch (error) {
+        const message = (error as Error).message;
+        const status = message.includes('Mandate') || message.includes('mandate') || message.includes('Seller')
+          ? 403
+          : 401;
+        return json({ error: 'seller_disclosure_denied', detail: message }, status);
+      }
+    }
+
+    if (
+      sellerQuoteRepository &&
+      request.method === 'GET' &&
+      /^\/v1\/seller\/quote-requests\/[^/]+$/.test(pathname)
+    ) {
+      const merchantApiKey = request.headers.get('x-merchant-api-key');
+      const quoteRequestId = pathname.split('/')[4];
+      if (!merchantApiKey || !quoteRequestId) {
+        return json({ error: 'seller_authentication_required' }, 401);
+      }
+      const quoteRequest = await sellerQuoteRepository.getForSeller(merchantApiKey, quoteRequestId);
+      if (!quoteRequest) {
+        return json({ error: 'seller_quote_request_not_found' }, 404);
+      }
+      return json({
+        quoteRequest: {
+          id: quoteRequest.id,
+          agentVerificationHash: quoteRequest.agentVerificationHash,
+          priceLimitMinor: quoteRequest.priceLimitMinor,
+          currency: quoteRequest.currency,
+          requirements: quoteRequest.requirements,
+          expiresAt: quoteRequest.expiresAt,
+        },
+      });
+    }
+
+    if (
+      sellerQuoteRepository &&
+      sellerAgentVerificationService &&
+      request.method === 'POST' &&
+      /^\/v1\/seller\/quote-requests\/[^/]+\/verify$/.test(pathname)
+    ) {
+      const merchantApiKey = request.headers.get('x-merchant-api-key');
+      const quoteRequestId = pathname.split('/')[4];
+      const body = await request.json().catch(() => null);
+      if (!merchantApiKey || !quoteRequestId || !isRecord(body) || typeof body.agentVerificationHash !== 'string') {
+        return json({ error: 'seller_authentication_and_agent_verification_hash_required' }, 401);
+      }
+      const quoteRequest = await sellerQuoteRepository.getForSeller(merchantApiKey, quoteRequestId);
+      if (!quoteRequest) {
+        return json({ error: 'seller_quote_request_not_found' }, 404);
+      }
+      const valid = sellerAgentVerificationService.verify({
+        userId: quoteRequest.ownerId,
+        credentialCommitment: quoteRequest.credentialCommitment,
+        agentIdentityId: quoteRequest.agentIdentityId,
+        mandateId: quoteRequest.mandateId,
+        merchantId: quoteRequest.merchantId,
+        expiresAt: quoteRequest.expiresAt,
+      }, body.agentVerificationHash);
+      return json({ valid });
+    }
+
+
+    // Agent-accessible conversation read route. Authenticated by AGENT_SERVICE_TOKEN bearer.
+    // The agent reads conversation history to contextualize its reasoning without
+    // accessing passkey credentials or owner-private data.
+    if (
+      conversationRepository &&
+      agentServiceToken &&
+      request.method === 'GET' &&
+      /^\/v1\/conversations\/[^/]+\/messages$/.test(pathname)
+    ) {
+      const authorization = request.headers.get('authorization');
+      const match = authorization?.match(/^Bearer (.+)$/);
+      if (!match || match[1] !== agentServiceToken) {
+        return json({ error: 'agent_authentication_required' }, 401);
+      }
+      const conversationId = pathname.split('/')[3];
+      if (!conversationId) {
+        return json({ error: 'conversation_id_required' }, 400);
+      }
+      const conversation = await conversationRepository.getConversation(conversationId);
+      if (!conversation) {
+        return json({ error: 'conversation_not_found' }, 404);
+      }
+      try {
+        const messages = await conversationRepository.listMessages(conversation.id);
+        return json({
+          conversation: {
+            id: conversation.id,
+            ownerId: conversation.ownerId,
+            createdAt: conversation.createdAt,
+            updatedAt: conversation.updatedAt,
+          },
+          messages,
+        });
+      } catch {
+        return json({ error: 'conversation_messages_unavailable' }, 500);
+      }
+    }
+
+    // Agent-accessible conversation list route. Authenticated by AGENT_SERVICE_TOKEN bearer.
+    if (
+      conversationRepository &&
+      agentServiceToken &&
+      request.method === 'GET' &&
+      pathname === '/v1/conversations'
+    ) {
+      const authorization = request.headers.get('authorization');
+      const match = authorization?.match(/^Bearer (.+)$/);
+      if (!match || match[1] !== agentServiceToken) {
+        return json({ error: 'agent_authentication_required' }, 401);
+      }
+      const userId = new URL(request.url).searchParams.get('userId');
+      if (!userId) {
+        return json({ error: 'userId query parameter is required' }, 400);
+      }
+      try {
+        return json({ conversations: await conversationRepository.listConversations(userId) });
+      } catch {
+        return json({ error: 'conversation_list_failed' }, 500);
+      }
+    }
+
+    // Conversation routes. The passkey-authenticated owner owns every read and write.
+    if (conversationRepository && request.method === 'POST' && pathname === '/v1/conversations') {
+      const session = await authenticatedSession(request, sessionService);
+      if (!session) {
+        return json({ error: 'authentication_required' }, 401);
+      }
+      try {
+        const conversation = await conversationRepository.createConversation(session.userId);
+        return json({ conversation }, 201);
+      } catch {
+        return json({ error: 'conversation_creation_failed' }, 500);
+      }
+    }
+
+    if (conversationRepository && request.method === 'GET' && pathname === '/v1/conversations') {
+      const session = await authenticatedSession(request, sessionService);
+      if (!session) {
+        return json({ error: 'authentication_required' }, 401);
+      }
+      try {
+        return json({ conversations: await conversationRepository.listConversations(session.userId) });
+      } catch {
+        return json({ error: 'conversation_list_failed' }, 500);
+      }
+    }
+
+    if (
+      conversationRepository &&
+      /^\/v1\/conversations\/[^/]+\/messages$/.test(pathname) &&
+      (request.method === 'GET' || request.method === 'POST')
+    ) {
+      const session = await authenticatedSession(request, sessionService);
+      if (!session) {
+        return json({ error: 'authentication_required' }, 401);
+      }
+      const conversationId = pathname.split('/')[3];
+      if (!conversationId) {
+        return json({ error: 'conversation_id_required' }, 400);
+      }
+      const conversation = await conversationRepository.getConversation(conversationId);
+      if (!conversation || conversation.ownerId !== session.userId) {
+        return json({ error: 'conversation_not_found' }, 404);
+      }
+      if (request.method === 'GET') {
+        try {
+          return json({ messages: await conversationRepository.listMessages(conversation.id) });
+        } catch {
+          return json({ error: 'conversation_messages_unavailable' }, 500);
+        }
+      }
+
+      const body = await request.json().catch(() => null);
+      if (
+        !isRecord(body) ||
+        (body.role !== 'user' && body.role !== 'assistant') ||
+        typeof body.content !== 'string' ||
+        typeof body.createdAt !== 'string' ||
+        Number.isNaN(Date.parse(body.createdAt))
+      ) {
+        return json({ error: 'role, content, and createdAt are required' }, 400);
+      }
+      const content = body.content.trim();
+      if (content.length === 0 || content.length > 16_000) {
+        return json({ error: 'content must contain between 1 and 16000 characters' }, 400);
+      }
+      try {
+        const message = await conversationRepository.appendMessage({
+          ownerId: session.userId,
+          conversationId: conversation.id,
+          role: body.role,
+          content,
+          createdAt: body.createdAt,
+        });
+        return json({ message }, 201);
+      } catch {
+        return json({ error: 'conversation_message_persistence_failed' }, 500);
       }
     }
 

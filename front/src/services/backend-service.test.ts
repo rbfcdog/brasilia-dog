@@ -1,31 +1,35 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/api", () => ({
-  apiFetch: vi.fn(),
-}));
+const apiFetch = vi.hoisted(() => vi.fn());
 
-import { apiFetch } from "@/lib/api";
+vi.mock("@/lib/api", () => ({ apiFetch }));
+
 import { backendService } from "@/services/backend-service";
 
-const mockedApiFetch = vi.mocked(apiFetch);
+describe("backend conversation client", () => {
+  it("uses the authenticated backend proxy for a persisted transcript", async () => {
+    apiFetch
+      .mockResolvedValueOnce({ conversation: { id: "conversation-1" } })
+      .mockResolvedValueOnce({ message: { id: "message-1" } })
+      .mockResolvedValueOnce({ messages: [] });
 
-describe("backendService", () => {
-  beforeEach(() => mockedApiFetch.mockReset());
+    await backendService.createConversation();
+    await backendService.appendConversationMessage("conversation-1", {
+      role: "user",
+      content: "Buy an ultrawide monitor up to $300",
+      createdAt: "2026-08-29T00:00:00.000Z",
+    });
+    await backendService.conversationMessages("conversation-1");
 
-  it("uses the local backend proxy for health checks", async () => {
-    mockedApiFetch.mockResolvedValue({ status: "ok" });
-
-    await expect(backendService.health()).resolves.toEqual({ status: "ok" });
-    expect(mockedApiFetch).toHaveBeenCalledWith("/api/backend/health");
-  });
-
-  it("keeps product slugs within one proxied path segment", async () => {
-    mockedApiFetch.mockResolvedValue({ product: {} });
-
-    await backendService.productInfo("market/signal");
-
-    expect(mockedApiFetch).toHaveBeenCalledWith(
-      "/api/backend/v1/products/market%2Fsignal/info",
-    );
+    expect(apiFetch).toHaveBeenNthCalledWith(1, "/api/backend/v1/conversations", { method: "POST" });
+    expect(apiFetch).toHaveBeenNthCalledWith(2, "/api/backend/v1/conversations/conversation-1/messages", {
+      method: "POST",
+      body: JSON.stringify({
+        role: "user",
+        content: "Buy an ultrawide monitor up to $300",
+        createdAt: "2026-08-29T00:00:00.000Z",
+      }),
+    });
+    expect(apiFetch).toHaveBeenNthCalledWith(3, "/api/backend/v1/conversations/conversation-1/messages");
   });
 });

@@ -33,7 +33,9 @@ function isAllowedPath(pathname: string): boolean {
     pathname === "/v1/mandates" ||
     /^\/v1\/mandates\/[^/]+(?:\/revoke)?$/.test(pathname) ||
     pathname === "/v1/payments" ||
-    /^\/v1\/payments\/[^/]+$/.test(pathname)
+    /^\/v1\/payments\/[^/]+$/.test(pathname) ||
+    pathname === "/v1/conversations" ||
+    /^\/v1\/conversations\/[^/]+\/messages$/.test(pathname)
   );
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Fingerprint, KeyRound, LockKeyhole, ShieldCheck } from "lucide-react";
+import { Bell, Fingerprint, KeyRound, Loader2, LockKeyhole, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ApiError } from "@/lib/api";
 import {
@@ -8,6 +8,7 @@ import {
   getPasskeySessionToken,
 } from "@/lib/passkey-session";
 import { backendService } from "@/services/backend-service";
+import { usePasskey } from "@/hooks/use-passkey";
 
 type SessionState =
   | { kind: "checking" }
@@ -17,10 +18,10 @@ type SessionState =
 
 type BackendStatus = "checking" | "available" | "unavailable";
 
-
 export function ProfileSettings() {
   const [sessionState, setSessionState] = useState<SessionState>({ kind: "checking" });
   const [backendStatus, setBackendStatus] = useState<BackendStatus>("checking");
+  const { state: passkeyState, test, signOut, supported } = usePasskey();
 
   useEffect(() => {
     void backendService
@@ -47,6 +48,13 @@ export function ProfileSettings() {
       });
   }, []);
 
+  // Sync passkeyState session changes with sessionState display
+  useEffect(() => {
+    if (passkeyState.status === "success" && passkeyState.sessionToken && passkeyState.userId) {
+      setSessionState({ kind: "authenticated", userId: passkeyState.userId });
+    }
+  }, [passkeyState.status, passkeyState.sessionToken, passkeyState.userId]);
+
   const authLabel =
     sessionState.kind === "checking"
       ? "Checking session"
@@ -60,6 +68,10 @@ export function ProfileSettings() {
   const identityLabel = authenticated
     ? sessionState.userId
     : "No active passkey session";
+
+  const testUserId = "test-user-local";
+  const testUsername = "Test User";
+
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <article className="h-full rounded-2xl border border-line bg-white p-5 shadow-sm">
@@ -96,9 +108,51 @@ export function ProfileSettings() {
 
       <article className="h-full rounded-2xl border border-line bg-white p-5 shadow-sm">
           <div className="flex items-center gap-3"><Fingerprint className="size-5 text-primary" aria-hidden="true" /><div><h2 className="font-semibold">Approval methods</h2><p className="mt-0.5 text-xs text-muted">Controls for high-trust account actions</p></div></div>
-          <div className="mt-5 flex items-center justify-between gap-5 rounded-xl border border-line p-4">
-            <div><p className="text-sm font-medium">Simulated biometrics</p><p className="mt-1 text-xs leading-5 text-subtle">Enabled for this local demonstration. Native WebAuthn is not invoked.</p></div>
-            <span className="rounded-full bg-success/40 px-2.5 py-1 font-mono text-[9px] uppercase text-success-ink">Active</span>
+          <div className="mt-5 space-y-4">
+            <div className="rounded-xl border border-line p-4">
+              <div className="flex items-center justify-between gap-5">
+                <div>
+                  <p className="text-sm font-medium">Native WebAuthn biometrics</p>
+                  <p className="mt-1 text-xs leading-5 text-subtle">
+                    {supported
+                      ? "Test device biometric verification. The first test registers a passkey; later tests authenticate with it."
+                      : "WebAuthn is not supported in this browser."}
+                  </p>
+                </div>
+                <span className={`rounded-full px-2.5 py-1 font-mono text-[9px] uppercase ${authenticated ? "bg-success/40 text-success-ink" : "bg-canvas text-subtle"}`}>
+                  {authenticated ? "Active" : supported ? "Ready" : "N/A"}
+                </span>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void test(testUserId, testUsername)}
+                  disabled={!supported || passkeyState.status === "loading"}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-white px-3 py-1.5 text-xs font-medium text-ink transition hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {passkeyState.status === "loading" ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <Fingerprint className="size-3.5" aria-hidden="true" />}
+                  Test biometry
+                </button>
+                {authenticated && (
+                  <button
+                    type="button"
+                    onClick={signOut}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-white px-3 py-1.5 text-xs font-medium text-muted transition hover:bg-canvas"
+                  >
+                    Sign out
+                  </button>
+                )}
+              </div>
+              {passkeyState.message && (
+                <p className={`mt-3 text-xs leading-5 ${passkeyState.status === "error" ? "text-danger" : passkeyState.status === "success" ? "text-success-ink" : "text-subtle"}`}>
+                  {passkeyState.message}
+                </p>
+              )}
+            </div>
+            <div className="flex items-center justify-between gap-5 rounded-xl border border-line p-4">
+              <div><p className="text-sm font-medium">Simulated biometrics</p><p className="mt-1 text-xs leading-5 text-subtle">Used by the chat flow for mandate approval. Falls back when native WebAuthn is unavailable.</p></div>
+              <span className="rounded-full bg-success/40 px-2.5 py-1 font-mono text-[9px] uppercase text-success-ink">Active</span>
+            </div>
           </div>
       </article>
 

@@ -110,5 +110,6 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
       origin: environment.PASSKEY_ORIGIN ?? 'http://localhost:3000',
     },
     sessionSecret,
+    agentServiceToken: optionalValue(environment, 'AGENT_SERVICE_TOKEN'),
   };
 }

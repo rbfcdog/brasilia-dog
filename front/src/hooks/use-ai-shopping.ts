@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useReducer } from "react";
+import { useCallback, useEffect, useReducer, useRef } from "react";
 import { PaymentChallengeError } from "@/lib/api";
+import { getPasskeySessionToken } from "@/lib/passkey-session";
 import { demoStorage } from "@/lib/demo-storage";
 import { simulatedBiometricProvider } from "@/services/biometric-provider";
 import { shoppingService } from "@/services/shopping-service";
+import { backendService } from "@/services/backend-service";
 import type {
   ChatFlowState,
   ChatMessage,
@@ -138,20 +140,86 @@ function createMessage(role: ChatMessage["role"], content: string): ChatMessage 
   };
 }
 
+/**
+ * Persist a message to the backend conversation API when a passkey session exists.
+ * Errors are swallowed so the chat flow is never blocked by persistence failures.
+ */
+async function persistMessage(
+  conversationIdRef: React.RefObject<string | null>,
+  message: ChatMessage,
+): Promise<void> {
+  const conversationId = conversationIdRef.current;
+  if (!conversationId) return;
+
+  try {
+    await backendService.appendConversationMessage(conversationId, {
+      role: message.role,
+      content: message.content,
+      createdAt: message.createdAt,
+    });
+  } catch {
+    // Persistence is best-effort. The chat continues working locally.
+  }
+}
+
 export function useAIShopping() {
   const [state, dispatch] = useReducer(aiShoppingReducer, initialAIShoppingState);
   const { addScheduledPurchase } = useShoppingStore();
+  const conversationIdRef = useRef<string | null>(null);
 
+  // On mount: hydrate from backend if a passkey session exists, else from demoStorage.
   useEffect(() => {
-    dispatch({ type: "HYDRATE", messages: demoStorage.readMessages() });
+    const sessionToken = getPasskeySessionToken();
+
+    if (sessionToken) {
+      // Try to load the most recent conversation from the backend.
+      void backendService
+        .listConversations()
+        .then(async ({ conversations }) => {
+          if (conversations.length > 0) {
+            // Use the most recent conversation.
+            const latest = conversations[0];
+            conversationIdRef.current = latest.id;
+            const { messages } = await backendService.conversationMessages(latest.id);
+            dispatch({
+              type: "HYDRATE",
+              messages: messages.map((m) => ({
+                id: m.id,
+                role: m.role,
+                content: m.content,
+                createdAt: m.createdAt,
+              })),
+            });
+          } else {
+            // No existing conversation; create one.
+            const { conversation } = await backendService.createConversation();
+            conversationIdRef.current = conversation.id;
+            dispatch({ type: "HYDRATE", messages: [] });
+          }
+        })
+        .catch(() => {
+          // Backend unavailable; fall back to demoStorage.
+          dispatch({ type: "HYDRATE", messages: demoStorage.readMessages() });
+        });
+    } else {
+      // No passkey session; use local demoStorage.
+      dispatch({ type: "HYDRATE", messages: demoStorage.readMessages() });
+    }
   }, []);
 
+  // When using demoStorage (no backend conversation), keep it in sync.
   useEffect(() => {
-    if (state.hydrated) demoStorage.writeMessages(state.messages);
+    if (state.hydrated && !conversationIdRef.current) {
+      demoStorage.writeMessages(state.messages);
+    }
   }, [state.hydrated, state.messages]);
 
   const reset = useCallback(() => {
-    demoStorage.clearMessages();
+    if (!conversationIdRef.current) {
+      demoStorage.clearMessages();
+    }
+    // On reset, clear the conversation ref so a new conversation is created next time.
+    conversationIdRef.current = null;
     dispatch({ type: "RESET" });
   }, []);
 
@@ -169,12 +237,16 @@ export function useAIShopping() {
       const context = state.messages;
       dispatch({ type: "SUBMIT", message: userMessage });
 
+      // Persist user message to backend if a conversation is active.
+      void persistMessage(conversationIdRef, userMessage);
+
       try {
         const response = await shoppingService.analyze(trimmed, context);
         const assistantMessage = createMessage("assistant", response.message);
 
         if (response.kind === "clarification") {
           dispatch({ type: "CLARIFICATION", message: assistantMessage });
+          void persistMessage(conversationIdRef, assistantMessage);
           return;
         }
 
@@ -183,6 +255,7 @@ export function useAIShopping() {
           message: assistantMessage,
           mandate: response.mandate,
         });
+        void persistMessage(conversationIdRef, assistantMessage);
       } catch (error) {
         if (error instanceof PaymentChallengeError) {
           dispatch({ type: "PAYMENT_CHALLENGE", challenge: error.challenge });
@@ -208,13 +281,12 @@ export function useAIShopping() {
       const approval = await simulatedBiometricProvider.approve(state.mandate);
       if (!approval.approved) throw new Error("Identity confirmation was declined.");
 
-      dispatch({
-        type: "SEARCHING",
-        message: createMessage(
-          "assistant",
-          "Mandate approved. I am searching verified merchants for the best qualifying offer.",
-        ),
-      });
+      const searchingMessage = createMessage(
+        "assistant",
+        "Mandate approved. I am searching verified merchants for the best qualifying offer.",
+      );
+      dispatch({ type: "SEARCHING", message: searchingMessage });
+      void persistMessage(conversationIdRef, searchingMessage);
 
       const result = await shoppingService.execute(state.mandate);
       const assistantMessage = createMessage("assistant", result.message);
@@ -229,6 +301,7 @@ export function useAIShopping() {
           purchase: result.scheduledPurchase,
         });
       }
+      void persistMessage(conversationIdRef, assistantMessage);
     } catch (error) {
       if (error instanceof PaymentChallengeError) {
         dispatch({ type: "PAYMENT_CHALLENGE", challenge: error.challenge });

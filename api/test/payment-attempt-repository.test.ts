@@ -47,6 +47,7 @@ test('records an auditable payment attempt through the atomic database function'
       p_currency: 'usd',
       p_scale: 2,
       p_request_fingerprint: 'f'.repeat(64),
+      p_agent_execution_proof_id: null,
       p_receipt: { payment_id: 'provider-payment-1' },
       p_failure_code: null,
     },
