@@ -34,6 +34,25 @@ test('loads a sandbox Stripe MPP configuration with test credentials', () => {
   });
 });
 
+test('rejects localhost passkey defaults in production', () => {
+  assert.throws(
+    () => loadConfig({ ...sandboxEnvironment, NODE_ENV: 'production' }),
+    /PASSKEY_RP_ID and PASSKEY_ORIGIN must be explicitly configured in production/,
+  );
+});
+
+test('rejects a passkey relying-party ID outside the configured production origin', () => {
+  assert.throws(
+    () => loadConfig({
+      ...sandboxEnvironment,
+      NODE_ENV: 'production',
+      PASSKEY_RP_ID: 'shop.example.test',
+      PASSKEY_ORIGIN: 'https://other.example.test',
+    }),
+    /PASSKEY_RP_ID must match PASSKEY_ORIGIN or be its registrable parent domain/,
+  );
+});
+
 test('loads distinct incoming and outgoing agent credentials', () => {
   const config = loadConfig({
     ...sandboxEnvironment,

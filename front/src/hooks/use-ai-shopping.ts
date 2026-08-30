@@ -91,6 +91,8 @@ export function useAIShopping() {
   const [state, dispatch] = useReducer(aiShoppingReducer, initialAIShoppingState);
   const conversationIdRef = useRef<string | null>(null);
   const pollingGeneration = useRef(0);
+  const messageInFlight = useRef(false);
+
 
   const loadConversation = useCallback(async (id: string) => {
     const { messages } = await backendService.conversationMessages(id);
@@ -174,7 +176,9 @@ export function useAIShopping() {
 
   const sendMessage = useCallback(async (content: string) => {
     const trimmed = content.trim();
-    if (!trimmed || state.status === "analyzing" || state.status === "searching") return;
+    if (!trimmed || messageInFlight.current || state.status === "analyzing" || state.status === "searching") return;
+
+    messageInFlight.current = true;
     const userMessage = createMessage("user", trimmed);
     dispatch({ type: "SUBMIT", message: userMessage });
     try {
@@ -187,6 +191,8 @@ export function useAIShopping() {
       else dispatch({ type: "MANDATE_READY", message: assistant, mandate: response.mandate });
     } catch (error) {
       dispatch({ type: "ERROR", message: error instanceof Error ? error.message : "The request could not be analyzed." });
+    } finally {
+      messageInFlight.current = false;
     }
   }, [state.status]);
 

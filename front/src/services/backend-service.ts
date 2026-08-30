@@ -53,6 +53,11 @@ export interface PasskeyRegistrationStatus {
   credentialCount: number;
 }
 
+export interface PasskeyEnrollment {
+  enrollmentUrl: string;
+  expiresAt: string;
+}
+
 export interface BackendConversation {
   id: string;
   ownerId: string;
@@ -95,6 +100,10 @@ export const backendService = {
 
   passkeyStatus(): Promise<PasskeyRegistrationStatus> {
     return apiFetch<PasskeyRegistrationStatus>(backendPath("/v1/passkeys/status"));
+  },
+
+  createPasskeyEnrollment(): Promise<PasskeyEnrollment> {
+    return apiFetch<PasskeyEnrollment>("/api/passkey/enrollment", { method: "POST" });
   },
 
   passkeyRegisterOptions(): Promise<PasskeyRegistrationOptions> {

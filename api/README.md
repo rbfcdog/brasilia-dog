@@ -14,6 +14,14 @@ A Node.js MPP endpoint that charges an agent for the controlled `GET /paid` reso
 
 [ADR-0001](./docs/adr-0001-supabase-primary-data-platform.md) selects Supabase Postgres, Auth, and Storage for the Track 01 build. Node remains the only mandate and payment authority; browser and Python code remain advisory or projection-only.
 
+## Passkey sign-in boundary
+
+Account sign-in establishes the server-side Supabase access cookie. Passkey enrollment is a separate, one-time step: a successful enrollment explicitly clears that account session, and the buyer signs in again before entering the workspace. This prevents an enrollment ceremony from silently acting as continued account access.
+
+When a browser cannot create a credential in a secure WebAuthn context, the frontend requests a short-lived, single-use enrollment link from `POST /v1/passkey/enrollments` through its BFF. It shows that link only as a QR code; the claim route completes enrollment on the secure device. The link and QR code contain no credential material or passkey session token.
+
+Production deployments must explicitly set `PASSKEY_RP_ID` and `PASSKEY_ORIGIN`. The origin must be HTTPS and the RP ID must be the origin host or its parent domain. Apply the durable passkey migration before enabling enrollment; otherwise the server cannot persist the registration challenge or session.
+
 ## Sandbox setup
 
 1. Create a Stripe sandbox and create a sandbox business profile in the Stripe Dashboard.

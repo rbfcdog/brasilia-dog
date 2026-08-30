@@ -92,6 +92,36 @@ describe("live agent chat", () => {
     expect(result.current.state.messages.at(-1)?.content).toBe("Tell me your budget.");
   });
 
+  it("submits one agent request while a chat turn is already in flight", async () => {
+    mocks.listConversations.mockResolvedValue({ conversations: [] });
+    const analysis = Promise.withResolvers<{
+      kind: "clarification";
+      message: string;
+      conversationId: string;
+    }>();
+    mocks.analyze.mockReturnValue(analysis.promise);
+
+    const { result } = renderHook(() => useAIShopping());
+    await waitFor(() => expect(result.current.state.hydrated).toBe(true));
+
+    let first: Promise<void>;
+    let second: Promise<void>;
+    act(() => {
+      first = result.current.sendMessage("Find appliances");
+      second = result.current.sendMessage("Find appliances");
+    });
+
+    expect(mocks.analyze).toHaveBeenCalledTimes(1);
+    analysis.resolve({
+      kind: "clarification",
+      message: "What is your budget?",
+      conversationId: "conversation-anon",
+    });
+    await act(async () => {
+      await Promise.all([first!, second!]);
+    });
+  });
+
   it("clears legacy browser transcripts instead of hydrating them", async () => {
     window.localStorage.setItem("vero:chat:v1", JSON.stringify([{
       id: "legacy-message",

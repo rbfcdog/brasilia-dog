@@ -30,6 +30,37 @@ function isStripeMode(value: string): value is StripeMode {
   return value === 'sandbox' || value === 'live';
 }
 
+function loadPasskeyConfig(environment: NodeJS.ProcessEnv): AppConfig['passkey'] {
+  const rpName = environment.PASSKEY_RP_NAME ?? 'Vero Marketplace';
+  const rpId = environment.PASSKEY_RP_ID ?? 'localhost';
+  const origin = environment.PASSKEY_ORIGIN ?? 'http://localhost:3000';
+
+  if (environment.NODE_ENV !== 'production') {
+    return { rpName, rpId, origin };
+  }
+
+  if (!environment.PASSKEY_RP_ID?.trim() || !environment.PASSKEY_ORIGIN?.trim()) {
+    throw new Error('PASSKEY_RP_ID and PASSKEY_ORIGIN must be explicitly configured in production.');
+  }
+
+  let parsedOrigin: URL;
+  try {
+    parsedOrigin = new URL(origin);
+  } catch {
+    throw new Error('PASSKEY_ORIGIN must be a valid HTTPS origin in production.');
+  }
+
+  if (parsedOrigin.protocol !== 'https:' || parsedOrigin.origin !== origin) {
+    throw new Error('PASSKEY_ORIGIN must be a valid HTTPS origin in production.');
+  }
+
+  if (parsedOrigin.hostname !== rpId && !parsedOrigin.hostname.endsWith(`.${rpId}`)) {
+    throw new Error('PASSKEY_RP_ID must match PASSKEY_ORIGIN or be its registrable parent domain.');
+  }
+
+  return { rpName, rpId, origin };
+}
+
 export function loadSupabaseConfig(environment: NodeJS.ProcessEnv = process.env): SupabaseConfig | null {
   const url = optionalValue(environment, 'SUPABASE_URL');
   const serviceRoleKey = optionalValue(environment, 'SUPABASE_SERVICE_ROLE_KEY');
@@ -100,11 +131,7 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
     stripeSecretKey,
     stripeProfileId,
     supabase: loadSupabaseConfig(environment),
-    passkey: {
-      rpName: environment.PASSKEY_RP_NAME ?? 'Vero Marketplace',
-      rpId: environment.PASSKEY_RP_ID ?? 'localhost',
-      origin: environment.PASSKEY_ORIGIN ?? 'http://localhost:3000',
-    },
+    passkey: loadPasskeyConfig(environment),
     sessionSecret,
     agentServiceToken: optionalValue(environment, 'AGENT_SERVICE_TOKEN'),
     agentServiceOutboundToken: optionalValue(environment, 'AGENT_SERVICE_OUTBOUND_TOKEN'),
