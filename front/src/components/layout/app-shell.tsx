@@ -21,7 +21,7 @@ import { backendService, type BackendConversation } from "@/services/backend-ser
 import { useShoppingStore } from "@/components/providers/shopping-provider";
 
 const navigation = [
-  { href: "/", label: "Assistant", icon: MessageSquareText },
+  { href: "/assistant", label: "Assistant", icon: MessageSquareText },
   { href: "/scheduled", label: "Scheduled", icon: CalendarClock },
   { href: "/history", label: "History", icon: History },
   { href: "/support", label: "How it works", icon: Headphones },
@@ -29,7 +29,7 @@ const navigation = [
 
 function Brand() {
   return (
-    <Link href="/" className="group flex w-fit items-center gap-3 rounded-lg" aria-label="Nomad home">
+    <Link href="/assistant" className="group flex w-fit items-center gap-3 rounded-lg" aria-label="Nomad buyer assistant">
       <div className="grid size-9 place-items-center rounded-[10px] bg-ink text-white shadow-sm transition-transform duration-200 group-hover:-rotate-3 motion-reduce:transform-none">
         <Sparkles className="size-4" aria-hidden="true" />
       </div>
@@ -67,7 +67,7 @@ function SidebarContent({ closeMenu }: { closeMenu?: () => void }) {
     demoStorage.clearMessages();
     window.dispatchEvent(new Event("nomad:new-request"));
     closeMenu?.();
-    router.push("/");
+    router.push("/assistant");
   }
 
 
@@ -92,7 +92,7 @@ function SidebarContent({ closeMenu }: { closeMenu?: () => void }) {
         <p className="px-2 font-mono text-[9px] uppercase tracking-[0.18em] text-muted">Workspace</p>
         <nav className="mt-2 space-y-1" aria-label="Primary navigation">
           {navigation.map((item) => {
-            const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+            const active = pathname.startsWith(item.href);
             const Icon = item.icon;
             return (
               <Link

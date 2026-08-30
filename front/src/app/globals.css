@@ -43,6 +43,11 @@
     from { opacity: 0; transform: translate(-50%, -47%) scale(0.97); }
     to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
   }
+
+  @keyframes slide-in-right {
+    from { opacity: 0; transform: translateX(18px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
 }
 
 * {
@@ -78,6 +83,19 @@ button:disabled {
   background-color: #f7f7f5;
   background-image: radial-gradient(rgb(16 17 20 / 0.065) 0.7px, transparent 0.7px);
   background-size: 18px 18px;
+}
+
+.landing-grid {
+  background-image:
+    linear-gradient(rgb(247 247 245 / 0.2), rgb(247 247 245 / 0.82)),
+    radial-gradient(rgb(16 17 20 / 0.075) 0.75px, transparent 0.75px);
+  background-size: auto, 20px 20px;
+}
+
+.merchant-grid {
+  background-color: #f9fafb;
+  background-image: radial-gradient(rgb(62 79 224 / 0.08) 0.7px, transparent 0.7px);
+  background-size: 20px 20px;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -77,7 +77,7 @@ test('uses an endpoint offering to create a Stripe MPP charge and records only r
     endpointId: 'endpoint-1',
     rail: 'stripe_mpp',
     providerPaymentId: 'charge-1',
-    idempotencyKey: 'cb535c19-0629-442d-8eb3-c61b787c791b',
+    idempotencyKey: 'proof-1',
     requestFingerprint: 'e14b74ff1b094305b4fa3fc33b5dffdaf000fdab2155805c2462aed6048a05d4',
     status: 'settled',
     amountMinor: 50,
@@ -92,6 +92,35 @@ test('uses an endpoint offering to create a Stripe MPP charge and records only r
       timestamp: '2026-08-29T00:00:00.000Z',
     },
   }]);
+});
+
+test('records a challenge and later settlement under the same agent-proof idempotency key', async () => {
+  const recorded: PaymentAttemptInput[] = [];
+  let paymentSuccess: MppHandlerOptions['onPaymentSuccess'];
+  const service = new PaymentService({
+    stripeProfileId: 'profile_test_example',
+    mppHandlerFactory(options) {
+      paymentSuccess = options.onPaymentSuccess;
+      return async () => new Response('payment required', { status: 402 });
+    },
+    paymentAttemptRepository: { async record(input) { recorded.push(input); } },
+  });
+  const request = new Request('https://api.example/v1/products/market-signal/mpp', {
+    headers: { 'x-agent-execution-proof-id': '11111111-1111-4111-8111-111111111111' },
+  });
+
+  const response = await service.serve(endpoint, request);
+  assert.equal(response.status, 402);
+  assert.equal(recorded[0]?.status, 'challenged');
+  assert.equal(recorded[0]?.idempotencyKey, '11111111-1111-4111-8111-111111111111');
+
+  assert.ok(paymentSuccess);
+  await paymentSuccess({
+    input: request,
+    receipt: { method: 'stripe/charge', reference: 'receipt-1', status: 'success', timestamp: '2026-08-30T00:00:00Z' },
+  });
+  assert.equal(recorded[1]?.status, 'settled');
+  assert.equal(recorded[1]?.idempotencyKey, recorded[0]?.idempotencyKey);
 });
 
 test('refuses an MPP offering that belongs to a different Stripe profile', async () => {
@@ -110,4 +139,3 @@ test('refuses an MPP offering that belongs to a different Stripe profile', async
     /does not match the configured Stripe Profile/,
   );
 });
-

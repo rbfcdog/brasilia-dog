@@ -43,6 +43,10 @@ function receiptSummary(receipt: PaymentReceiptSummary): PaymentReceiptSummary {
   };
 }
 
+function agentProofId(request: Request | undefined): string | null {
+  return request?.headers.get(AGENT_EXECUTION_PROOF_HEADER) ?? null;
+}
+
 interface PaymentServiceOptions {
   stripeProfileId: string;
   mppHandlerFactory?: MppHandlerFactory;
@@ -96,19 +100,20 @@ export class PaymentService {
         responseStatus: endpoint.responseStatus,
         onPaymentSuccess: async ({ input, receipt }) => {
           const summary = receiptSummary(receipt);
+          const proofId = agentProofId(input);
           await paymentAttemptRepository.record({
             productId: endpoint.product.id,
             offeringId: endpoint.offering.id,
             endpointId: endpoint.id,
             rail: 'stripe_mpp',
             providerPaymentId: summary.externalId ?? summary.reference,
-            idempotencyKey: this.randomUUID(),
+            idempotencyKey: proofId ?? this.randomUUID(),
             status: 'settled',
             amountMinor: endpoint.offering.amountMinor,
             currency: endpoint.offering.currency,
             scale: endpoint.offering.scale,
             requestFingerprint: fingerprintRequest(input),
-            agentExecutionProofId: input?.headers.get(AGENT_EXECUTION_PROOF_HEADER) ?? undefined,
+            agentExecutionProofId: proofId ?? undefined,
             receipt: summary,
           });
         },
@@ -116,6 +121,44 @@ export class PaymentService {
       this.mppHandlers.set(endpoint.id, handler);
     }
 
-    return handler(request);
+    const proofId = agentProofId(request);
+    try {
+      const response = await handler(request);
+      if (proofId && (response.status === 402 || response.status >= 400)) {
+        await paymentAttemptRepository.record({
+          productId: endpoint.product.id,
+          offeringId: endpoint.offering.id,
+          endpointId: endpoint.id,
+          rail: 'stripe_mpp',
+          idempotencyKey: proofId,
+          status: response.status === 402 ? 'challenged' : 'failed',
+          amountMinor: endpoint.offering.amountMinor,
+          currency: endpoint.offering.currency,
+          scale: endpoint.offering.scale,
+          requestFingerprint: fingerprintRequest(request),
+          agentExecutionProofId: proofId,
+          ...(response.status >= 400 && response.status !== 402 ? { failureCode: `http_${response.status}` } : {}),
+        });
+      }
+      return response;
+    } catch (error) {
+      if (proofId) {
+        await paymentAttemptRepository.record({
+          productId: endpoint.product.id,
+          offeringId: endpoint.offering.id,
+          endpointId: endpoint.id,
+          rail: 'stripe_mpp',
+          idempotencyKey: proofId,
+          status: 'failed',
+          amountMinor: endpoint.offering.amountMinor,
+          currency: endpoint.offering.currency,
+          scale: endpoint.offering.scale,
+          requestFingerprint: fingerprintRequest(request),
+          agentExecutionProofId: proofId,
+          failureCode: 'payment_handler_error',
+        });
+      }
+      throw error;
+    }
   }
 }
