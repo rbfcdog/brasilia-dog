@@ -7,6 +7,7 @@ describe("agent chat BFF", () => {
     vi.unstubAllGlobals();
     delete process.env.AGENT_SERVICE_URL;
     delete process.env.AGENT_SERVICE_TOKEN;
+    delete process.env.BACKEND_API_URL;
   });
 
   it("forwards a chat request to the agent with the server-only service token", async () => {
@@ -47,6 +48,96 @@ describe("agent chat BFF", () => {
     await expect(response.json()).resolves.toEqual({
       ok: true,
       data: { kind: "clarification", message: "What is your maximum budget?" },
+    });
+  });
+
+  it("persists an authenticated agent reply before returning it", async () => {
+    process.env.AGENT_SERVICE_URL = "https://agent.example.test";
+    process.env.AGENT_SERVICE_TOKEN = "agent-service-token-12345";
+    process.env.BACKEND_API_URL = "https://api.example.test";
+    const upstream = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        data: { kind: "clarification", message: "What is your maximum budget?" },
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ message: { id: "message-1" } }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      }));
+    vi.stubGlobal("fetch", upstream);
+
+    const response = await POST(new Request("http://localhost/api/agent", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer passkey-session",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        message: "I need a monitor.",
+        conversationId: "conversation-123",
+      }),
+    }));
+
+    expect(String(upstream.mock.calls[1]?.[0])).toBe(
+      "https://api.example.test/v1/conversations/conversation-123/messages",
+    );
+    expect(upstream.mock.calls[1]?.[1]).toMatchObject({
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        Authorization: "Bearer passkey-session",
+        "Content-Type": "application/json",
+      },
+    });
+    expect(JSON.parse(String(upstream.mock.calls[1]?.[1]?.body))).toMatchObject({
+      role: "assistant",
+      content: "What is your maximum budget?",
+    });
+    expect(response.status).toBe(200);
+  });
+
+  it("does not return an authenticated agent reply when backend persistence fails", async () => {
+    process.env.AGENT_SERVICE_URL = "https://agent.example.test";
+    process.env.AGENT_SERVICE_TOKEN = "agent-service-token-12345";
+    process.env.BACKEND_API_URL = "https://api.example.test";
+    const upstream = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        data: { kind: "clarification", message: "What is your maximum budget?" },
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        error: "conversation_message_persistence_failed",
+      }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }));
+    vi.stubGlobal("fetch", upstream);
+
+    const response = await POST(new Request("http://localhost/api/agent", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer passkey-session",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        message: "I need a monitor.",
+        conversationId: "conversation-123",
+      }),
+    }));
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: {
+        code: "CONVERSATION_PERSISTENCE_FAILED",
+        message: "The agent reply could not be saved to the backend.",
+      },
     });
   });
 });

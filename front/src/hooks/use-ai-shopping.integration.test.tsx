@@ -86,6 +86,7 @@ describe("live agent chat", () => {
     expect(mocks.analyze).toHaveBeenCalledWith("I need a monitor.", "conversation-123");
     expect(result.current.state.status).toBe("clarification");
     expect(result.current.state.messages.at(-1)?.content).toBe("What is your maximum budget?");
+    expect(mocks.appendConversationMessage).toHaveBeenCalledOnce();
   });
 
   it("loads a conversation selected from the recent history controls", async () => {

@@ -310,17 +310,14 @@ export function useAIShopping() {
         const assistantMessage = createMessage("assistant", response.message);
 
         if (response.kind === "clarification") {
-          await persistMessage(conversationIdRef, assistantMessage);
           dispatch({ type: "CLARIFICATION", message: assistantMessage });
           return;
         }
         if (response.kind === "products") {
-          await persistMessage(conversationIdRef, assistantMessage);
           dispatch({ type: "PRODUCT_RESULTS", message: assistantMessage, products: response.products });
           return;
         }
 
-        await persistMessage(conversationIdRef, assistantMessage);
         dispatch({
           type: "MANDATE_READY",
           message: assistantMessage,
