@@ -139,3 +139,48 @@ test('HTTP backend adapter delegates bounded marketplace search to the API', asy
   assert.deepEqual(await adapter.searchProducts(input), products);
   assert.deepEqual(requests.map((body) => JSON.parse(body)), [input]);
 });
+
+test('HTTP backend adapter accepts a legacy search result without lifecycle fields', async (t) => {
+  const legacyProduct = {
+    id: 'product-1',
+    slug: 'ultrawide-monitor-guide',
+    name: 'Ultrawide monitor guide',
+    description: 'A current MPP catalog product.',
+    offering: {
+      id: 'offering-1',
+      rail: 'stripe_mpp',
+      amountMinor: 250,
+      currency: 'usd',
+      scale: 2,
+    },
+    endpoint: {
+      id: 'endpoint-1',
+      method: 'GET',
+      path: '/v1/products/ultrawide-monitor-guide/mpp',
+    },
+  };
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'application/json' });
+    response.end(JSON.stringify({ products: [legacyProduct] }));
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise<void>((resolve) => server.close(() => resolve())));
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('Server did not bind.');
+
+  const adapter = new HttpBackendAdapter({
+    baseUrl: `http://127.0.0.1:${address.port}`,
+    token: backendToken,
+  });
+  const result = await adapter.searchProducts({
+    query: 'monitor', category: 'electronics', maximumAmountMinor: 30_000, slugs: [], limit: 10,
+  });
+
+  assert.equal(result.length, 1);
+  assert.equal(result[0]?.slug, "ultrawide-monitor-guide");
+  assert.equal(result[0]?.status, "published");
+  assert.deepEqual(result[0]?.metadata, {});
+  assert.equal(result[0]?.offering.networkId, null);
+  assert.equal(result[0]?.offering.active, true);
+  assert.equal(result[0]?.endpoint.enabled, true);
+});
