@@ -371,6 +371,35 @@ export class OpenAIShoppingResponder implements ChatResponder {
     conversationContext?: string;
     catalog?: ProductCatalogAdapter;
   }): Promise<AgentChatResponse> {
+    const directPurchase = input.message.match(/\b(?:buy|purchase|order|comprar|adquirir|pedir)\b/i)
+      && input.message.match(/\b(?:up to|under|below|até|abaixo de|menos de)\s*(?:usd|us\$|r\$|\$)?\s*(\d[\d,.]*)/i);
+    if (directPurchase) {
+      const budget = Number(directPurchase[0]!.match(/(\d[\d,.]*)\s*$/)?.[1]?.replace(/,/g, '') ?? '');
+      const scope = input.message
+        .replace(/\b(?:buy|purchase|order|comprar|adquirir|pedir)\b/gi, '')
+        .replace(/\b(?:up to|under|below|até|abaixo de|menos de)\b.*$/i, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      return chatResponseSchema.parse({
+        kind: 'mandate',
+        message: `I can search for ${scope} up to $${budget.toFixed(2)} after you approve this mandate.`,
+        mandate: {
+          id: randomUUID(),
+          scope,
+          maximumAmount: budget,
+          currency: 'USD',
+          validUntil: new Date(this.now().getTime() + MANDATE_VALIDITY_MS).toISOString(),
+          status: 'pending',
+          marketplaceScope: {
+            query: scope,
+            category: marketplaceCategory(null),
+            constraints: [{ field: 'price', operator: 'lte', value: budget }],
+            searchWindowSeconds: 60,
+          },
+        },
+        activity: [],
+      });
+    }
     let outputText = '';
     let activity: CatalogActivity[] = [];
     let catalogProducts: DiscoveredProduct[] = [];
