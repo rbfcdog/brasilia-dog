@@ -26,7 +26,7 @@ export async function generateMetadata(): Promise<Metadata> {
     // Keep the safe local fallback when proxy metadata is malformed.
   }
 
-  const title = "Vero — Agentic commerce for buyers and sellers";
+  const title = "Vero — Agentic commerce for buyers and merchants";
   const description = "A fixed-price commerce operating system where people set the rules and AI agents execute with proof.";
   const socialImage = `${origin}/og.png`;
 
