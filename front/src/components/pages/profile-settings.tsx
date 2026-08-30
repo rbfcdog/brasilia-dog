@@ -31,6 +31,23 @@ export function ProfileSettings() {
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState<string | null>(null);
   const [qrCode, setQrCode] = useState<string | null>(null);
+  const [qrLoading, setQrLoading] = useState(false);
+  const [qrError, setQrError] = useState<string | null>(null);
+  const [qrRequest, setQrRequest] = useState(0);
+
+  function setSignedInAccount(user: { id: string; email?: string | null }) {
+    setQrCode(null);
+    setQrError(null);
+    setQrLoading(true);
+    setAccountUser({ id: user.id, email: user.email ?? user.id });
+  }
+
+  function requestNewQr() {
+    setQrCode(null);
+    setQrError(null);
+    setQrLoading(true);
+    setQrRequest((value) => value + 1);
+  }
 
   useEffect(() => {
     void backendService
@@ -59,7 +76,7 @@ export function ProfileSettings() {
 
   useEffect(() => {
     void authService.session()
-      .then(({ user }) => setAccountUser({ id: user.id, email: user.email ?? user.id }))
+      .then(({ user }) => setSignedInAccount(user))
       .catch(() => setAccountUser(null));
   }, []);
 
@@ -73,15 +90,18 @@ export function ProfileSettings() {
         return QRCode.toDataURL(payload.enrollmentUrl, { width: 220, margin: 2 });
       })
       .then((code) => { if (!cancelled) setQrCode(code); })
-      .catch((error) => { if (!cancelled) setAuthError(error instanceof Error ? error.message : "Could not create enrollment QR."); });
+      .catch((error) => {
+        if (!cancelled) setQrError(error instanceof Error ? error.message : "Could not create enrollment QR.");
+      })
+      .finally(() => { if (!cancelled) setQrLoading(false); });
     return () => { cancelled = true; };
-  }, [accountUser]);
+  }, [accountUser, qrRequest]);
 
   async function signInToAccount() {
     setAuthError(null);
     try {
       const { user } = await authService.signIn(email.trim(), password);
-      setAccountUser({ id: user.id, email: user.email ?? user.id });
+      setSignedInAccount(user);
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : "Sign-in failed.");
     }
@@ -94,7 +114,7 @@ export function ProfileSettings() {
       if (result.confirmationRequired) {
         setAuthError("Check your email to confirm the account, then sign in.");
       } else if (result.user) {
-        setAccountUser({ id: result.user.id, email: result.user.email ?? result.user.id });
+        setSignedInAccount(result.user);
       }
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : "Account creation failed.");
@@ -161,7 +181,7 @@ export function ProfileSettings() {
           {accountUser ? (
             <div className="mt-5">
               <p className="text-sm text-subtle">Signed in as <strong className="text-ink">{accountUser.email}</strong></p>
-              <button type="button" onClick={() => void authService.signOut().then(() => setAccountUser(null))} className="mt-3 rounded-lg border border-line px-3 py-1.5 text-xs">Sign out</button>
+              <button type="button" onClick={() => void authService.signOut().then(() => { setAccountUser(null); setQrCode(null); setQrError(null); setQrLoading(false); })} className="mt-3 rounded-lg border border-line px-3 py-1.5 text-xs">Sign out</button>
             </div>
           ) : (
             <div className="mt-5 space-y-3">
@@ -181,9 +201,21 @@ export function ProfileSettings() {
           {qrCode ? (
             <div className="mt-4 flex items-center gap-4">
               <Image src={qrCode} width={144} height={144} unoptimized alt="QR code linking to passkey enrollment on this site" className="size-36 rounded-lg border border-line" />
-              <p className="text-xs leading-5 text-subtle">Scan with the device that should receive the passkey. This user-bound QR expires in five minutes, works once, and opens only the dedicated passkey registration endpoint.</p>
+              <div>
+                <p className="text-xs leading-5 text-subtle">Scan with the device that should receive the passkey. This user-bound QR expires in five minutes, works once, and opens only the dedicated passkey registration endpoint.</p>
+                <button type="button" onClick={requestNewQr} className="mt-3 rounded-lg border border-line px-3 py-1.5 text-xs">Generate a new QR</button>
+              </div>
             </div>
-          ) : <p className="mt-4 text-sm text-subtle">Sign in to generate the enrollment QR code.</p>}
+          ) : !accountUser ? (
+            <p className="mt-4 text-sm text-subtle">Sign in to the account above to generate its passkey enrollment QR.</p>
+          ) : qrLoading || !qrError ? (
+            <p role="status" className="mt-4 inline-flex items-center gap-2 text-sm text-subtle"><Loader2 className="size-4 animate-spin" />Generating secure enrollment QR…</p>
+          ) : (
+            <div className="mt-4">
+              <p role="alert" className="text-sm text-danger">{qrError ?? "The enrollment QR could not be generated."}</p>
+              <button type="button" onClick={requestNewQr} className="mt-3 rounded-lg border border-line px-3 py-1.5 text-xs">Retry QR generation</button>
+            </div>
+          )}
         </article>
 
         <article className="h-full rounded-2xl border border-line bg-white p-5 shadow-sm">
