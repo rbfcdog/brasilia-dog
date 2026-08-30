@@ -15,7 +15,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
-import { registerEnrolledPasskey } from "@/hooks/use-passkey";
+import { authenticatePasskey, registerEnrolledPasskey } from "@/hooks/use-passkey";
 import { isValidCnpj, isValidCpf } from "@/lib/brazilian-tax-id";
 import { backendService } from "@/services/backend-service";
 import { authService } from "@/services/auth-service";
@@ -38,14 +38,14 @@ export function MerchantLogin({
   );
   const [confirmation, setConfirmation] = useState(false);
   const [pendingEnrollment, setPendingEnrollment] = useState(false);
+  const [pendingPasskey, setPendingPasskey] = useState(false);
   async function beginAccess() {
     const status = await backendService.passkeyStatus();
     if (!status.registered) {
       setPendingEnrollment(true);
       return;
     }
-    router.replace(nextPath);
-    router.refresh();
+    setPendingPasskey(true);
   }
 
   async function enrollFirstPasskey() {
@@ -54,10 +54,42 @@ export function MerchantLogin({
     try {
       const result = await registerEnrolledPasskey();
       if (!result.verified) throw new Error("Passkey registration was not verified.");
+      await authService.signOut();
+      setPendingEnrollment(false);
+      setMode("signin");
+      setMessage("Passkey created. Sign in to continue.");
+    } catch (caught) {
+      setMessage((caught as Error).message);
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function authenticateForAccess() {
+    setPending(true);
+    setMessage("");
+    try {
+      const result = await authenticatePasskey();
+      if (!result.verified) throw new Error("Passkey verification was not approved.");
       router.replace(nextPath);
       router.refresh();
     } catch (caught) {
       setMessage((caught as Error).message);
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function switchAccount() {
+    setPending(true);
+    setMessage("");
+    try {
+      await authService.signOut();
+      setPendingEnrollment(false);
+      setPendingPasskey(false);
+      setMode("signin");
+    } catch {
+      setMessage("Could not switch accounts. Try again.");
     } finally {
       setPending(false);
     }
@@ -184,6 +216,19 @@ export function MerchantLogin({
               <p className="mt-3 text-sm leading-6 text-subtle">One-time storefront setup. Your device may use biometrics, a PIN, or another local verifier. Vero never receives biometric data.</p>
               <button type="button" disabled={pending} onClick={() => void enrollFirstPasskey()} className="mt-7 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-medium text-white shadow-soft disabled:opacity-60">
                 {pending ? <Loader2 className="size-4 animate-spin" /> : <Fingerprint className="size-4" />} Set up passkey
+              </button>
+              {message ? <p role="alert" className="mt-3 text-xs leading-5 text-danger">{message}</p> : null}
+            </div>
+          ) : pendingPasskey ? (
+            <div className="rounded-2xl border border-line bg-white p-6 shadow-card md:p-8">
+              <Fingerprint className="size-8 text-primary" aria-hidden="true" />
+              <h1 className="mt-5 text-2xl font-semibold tracking-[-0.04em]">Verify your device passkey</h1>
+              <p className="mt-3 text-sm leading-6 text-subtle">A passkey verification is required before entering Merchant OS. Your device may use biometrics, a PIN, or another local verifier.</p>
+              <button type="button" disabled={pending} onClick={() => void authenticateForAccess()} className="mt-7 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-medium text-white shadow-soft disabled:opacity-60">
+                {pending ? <Loader2 className="size-4 animate-spin" /> : <Fingerprint className="size-4" />} Continue with passkey
+              </button>
+              <button type="button" disabled={pending} onClick={() => void switchAccount()} className="mt-3 flex h-10 w-full items-center justify-center rounded-xl border border-line text-xs font-medium text-subtle disabled:opacity-60">
+                Use another account
               </button>
               {message ? <p role="alert" className="mt-3 text-xs leading-5 text-danger">{message}</p> : null}
             </div>
