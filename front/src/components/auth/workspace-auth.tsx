@@ -4,7 +4,9 @@ import { ArrowRight, Bot, Loader2, Store } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { type FormEvent, useEffect, useState } from "react";
 
-import { authService } from "@/services/auth-service";
+import { registerEnrolledPasskey } from "@/hooks/use-passkey";
+import { backendService } from "@/services/backend-service";
+import { authService, type AuthUser } from "@/services/auth-service";
 
 type Role = "buyer" | "merchant";
 type Mode = "signin" | "signup";
@@ -36,6 +38,22 @@ export function WorkspaceAuth() {
     ? searchParams.get("next")!
     : destinations[role];
 
+  async function enrollFirstPasskey() {
+    const status = await backendService.passkeyStatus();
+    if (status.registered) return;
+
+    setMessage("Set up your device passkey to finish creating this account.");
+    const result = await registerEnrolledPasskey();
+    if (!result.verified) throw new Error("Passkey registration was not verified.");
+  }
+
+  async function completeAccess(user: AuthUser) {
+    await enrollFirstPasskey();
+    setAuthenticatedEmail(user.email);
+    router.push(destination);
+    router.refresh();
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPending(true);
@@ -43,9 +61,7 @@ export function WorkspaceAuth() {
     try {
       if (mode === "signin") {
         const { user } = await authService.signIn(email.trim(), password);
-        setAuthenticatedEmail(user.email);
-        router.push(destination);
-        router.refresh();
+        await completeAccess(user);
         return;
       }
 
@@ -63,9 +79,8 @@ export function WorkspaceAuth() {
         setMode("signin");
         return;
       }
-      setAuthenticatedEmail(data.user?.email ?? email.trim());
-      router.push(destination);
-      router.refresh();
+      if (!data.user) throw new Error("Account creation did not return an active session.");
+      await completeAccess(data.user);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Authentication failed.");
     } finally {

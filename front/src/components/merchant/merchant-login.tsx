@@ -15,6 +15,8 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
+import { registerEnrolledPasskey } from "@/hooks/use-passkey";
+import { backendService } from "@/services/backend-service";
 import { authService } from "@/services/auth-service";
 
 export function MerchantLogin({
@@ -34,6 +36,15 @@ export function MerchantLogin({
       : "",
   );
   const [confirmation, setConfirmation] = useState(false);
+  async function enrollFirstPasskey() {
+    const status = await backendService.passkeyStatus();
+    if (status.registered) return;
+
+    setMessage("Set up your device passkey to finish creating this storefront.");
+    const result = await registerEnrolledPasskey();
+    if (!result.verified) throw new Error("Passkey registration was not verified.");
+  }
+
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -53,6 +64,7 @@ export function MerchantLogin({
     try {
       if (mode === "signin") {
         await authService.signIn(email, password);
+        await enrollFirstPasskey();
         router.replace(nextPath);
         router.refresh();
       } else {
@@ -65,6 +77,8 @@ export function MerchantLogin({
           businessName,
         });
         if (!data.confirmationRequired) {
+          if (!data.user) throw new Error("Account creation did not return an active session.");
+          await enrollFirstPasskey();
           router.replace("/merchant/dashboard");
           router.refresh();
         } else {

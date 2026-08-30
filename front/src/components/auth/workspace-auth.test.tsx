@@ -7,6 +7,8 @@ import { WorkspaceAuth } from "@/components/auth/workspace-auth";
 const mocks = vi.hoisted(() => ({
   push: vi.fn(),
   signInWithPassword: vi.fn(),
+  passkeyStatus: vi.fn(),
+  registerPasskey: vi.fn(),
   search: "",
 }));
 
@@ -23,11 +25,21 @@ vi.mock("@/services/auth-service", () => ({
   },
 }));
 
+vi.mock("@/services/backend-service", () => ({
+  backendService: { passkeyStatus: mocks.passkeyStatus },
+}));
+
+vi.mock("@/hooks/use-passkey", () => ({
+  registerEnrolledPasskey: mocks.registerPasskey,
+}));
+
 describe("workspace authentication", () => {
   beforeEach(() => {
     mocks.search = "";
     mocks.push.mockClear();
     mocks.signInWithPassword.mockReset();
+    mocks.passkeyStatus.mockResolvedValue({ registered: true, credentialCount: 1 });
+    mocks.registerPasskey.mockReset();
   });
   it("signs a buyer in and routes to the assistant", async () => {
     mocks.signInWithPassword.mockResolvedValue({ user: { id: "buyer-1", email: "buyer@example.com" } });
@@ -41,6 +53,21 @@ describe("workspace authentication", () => {
       "buyer@example.com",
       "password123",
     );
+    expect(mocks.push).toHaveBeenCalledWith("/assistant");
+  });
+
+  it("enrolls a passkey before routing a first-time account", async () => {
+    mocks.passkeyStatus.mockResolvedValue({ registered: false, credentialCount: 0 });
+    mocks.registerPasskey.mockResolvedValue({ verified: true });
+    mocks.signInWithPassword.mockResolvedValue({ user: { id: "buyer-1", email: "buyer@example.com" } });
+    const user = userEvent.setup();
+    render(<WorkspaceAuth />);
+
+    await user.type(screen.getByRole("textbox", { name: "Email" }), "buyer@example.com");
+    await user.type(screen.getByLabelText("Password"), "password123");
+    await user.click(screen.getByRole("button", { name: "Sign in as buyer" }));
+
+    expect(mocks.registerPasskey).toHaveBeenCalledOnce();
     expect(mocks.push).toHaveBeenCalledWith("/assistant");
   });
 
