@@ -67,7 +67,7 @@ export function MandateCard({
           <Fingerprint className="size-4" aria-hidden="true" />
           {buttonLabel}
         </button>
-        <p className="mt-3 text-center text-[11px] text-muted">Demo approval only. No real biometric or payment data is used.</p>
+        <p className="mt-3 text-center text-[11px] text-muted">Approval requires a fresh device passkey verification. Payment remains subject to backend authorization.</p>
       </div>
     </article>
   );

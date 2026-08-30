@@ -103,7 +103,7 @@ export type ApiEnvelope<T> = ApiSuccess<T> | ApiFailure;
 
 export interface BiometricApprovalResult {
   approved: boolean;
-  method: "simulated";
+  method: "simulated" | "passkey";
   approvedAt: string;
 }
 

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useReducer, useRef } from "react";
 import { PaymentChallengeError } from "@/lib/api";
 import { getPasskeySessionToken } from "@/lib/passkey-session";
 import { demoStorage } from "@/lib/demo-storage";
-import { simulatedBiometricProvider } from "@/services/biometric-provider";
+import { passkeyBiometricProvider } from "@/services/biometric-provider";
 import { shoppingService } from "@/services/shopping-service";
 import { backendService } from "@/services/backend-service";
 import type {
@@ -234,14 +234,13 @@ export function useAIShopping() {
       if (!trimmed || state.status === "analyzing" || state.status === "searching") return;
 
       const userMessage = createMessage("user", trimmed);
-      const context = state.messages;
       dispatch({ type: "SUBMIT", message: userMessage });
 
-      // Persist user message to backend if a conversation is active.
-      void persistMessage(conversationIdRef, userMessage);
+      // Persist before the agent reads the transcript so its context includes this turn.
+      await persistMessage(conversationIdRef, userMessage);
 
       try {
-        const response = await shoppingService.analyze(trimmed, context);
+        const response = await shoppingService.analyze(trimmed, conversationIdRef.current ?? undefined);
         const assistantMessage = createMessage("assistant", response.message);
 
         if (response.kind === "clarification") {
@@ -267,7 +266,7 @@ export function useAIShopping() {
         });
       }
     },
-    [state.messages, state.status],
+    [state.status],
   );
 
   const requestApproval = useCallback(() => {
@@ -278,8 +277,11 @@ export function useAIShopping() {
     if (!state.mandate) return;
 
     try {
-      const approval = await simulatedBiometricProvider.approve(state.mandate);
-      if (!approval.approved) throw new Error("Identity confirmation was declined.");
+      const approval = await passkeyBiometricProvider.approve(state.mandate);
+      if (!approval.approved) {
+        throw new Error("Native passkey verification is required before this mandate can be executed.");
+      }
+
 
       const searchingMessage = createMessage(
         "assistant",

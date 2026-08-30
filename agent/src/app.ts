@@ -10,6 +10,7 @@ import {
   resumeRunRequestSchema,
   startRunRequestSchema,
 } from './contracts.js';
+import { chatRequestSchema } from './chat.js';
 import { AgentError, toAgentError } from './errors.js';
 import type { AgentService } from './service.js';
 
@@ -43,6 +44,11 @@ export function createApp({
       ok: true,
       data: { runId: run.runId, status: run.status },
     });
+  });
+
+  app.post('/v1/chat', async (request, response) => {
+    const body = parseBody(chatRequestSchema, request.body);
+    response.json({ ok: true, data: await service.chat(body) });
   });
 
   app.get('/v1/agent-runs/:runId', (request, response) => {

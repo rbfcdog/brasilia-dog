@@ -1,4 +1,5 @@
 import type { AgentAdapters, ConversationContextAdapter, ConversationMessage } from './adapters.js';
+import type { AgentChatRequest, AgentChatResponse, ChatResponder } from './chat.js';
 import type {
   PublicRun,
   ResumeRunRequest,
@@ -47,13 +48,14 @@ export class AgentService {
   readonly store: RunStore;
   private readonly graph: AgentGraph;
   private readonly conversations?: ConversationContextAdapter;
+  private readonly responder?: ChatResponder;
   private readonly schedule: Scheduler;
-
   constructor({
     adapters,
     selector,
     store = new RunStore(),
     logger = consoleStepLogger,
+    responder,
     now,
     scheduler = defaultScheduler,
   }: {
@@ -61,10 +63,12 @@ export class AgentService {
     selector: FlightSelector;
     store?: RunStore;
     logger?: StepLogger;
+    responder?: ChatResponder;
     now?: () => Date;
     scheduler?: Scheduler;
   }) {
     this.store = store;
+    this.responder = responder;
     this.conversations = adapters.conversations;
     this.schedule = scheduler;
     this.graph = createAgentGraph({
@@ -98,6 +102,20 @@ export class AgentService {
       });
     }
     return resume.run;
+  }
+
+  async chat(request: AgentChatRequest): Promise<AgentChatResponse> {
+    if (!this.responder) {
+      throw new AgentError('CHAT_UNAVAILABLE', 'Chat is not configured for this agent service.', 503);
+    }
+
+    const conversationContext = request.conversationId
+      ? await this.loadConversationContextForChat(request.conversationId)
+      : undefined;
+    return this.responder.respond({
+      message: request.message,
+      ...(conversationContext ? { conversationContext } : {}),
+    });
   }
 
   private async executeInitial(runId: string): Promise<void> {
@@ -184,6 +202,20 @@ export class AgentService {
       message: verification.message,
     });
   }
+  private async loadConversationContextForChat(conversationId: string): Promise<string | undefined> {
+    if (!this.conversations) {
+      throw new AgentError(
+        'CONVERSATION_CONTEXT_UNAVAILABLE',
+        'Conversation context requires a backend-connected agent adapter.',
+        503,
+      );
+    }
+
+    return formatConversationContext(
+      await this.conversations.getConversationMessages(conversationId),
+    ) || undefined;
+  }
+
 
   private async loadConversationContext(runId: string, conversationId: string): Promise<string | undefined> {
     if (!this.conversations) {

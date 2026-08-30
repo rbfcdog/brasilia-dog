@@ -107,7 +107,7 @@ async function registerPasskey(userId: string, username: string): Promise<Passke
  * Initiates WebAuthn authentication (get) using the browser PublicKeyCredential API
  * and verifies the assertion with the backend, which returns a session token.
  */
-async function authenticatePasskey(userId: string): Promise<PasskeyVerificationResult> {
+export async function authenticatePasskey(userId: string): Promise<PasskeyVerificationResult> {
   const options: PasskeyAuthOptions = await backendService.passkeyAuthOptions(userId);
 
   const publicKey: PublicKeyCredentialRequestOptions = {

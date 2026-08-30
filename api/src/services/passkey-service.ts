@@ -130,7 +130,7 @@ export class PasskeyService {
         type: 'public-key' as const,
         transports: c.transports as AuthenticatorTransport[],
       })),
-      userVerification: 'preferred',
+      userVerification: 'required',
     });
 
     await this.store.setCurrentChallenge(userId, options.challenge);
@@ -163,6 +163,7 @@ export class PasskeyService {
         counter: credential.counter,
         transports: credential.transports as AuthenticatorTransport[],
       },
+      requireUserVerification: true,
     });
 
     if (verification.verified) {

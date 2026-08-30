@@ -42,6 +42,7 @@ test('generates WebAuthn authentication options with a challenge', async () => {
 
   assert.equal(options.rpId, rpId);
   assert.ok(options.challenge.length > 0);
+  assert.equal(options.userVerification, 'required');
 });
 
 test('rejects authentication verification without a pending challenge', async () => {

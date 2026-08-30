@@ -31,7 +31,7 @@ export function BiometricDialog({
         <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-white/10 bg-ink p-6 text-white shadow-2xl focus:outline-none data-[state=open]:animate-dialog-in">
           <Dialog.Title className="text-xl font-semibold tracking-[-0.035em]">Confirm your identity</Dialog.Title>
           <Dialog.Description className="mt-2 text-sm leading-6 text-white/60">
-            This simulated check authorizes the mandate for the demo. No native biometric data leaves your device.
+            Confirm this mandate with your device passkey. The browser performs verification locally; biometric data never leaves your device.
           </Dialog.Description>
           <Dialog.Close asChild>
             <button disabled={confirming} className="absolute right-4 top-4 grid size-9 place-items-center rounded-lg text-white/60 hover:bg-white/10 hover:text-white" aria-label="Close approval dialog">
@@ -56,7 +56,7 @@ export function BiometricDialog({
             disabled={confirming}
             className="mt-5 flex h-12 w-full items-center justify-center rounded-xl bg-success px-5 font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-success-ink transition hover:bg-success/90 disabled:cursor-wait"
           >
-            {confirming ? "Verifying identity…" : "Confirm with simulated biometrics"}
+            {confirming ? "Verifying identity…" : "Confirm with passkey"}
           </button>
           <button onClick={onCancel} disabled={confirming} className="mt-2 h-10 w-full text-xs text-white/55 hover:text-white">
             Cancel
