@@ -4,6 +4,7 @@ import LandingPage from "@/app/page";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock("@/services/auth-service", () => ({

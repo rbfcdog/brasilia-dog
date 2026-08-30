@@ -58,9 +58,13 @@ export class SupabasePasskeyStore implements PasskeyStore {
 
   async getCurrentChallenge(userId: string): Promise<string | null> {
     const { data, error } = await this.client.from('passkey_challenges')
-      .select('challenge').eq('user_id', userId).maybeSingle();
-    if (error) throw new Error('Could not load passkey challenge.');
-    return typeof data?.challenge === 'string' ? data.challenge : null;
+      .select('challenge, expires_at').eq('user_id', userId).maybeSingle();
+    if (error) throw new Error('Could not load passkey challenge. Apply migration 20260830040000_durable_supabase_passkeys.sql.');
+    if (!data || Date.parse(data.expires_at) <= Date.now()) {
+      if (data) await this.setCurrentChallenge(userId, '');
+      return null;
+    }
+    return typeof data.challenge === 'string' ? data.challenge : null;
   }
 
   async setCurrentChallenge(userId: string, challenge: string): Promise<void> {
@@ -74,7 +78,7 @@ export class SupabasePasskeyStore implements PasskeyStore {
       challenge,
       expires_at: new Date(Date.now() + 10 * 60_000).toISOString(),
     }, { onConflict: 'user_id' });
-    if (error) throw new Error('Could not save passkey challenge.');
+    if (error) throw new Error('Could not save passkey challenge. Apply migration 20260830040000_durable_supabase_passkeys.sql.');
   }
 
   private mapCredential(row: Record<string, unknown>): PasskeyCredentialRecord {

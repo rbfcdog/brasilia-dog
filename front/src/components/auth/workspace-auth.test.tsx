@@ -1,16 +1,18 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { WorkspaceAuth } from "@/components/auth/workspace-auth";
 
 const mocks = vi.hoisted(() => ({
   push: vi.fn(),
   signInWithPassword: vi.fn(),
+  search: "",
 }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mocks.push, refresh: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(mocks.search),
 }));
 
 vi.mock("@/services/auth-service", () => ({
@@ -22,6 +24,11 @@ vi.mock("@/services/auth-service", () => ({
 }));
 
 describe("workspace authentication", () => {
+  beforeEach(() => {
+    mocks.search = "";
+    mocks.push.mockClear();
+    mocks.signInWithPassword.mockReset();
+  });
   it("signs a buyer in and routes to the assistant", async () => {
     mocks.signInWithPassword.mockResolvedValue({ user: { id: "buyer-1", email: "buyer@example.com" } });
     const user = userEvent.setup();
@@ -48,5 +55,18 @@ describe("workspace authentication", () => {
     await user.click(screen.getByRole("button", { name: "Sign in as merchant" }));
 
     expect(mocks.push).toHaveBeenCalledWith("/merchant/dashboard");
+  });
+
+  it("returns a QR enrollment login to the profile page", async () => {
+    mocks.search = "next=%2Fprofile%3Fenroll%3Dpasskey";
+    mocks.signInWithPassword.mockResolvedValue({ user: { id: "buyer-1", email: "buyer@example.com" } });
+    const user = userEvent.setup();
+    render(<WorkspaceAuth />);
+
+    await user.type(screen.getByRole("textbox", { name: "Email" }), "buyer@example.com");
+    await user.type(screen.getByLabelText("Password"), "password123");
+    await user.click(screen.getByRole("button", { name: "Sign in as buyer" }));
+
+    expect(mocks.push).toHaveBeenCalledWith("/profile?enroll=passkey");
   });
 });

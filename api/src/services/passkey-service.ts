@@ -97,18 +97,19 @@ export class PasskeyService {
       expectedChallenge,
       expectedOrigin: this.origin,
       expectedRPID: this.rpId,
-      requireUserVerification: false,
+      requireUserVerification: true,
     });
 
     if (verification.verified && verification.registrationInfo) {
-      const { credential } = verification.registrationInfo;
+      const { credential, credentialDeviceType, credentialBackedUp } = verification.registrationInfo;
       const record: PasskeyCredentialRecord = {
         id: credential.id,
         credentialId: credential.id,
         publicKey: Buffer.from(credential.publicKey),
         counter: credential.counter,
         transports: credential.transports ?? [],
-        backedUp: false,
+        deviceType: credentialDeviceType,
+        backedUp: credentialBackedUp,
       };
 
       await this.store.saveCredential(userId, record);

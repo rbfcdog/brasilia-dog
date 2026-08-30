@@ -535,7 +535,11 @@ export function createApp({
       const body = await request.json().catch(() => ({})) as { response?: unknown };
 
       if (pathname === '/passkey/register/options') {
-        return json(await passkeyService.generateRegistration(user.id, user.email ?? user.id));
+        try {
+          return json(await passkeyService.generateRegistration(user.id, user.email ?? user.id));
+        } catch (err) {
+          return json({ error: 'passkey_registration_unavailable', detail: (err as Error).message }, 503);
+        }
       }
       if (pathname === '/passkey/register/verify') {
         if (!body.response) return json({ error: 'response is required' }, 400);
@@ -547,7 +551,11 @@ export function createApp({
         }
       }
       if (pathname === '/passkey/auth/options') {
-        return json(await passkeyService.generateAuthentication(user.id));
+        try {
+          return json(await passkeyService.generateAuthentication(user.id));
+        } catch (err) {
+          return json({ error: 'passkey_authentication_unavailable', detail: (err as Error).message }, 503);
+        }
       }
       if (!body.response) return json({ error: 'response is required' }, 400);
       try {

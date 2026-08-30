@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowRight, Bot, Loader2, Store } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { type FormEvent, useEffect, useState } from "react";
 
 import { authService } from "@/services/auth-service";
@@ -16,6 +16,7 @@ const destinations: Record<Role, string> = {
 
 export function WorkspaceAuth() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [role, setRole] = useState<Role>("buyer");
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
@@ -31,6 +32,10 @@ export function WorkspaceAuth() {
       .catch(() => setAuthenticatedEmail(null));
   }, []);
 
+  const destination = role === "buyer" && searchParams.get("next")?.startsWith("/")
+    ? searchParams.get("next")!
+    : destinations[role];
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPending(true);
@@ -39,7 +44,7 @@ export function WorkspaceAuth() {
       if (mode === "signin") {
         const { user } = await authService.signIn(email.trim(), password);
         setAuthenticatedEmail(user.email);
-        router.push(destinations[role]);
+        router.push(destination);
         router.refresh();
         return;
       }
@@ -59,7 +64,7 @@ export function WorkspaceAuth() {
         return;
       }
       setAuthenticatedEmail(data.user?.email ?? email.trim());
-      router.push(destinations[role]);
+      router.push(destination);
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Authentication failed.");
@@ -92,7 +97,7 @@ export function WorkspaceAuth() {
         <div className="mt-5 rounded-2xl border border-white/12 bg-white/[0.07] p-4">
           <p className="text-xs text-white/55">Signed in as</p>
           <p className="mt-1 truncate text-sm font-medium">{authenticatedEmail}</p>
-          <button type="button" onClick={() => router.push(destinations[role])} className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-white text-sm font-medium text-ink">
+          <button type="button" onClick={() => router.push(destination)} className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-white text-sm font-medium text-ink">
             Continue as {role} <ArrowRight className="size-4" />
           </button>
         </div>
