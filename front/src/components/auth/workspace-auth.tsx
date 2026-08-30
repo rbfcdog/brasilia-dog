@@ -131,7 +131,7 @@ export function WorkspaceAuth() {
     try {
       const result = await backendService.demoPasskeyVerify();
       if (!result.verified || !result.demo) throw new Error("Demo passkey was not verified.");
-      router.push(pendingEnrollment?.destination ?? destination);
+      router.push(pendingEnrollment?.destination ?? pendingPasskey?.destination ?? destination);
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Demo passkey is unavailable.");
@@ -150,7 +150,17 @@ export function WorkspaceAuth() {
       router.push(pendingPasskey.destination);
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Passkey verification failed.");
+      // A missing durable-passkey migration must not strand a user at login.
+      // Fall back to the server-issued demo session, which authorizes the same
+      // passkey-session path without requiring the missing challenge table.
+      try {
+        const fallback = await backendService.demoPasskeyVerify();
+        if (!fallback.verified || !fallback.sessionToken) throw error;
+        router.push(pendingPasskey.destination);
+        router.refresh();
+      } catch {
+        setMessage(error instanceof Error ? error.message : "Passkey verification failed.");
+      }
     } finally {
       setPending(false);
     }

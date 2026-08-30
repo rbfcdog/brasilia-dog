@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   createPasskeyEnrollment: vi.fn(),
   registerPasskey: vi.fn(),
   authenticatePasskey: vi.fn(),
+  demoPasskeyVerify: vi.fn(),
   search: "",
 }));
 
@@ -34,6 +35,7 @@ vi.mock("@/services/backend-service", () => ({
   backendService: {
     passkeyStatus: mocks.passkeyStatus,
     createPasskeyEnrollment: mocks.createPasskeyEnrollment,
+    demoPasskeyVerify: mocks.demoPasskeyVerify,
   },
 }));
 
@@ -53,6 +55,7 @@ describe("workspace authentication", () => {
     mocks.session.mockRejectedValue(new Error("signed out"));
     mocks.signInWithPassword.mockReset();
     mocks.passkeyStatus.mockResolvedValue({ registered: true, credentialCount: 1 });
+    mocks.demoPasskeyVerify.mockResolvedValue({ verified: true, demo: true, sessionToken: "demo-session" });
     mocks.registerPasskey.mockReset();
     mocks.authenticatePasskey.mockReset();
     mocks.signOut.mockReset();
@@ -105,6 +108,21 @@ describe("workspace authentication", () => {
     expect(await screen.findByRole("button", { name: "Continue with passkey" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Continue with demo passkey" })).toBeInTheDocument();
     expect(screen.queryByText("authentication_required")).not.toBeInTheDocument();
+  });
+
+  it("falls back to a demo passkey session when native passkey challenge storage is unavailable", async () => {
+    mocks.signInWithPassword.mockResolvedValue({ user: { id: "buyer-1", email: "buyer@example.com" } });
+    mocks.authenticatePasskey.mockRejectedValue(new Error("passkey_authentication_unavailable"));
+    const user = userEvent.setup();
+    render(<WorkspaceAuth />);
+
+    await user.type(screen.getByRole("textbox", { name: "Email" }), "buyer@example.com");
+    await user.type(screen.getByLabelText("Password"), "password123");
+    await user.click(screen.getByRole("button", { name: "Sign in as buyer" }));
+    await user.click(await screen.findByRole("button", { name: "Continue with passkey" }));
+
+    expect(mocks.demoPasskeyVerify).toHaveBeenCalledOnce();
+    expect(mocks.push).toHaveBeenCalledWith("/assistant");
   });
 
   it("requires a fresh explicit sign-in after passkey enrollment", async () => {
