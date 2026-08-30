@@ -57,7 +57,11 @@ const marketplaceAuthorityService = mandateRepository && productRepository
   ? new MarketplaceAuthorityService(mandateRepository, productRepository)
   : null;
 
-const sessionStore = supabase ? new SupabaseSessionStore(supabase) : new InMemorySessionStore();
+const sessionStore = config.mode === 'sandbox'
+  ? new InMemorySessionStore()
+  : supabase
+    ? new SupabaseSessionStore(supabase)
+    : new InMemorySessionStore();
 const sessionService = new SessionService({ secret: config.sessionSecret, store: sessionStore, ttlSeconds: 86_400 });
 const sellerAgentVerificationService = new SellerAgentVerificationService(config.sessionSecret);
 
