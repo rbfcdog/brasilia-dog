@@ -1,14 +1,32 @@
 "use client";
 
-import { Bell, KeyRound, LockKeyhole, ShieldCheck } from "lucide-react";
+import { Bell, KeyRound, LockKeyhole, LogOut, ShieldCheck } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { PaymentSettings } from "@/components/pages/payment-settings";
 import { backendService } from "@/services/backend-service";
-
+import { authService } from "@/services/auth-service";
 type BackendStatus = "checking" | "available" | "unavailable";
 
 export function ProfileSettings() {
   const [backendStatus, setBackendStatus] = useState<BackendStatus>("checking");
+  const router = useRouter();
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState("");
+
+  async function signOut() {
+    setSigningOut(true);
+    setSignOutError("");
+    try {
+      await authService.signOut();
+      router.replace("/");
+      router.refresh();
+    } catch {
+      setSignOutError("Could not sign out. Try again.");
+    } finally {
+      setSigningOut(false);
+    }
+  }
 
   useEffect(() => {
     void backendService
@@ -53,6 +71,15 @@ export function ProfileSettings() {
             <label className="flex items-center justify-between gap-4"><span>Purchase receipts</span><input type="checkbox" name="purchaseReceipts" defaultChecked className="size-4 accent-primary" /></label>
             <label className="flex items-center justify-between gap-4"><span>Blocked attempts</span><input type="checkbox" name="blockedAttempts" defaultChecked className="size-4 accent-primary" /></label>
           </div>
+        </article>
+
+        <article className="h-full rounded-2xl border border-danger/20 bg-danger-soft p-5 shadow-sm">
+          <h2 className="font-semibold tracking-[-0.02em]">Session</h2>
+          <p className="mt-1 text-sm text-subtle">End this customer session on this browser.</p>
+          <button type="button" onClick={() => void signOut()} disabled={signingOut} className="mt-5 inline-flex h-10 items-center gap-2 rounded-xl border border-danger/30 bg-white px-4 text-sm font-medium text-danger transition hover:bg-danger-soft disabled:opacity-60">
+            <LogOut className="size-4" aria-hidden="true" /> {signingOut ? "Signing out..." : "Sign out"}
+          </button>
+          {signOutError ? <p role="alert" className="mt-3 text-xs text-danger">{signOutError}</p> : null}
         </article>
       </div>
       <PaymentSettings />
