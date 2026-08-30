@@ -324,17 +324,15 @@ async function executeCatalogTool(
     const input = searchToolArgumentsSchema.parse(JSON.parse(argumentsJson));
     const category = normalizeCategory(input.category);
     const query = input.query?.trim() || null;
-    await catalog.searchProducts({
+    const products = (await catalog.searchProducts({
       query,
       category,
       maximumAmountMinor: input.maximumAmount === null
         ? null
         : Math.round(input.maximumAmount * 100),
       slugs: [],
-      limit: 3,
-    }).catch(() => []);
-    const catalogResults = await catalog.listProducts();
-    const products = availableProducts(catalogResults).slice(0, 10).map(productProjection);
+      limit: 10,
+    })).map(productProjection);
     return {
       output: JSON.stringify({ products }),
       activity: {
