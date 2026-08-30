@@ -48,11 +48,24 @@ export interface PurchaseAdapter {
   resumePurchase(attemptId: string, input: SignedPresentation): Promise<ResumeVerificationResult>;
 }
 
+export interface ConversationMessage {
+  id: string;
+  conversationId: string;
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt: string;
+}
+
+export interface ConversationContextAdapter {
+  getConversationMessages(conversationId: string): Promise<ConversationMessage[]>;
+}
+
 export interface AgentAdapters {
   mandates: MandateAdapter;
   catalog: FlightCatalogAdapter;
   signer: AgentSignerAdapter;
   purchases: PurchaseAdapter;
+  conversations?: ConversationContextAdapter;
 }
 
 const successEnvelopeSchema = z.strictObject({
@@ -60,11 +73,28 @@ const successEnvelopeSchema = z.strictObject({
   data: z.unknown(),
 });
 
-export class HttpBackendAdapter implements AgentAdapters, MandateAdapter, FlightCatalogAdapter, AgentSignerAdapter, PurchaseAdapter {
+const conversationMessagesSchema = z.strictObject({
+  messages: z.array(z.strictObject({
+    id: z.string().trim().min(1),
+    conversationId: z.string().trim().min(1),
+    role: z.enum(['user', 'assistant']),
+    content: z.string(),
+    createdAt: z.string().datetime(),
+  })),
+});
+
+export class HttpBackendAdapter implements
+  AgentAdapters,
+  MandateAdapter,
+  FlightCatalogAdapter,
+  AgentSignerAdapter,
+  PurchaseAdapter,
+  ConversationContextAdapter {
   readonly mandates = this;
   readonly catalog = this;
   readonly signer = this;
   readonly purchases = this;
+  readonly conversations = this;
   private readonly baseUrl: URL;
   private readonly token: string;
   private readonly timeoutMs: number;
@@ -127,6 +157,14 @@ export class HttpBackendAdapter implements AgentAdapters, MandateAdapter, Flight
     return this.parseResponse(resumeVerificationResultSchema, data, 'purchase resume result');
   }
 
+  async getConversationMessages(conversationId: string): Promise<ConversationMessage[]> {
+    const body = await this.requestRaw(
+      `v1/conversations/${encodeURIComponent(conversationId)}/messages`,
+      { method: 'GET' },
+    );
+    return this.parseResponse(conversationMessagesSchema, body, 'conversation transcript').messages;
+  }
+
   private presentationHeaders(input: SignedPresentation): HeadersInit {
     return {
       'Idempotency-Key': input.idempotencyKey,
@@ -135,6 +173,15 @@ export class HttpBackendAdapter implements AgentAdapters, MandateAdapter, Flight
   }
 
   private async request(path: string, init: RequestInit): Promise<unknown> {
+    const body = await this.requestRaw(path, init);
+    const envelope = successEnvelopeSchema.safeParse(body);
+    if (!envelope.success) {
+      throw new AgentError('BACKEND_RESPONSE_INVALID', 'The backend response envelope is invalid.', 502);
+    }
+    return envelope.data.data;
+  }
+
+  private async requestRaw(path: string, init: RequestInit): Promise<unknown> {
     let response: Response;
     try {
       response = await fetch(new URL(path, this.baseUrl), {
@@ -165,11 +212,7 @@ export class HttpBackendAdapter implements AgentAdapters, MandateAdapter, Flight
       throw new AgentError('BACKEND_REQUEST_FAILED', `The backend returned HTTP ${response.status}.`, 502);
     }
 
-    const envelope = successEnvelopeSchema.safeParse(body);
-    if (!envelope.success) {
-      throw new AgentError('BACKEND_RESPONSE_INVALID', 'The backend response envelope is invalid.', 502);
-    }
-    return envelope.data.data;
+    return body;
   }
 
   private parseResponse<T>(schema: z.ZodType<T>, data: unknown, name: string): T {

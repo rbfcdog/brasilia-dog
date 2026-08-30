@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { HttpBackendAdapter, type AgentAdapters } from './adapters.js';
+import { createAgentAdapters } from './adapter-factory.js';
 import { createApp } from './app.js';
 import { loadConfig } from './config.js';
 import { DemoBackend } from './demo.js';
@@ -7,12 +7,11 @@ import { AgentService } from './service.js';
 import { OpenAIFlightSelector } from './selector.js';
 
 const config = loadConfig();
-const adapters: AgentAdapters = config.adapterMode === 'demo'
-  ? new DemoBackend()
-  : new HttpBackendAdapter({
-      baseUrl: requireConfig(config.backendBaseUrl, 'BACKEND_BASE_URL'),
-      token: requireConfig(config.backendToken, 'AGENT_BACKEND_TOKEN'),
-    });
+const adapters = createAgentAdapters({
+  mode: config.adapterMode,
+  ...(config.backendBaseUrl ? { backendBaseUrl: config.backendBaseUrl } : {}),
+  ...(config.backendToken ? { backendToken: config.backendToken } : {}),
+});
 const selector = new OpenAIFlightSelector({
   apiKey: config.openAIApiKey,
   model: config.openAIModel,

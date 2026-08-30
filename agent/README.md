@@ -48,12 +48,12 @@ Use `.env.example` as a reference and set every required variable in the process
 | `OPENAI_API_KEY` | always | Server-side key for the Responses API |
 | `OPENAI_MODEL` | always | Explicit model; there is no hardcoded fallback |
 | `ADAPTER_MODE` | always | `demo` or `http` |
-| `BACKEND_BASE_URL` | HTTP mode | Base URL for the authoritative backend |
-| `AGENT_BACKEND_TOKEN` | HTTP mode | Agent-to-backend bearer credential |
+| `BACKEND_BASE_URL` | HTTP mode; optional demo context | Base URL for the authoritative backend |
+| `AGENT_BACKEND_TOKEN` | HTTP mode; optional demo context | Must equal the API service's `AGENT_SERVICE_TOKEN` |
 
 The selected MVP model is `gpt-5.4-mini`: the offer-selection task is narrow but benefits from the reliability of the strongest current mini tier. It supports the Responses API and Structured Outputs. The slug remains an explicit environment value—there is no runtime default—so it can be changed and evaluated without a code release.
 
-`ADAPTER_MODE=demo` uses the fixed VuelaYa catalog and a deterministic in-process authority while still using the real OpenAI selector. The demo data is limited to a Córdoba mandate for USD 150 and offers at USD 130 and USD 300.
+`ADAPTER_MODE=demo` uses the fixed VuelaYa catalog and a deterministic in-process authority while still using the real OpenAI selector. When both backend variables are configured and a run includes `conversationId`, demo mode reads the persisted backend transcript as untrusted selector context. The demo data is limited to a Córdoba mandate for USD 150 and offers at USD 130 and USD 300.
 
 Start from TypeScript during development:
 
@@ -79,8 +79,10 @@ curl -i http://localhost:3001/v1/agent-runs \
   -H "Authorization: Bearer $AGENT_SERVICE_TOKEN" \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: 11111111-1111-4111-8111-111111111111" \
-  --data '{"goal":"Buy a flight to Córdoba below USD 150","mandateId":"mandate-vuelaya-cordoba"}'
+  --data '{"goal":"Buy a flight to Córdoba below USD 150","mandateId":"mandate-vuelaya-cordoba","conversationId":"conversation-id"}'
 ```
+
+`conversationId` is optional. With `ADAPTER_MODE=demo`, set `BACKEND_BASE_URL` and `AGENT_BACKEND_TOKEN` to use it. The transcript is retrieved server to server and is treated as untrusted context, not authorization or instructions.
 
 The response is `202` with a run ID. Poll it:
 

@@ -145,6 +145,7 @@ export type ResumeVerificationResult = z.infer<typeof resumeVerificationResultSc
 export const startRunRequestSchema = z.strictObject({
   goal: z.string().trim().min(1).max(2_000),
   mandateId: id,
+  conversationId: id.optional(),
 });
 
 export const resumeRunRequestSchema = z.strictObject({
@@ -167,6 +168,7 @@ export type RunStatus = z.infer<typeof runStatusSchema>;
 
 export const eventTypeSchema = z.enum([
   'run_started',
+  'conversation_context_loaded',
   'mandate_loaded',
   'offers_discovered',
   'offer_selected',
@@ -197,6 +199,7 @@ export interface PublicRun {
   status: RunStatus;
   goal: string;
   mandateId: string;
+  conversationId?: string;
   createdAt: string;
   updatedAt: string;
   events: RunEvent[];

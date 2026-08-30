@@ -1,4 +1,4 @@
-import type { AgentAdapters } from './adapters.js';
+import type { AgentAdapters, ConversationContextAdapter, ConversationMessage } from './adapters.js';
 import type {
   PublicRun,
   ResumeRunRequest,
@@ -23,9 +23,30 @@ const defaultScheduler: Scheduler = (operation) => {
   });
 };
 
+const MAX_CONVERSATION_CONTEXT_CHARACTERS = 6_000;
+const MAX_CONVERSATION_CONTEXT_MESSAGES = 20;
+
+function formatConversationContext(messages: ConversationMessage[]): string {
+  const selected = messages.slice(-MAX_CONVERSATION_CONTEXT_MESSAGES);
+  const lines: string[] = [];
+  let remaining = MAX_CONVERSATION_CONTEXT_CHARACTERS;
+
+  for (const message of selected) {
+    if (remaining <= 0) break;
+
+    const prefix = `${message.role}: `;
+    const content = message.content.slice(0, Math.max(0, remaining - prefix.length));
+    lines.push(`${prefix}${content}`);
+    remaining -= prefix.length + content.length + 1;
+  }
+
+  return lines.join('\n');
+}
+
 export class AgentService {
   readonly store: RunStore;
   private readonly graph: AgentGraph;
+  private readonly conversations?: ConversationContextAdapter;
   private readonly schedule: Scheduler;
 
   constructor({
@@ -44,6 +65,7 @@ export class AgentService {
     scheduler?: Scheduler;
   }) {
     this.store = store;
+    this.conversations = adapters.conversations;
     this.schedule = scheduler;
     this.graph = createAgentGraph({
       adapters,
@@ -83,11 +105,15 @@ export class AgentService {
       const run = this.store.require(runId);
       this.store.setStatus(runId, 'running');
       this.store.appendEvent(runId, 'run_started');
+      const conversationContext = run.conversationId
+        ? await this.loadConversationContext(runId, run.conversationId)
+        : undefined;
       const result = await this.graph.invokeInitial({
         runId,
         goal: run.goal,
         mandateId: run.mandateId,
         idempotencyKey: this.store.getStartIdempotencyKey(runId),
+        ...(conversationContext ? { conversationContext } : {}),
       });
       this.consumeGraphResult(runId, result);
     } catch (error) {
@@ -157,6 +183,24 @@ export class AgentService {
       reasonCode: verification.reasonCode,
       message: verification.message,
     });
+  }
+
+  private async loadConversationContext(runId: string, conversationId: string): Promise<string | undefined> {
+    if (!this.conversations) {
+      throw new AgentError(
+        'CONVERSATION_CONTEXT_UNAVAILABLE',
+        'Conversation context requires a backend-connected agent adapter.',
+        503,
+      );
+    }
+
+    const messages = await this.conversations.getConversationMessages(conversationId);
+    const context = formatConversationContext(messages);
+    this.store.appendEvent(runId, 'conversation_context_loaded', {
+      conversationId,
+      messageCount: messages.length,
+    });
+    return context || undefined;
   }
 
   private fail(runId: string, error: unknown): void {

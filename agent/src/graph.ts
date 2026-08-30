@@ -68,6 +68,7 @@ const AgentState = Annotation.Root({
   runId: Annotation<string>(),
   goal: Annotation<string>(),
   mandateId: Annotation<string>(),
+  conversationContext: Annotation<string | undefined>(),
   purchaseIdempotencyKey: Annotation<string>(),
   mandate: Annotation<MandateView | undefined>(),
   offers: Annotation<FlightOffer[]>({
@@ -98,6 +99,7 @@ export interface AgentGraph {
     goal: string;
     mandateId: string;
     idempotencyKey: string;
+    conversationContext?: string;
   }): Promise<AgentGraphResult>;
   resume(runId: string, value: ResumeCommandValue): Promise<AgentGraphResult>;
 }
@@ -170,6 +172,7 @@ export function createAgentGraph({
             goal: state.goal,
             mandate,
             offers: state.offers,
+            ...(state.conversationContext ? { conversationContext: state.conversationContext } : {}),
             attempt,
             ...(attempt === 2 ? { previousValidationError: lastValidationError } : {}),
           }));
@@ -385,6 +388,7 @@ export function createAgentGraph({
         goal: input.goal,
         mandateId: input.mandateId,
         purchaseIdempotencyKey: input.idempotencyKey,
+        ...(input.conversationContext ? { conversationContext: input.conversationContext } : {}),
         offers: [],
       }, configFor(input.runId)) as AgentGraphResult;
     },
