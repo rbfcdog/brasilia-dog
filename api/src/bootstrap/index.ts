@@ -9,7 +9,7 @@ import { AgentIdentityRepository } from '../repositories/agent-identity-reposito
 import { MandateRepository } from '../repositories/mandate-repository.js';
 import { PaymentHistoryRepository } from '../repositories/payment-history-repository.js';
 import { SellerQuoteRepository } from '../repositories/seller-quote-repository.js';
-import { ConversationRepository } from '../repositories/conversation-repository.js';
+import { ConversationRepository, InMemoryConversationRepository } from '../repositories/conversation-repository.js';
 import { SupabasePasskeyStore, SupabaseSessionStore } from '../repositories/passkey-repository.js';
 import { createExpressApp } from '../http/server.js';
 import { ProductCatalogService } from '../services/product-catalog-service.js';
@@ -44,7 +44,11 @@ const agentIdentityRepository = supabase ? new AgentIdentityRepository(supabase)
 const mandateRepository = supabase ? new MandateRepository(supabase) : null;
 const paymentHistoryRepository = supabase ? new PaymentHistoryRepository(supabase) : null;
 const sellerQuoteRepository = supabase ? new SellerQuoteRepository(supabase) : null;
-const conversationRepository = supabase ? new ConversationRepository(supabase) : null;
+const conversationRepository = config.mode === 'sandbox'
+  ? new InMemoryConversationRepository()
+  : supabase
+    ? new ConversationRepository(supabase)
+    : null;
 const merchantService = supabase && config.supabase
   ? new MerchantService(supabase, config.stripeProfileId, config.supabase)
   : null;

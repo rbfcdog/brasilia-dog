@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import type { Conversation, ConversationMessage, ConversationMessageInput, MppHandler } from '../src/domain/types.js';
-import type { ConversationRepository } from '../src/repositories/conversation-repository.js';
+import { InMemoryConversationRepository, type ConversationRepository } from '../src/repositories/conversation-repository.js';
 import type { SessionService } from '../src/services/session-service.js';
 import { createApp } from '../src/http/app.js';
 
@@ -237,4 +237,31 @@ test('creates an anonymous conversation without authentication', async () => {
   assert.equal(response.status, 201);
   const body = await response.json();
   assert.ok(body.conversation.id);
+});
+
+test('sandbox conversation storage keeps an owner-scoped transcript in memory', async () => {
+  const repository = new InMemoryConversationRepository();
+  const conversation = await repository.createConversation('user-1');
+  const createdAt = '2026-08-30T14:00:00.000Z';
+
+  await repository.appendMessage({
+    conversationId: conversation.id,
+    ownerId: 'user-1',
+    role: 'user',
+    content: 'Show available products.',
+    createdAt,
+  });
+
+  assert.equal((await repository.listConversations('user-1')).length, 1);
+  assert.equal((await repository.listConversations('user-2')).length, 0);
+  assert.deepEqual((await repository.listMessages(conversation.id)).map(({ role, content }) => ({ role, content })), [
+    { role: 'user', content: 'Show available products.' },
+  ]);
+  await assert.rejects(repository.appendMessage({
+    conversationId: conversation.id,
+    ownerId: 'user-2',
+    role: 'assistant',
+    content: 'Not allowed.',
+    createdAt,
+  }), /Conversation not found/);
 });

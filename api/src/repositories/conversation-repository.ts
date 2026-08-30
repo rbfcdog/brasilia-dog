@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type {
@@ -21,6 +22,15 @@ interface ConversationMessageRow {
   role: string;
   content: string;
   created_at: string;
+}
+
+export interface ConversationStore {
+  createConversation(ownerId: string): Promise<Conversation>;
+  listConversations(ownerId: string): Promise<Conversation[]>;
+  getConversation(conversationId: string): Promise<Conversation | null>;
+  listMessages(conversationId: string): Promise<ConversationMessage[]>;
+  appendMessage(input: ConversationMessageInput): Promise<ConversationMessage>;
+  appendEvent(input: ConversationEventInput): Promise<ConversationEvent>;
 }
 
 interface ConversationEventRow {
@@ -60,7 +70,7 @@ function mapEvent(row: ConversationEventRow): ConversationEvent {
   };
 }
 
-export class ConversationRepository {
+export class ConversationRepository implements ConversationStore {
   constructor(private readonly client: SupabaseClient) {}
 
   async createConversation(ownerId: string): Promise<Conversation> {
@@ -150,5 +160,66 @@ export class ConversationRepository {
     }
 
     return mapEvent(data as ConversationEventRow);
+  }
+}
+
+/**
+ * Process-local transcript storage for the public sandbox. Live mode continues
+ * to use the durable Supabase repository and its server-only access policy.
+ */
+export class InMemoryConversationRepository implements ConversationStore {
+  private readonly conversations = new Map<string, Conversation>();
+  private readonly messages = new Map<string, ConversationMessage[]>();
+  private readonly events = new Map<string, ConversationEvent[]>();
+
+  async createConversation(ownerId: string): Promise<Conversation> {
+    const now = new Date().toISOString();
+    const conversation = { id: randomUUID(), ownerId, createdAt: now, updatedAt: now };
+    this.conversations.set(conversation.id, conversation);
+    this.messages.set(conversation.id, []);
+    this.events.set(conversation.id, []);
+    return { ...conversation };
+  }
+
+  async listConversations(ownerId: string): Promise<Conversation[]> {
+    return [...this.conversations.values()]
+      .filter((conversation) => conversation.ownerId === ownerId)
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+      .map((conversation) => ({ ...conversation }));
+  }
+
+  async getConversation(conversationId: string): Promise<Conversation | null> {
+    const conversation = this.conversations.get(conversationId);
+    return conversation ? { ...conversation } : null;
+  }
+
+  async listMessages(conversationId: string): Promise<ConversationMessage[]> {
+    return (this.messages.get(conversationId) ?? []).map((message) => ({ ...message }));
+  }
+
+  async appendMessage(input: ConversationMessageInput): Promise<ConversationMessage> {
+    const conversation = this.ownedConversation(input.conversationId, input.ownerId);
+    const message = { id: randomUUID(), ...input };
+    this.messages.get(input.conversationId)!.push(message);
+    conversation.updatedAt = this.latest(conversation.updatedAt, input.createdAt);
+    return { ...message };
+  }
+
+  async appendEvent(input: ConversationEventInput): Promise<ConversationEvent> {
+    const conversation = this.ownedConversation(input.conversationId, input.ownerId);
+    const event = { id: randomUUID(), ...input };
+    this.events.get(input.conversationId)!.push(event);
+    conversation.updatedAt = this.latest(conversation.updatedAt, input.createdAt);
+    return { ...event, payload: { ...event.payload } };
+  }
+
+  private ownedConversation(conversationId: string, ownerId: string): Conversation {
+    const conversation = this.conversations.get(conversationId);
+    if (!conversation || conversation.ownerId !== ownerId) throw new Error('Conversation not found.');
+    return conversation;
+  }
+
+  private latest(current: string, candidate: string): string {
+    return Date.parse(candidate) > Date.parse(current) ? candidate : current;
   }
 }

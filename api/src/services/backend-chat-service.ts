@@ -1,4 +1,4 @@
-import type { ConversationRepository } from '../repositories/conversation-repository.js';
+import type { ConversationStore } from '../repositories/conversation-repository.js';
 
 interface ChatInput {
   message: string;
@@ -41,7 +41,7 @@ function parseAgentEnvelope(value: unknown): AgentEnvelope {
 
 export class BackendChatService {
   constructor(
-    private readonly conversations: ConversationRepository,
+    private readonly conversations: ConversationStore,
     private readonly agentServiceUrl: string,
     private readonly agentServiceOutboundToken: string,
     private readonly request: typeof fetch = fetch,

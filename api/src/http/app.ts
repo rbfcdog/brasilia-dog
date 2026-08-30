@@ -23,7 +23,7 @@ import { canonicalJson } from '../services/canonical-json.js';
 import type { CrossCredentialAuth } from '../services/cross-credential-auth.js';
 import type { SellerAgentVerificationService } from '../services/seller-agent-verification.js';
 import type { SellerQuoteRepository } from '../repositories/seller-quote-repository.js';
-import type { ConversationRepository } from '../repositories/conversation-repository.js';
+import type { ConversationStore } from '../repositories/conversation-repository.js';
 import { MerchantCommandError, type MerchantService } from '../services/merchant-service.js';
 import type { UserAuthService } from '../services/user-auth-service.js';
 import type { PasskeyEnrollmentAuthority } from '../services/passkey-enrollment-service.js';
@@ -524,7 +524,7 @@ interface AppDeps {
   productRepository?: ProductCatalogRepository | null;
   agentIdentityRepository?: AgentIdentityRepository | null;
   mandateRepository?: MandateRepository | null;
-  conversationRepository?: ConversationRepository | null;
+  conversationRepository?: ConversationStore | null;
   backendChatService?: BackendChatService | null;
   paymentHistoryRepository?: PaymentHistoryRepository | null;
   purchaseService?: PurchaseService | null;
