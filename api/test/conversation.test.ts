@@ -152,6 +152,24 @@ test('lists passkey-owned conversations when the agent service token is configur
   assert.equal((await response.json() as { conversations: Conversation[] }).conversations[0]?.ownerId, 'user-1');
 });
 
+test('returns a strict transcript envelope to the agent service', async () => {
+  const repository = new MockConversationRepository();
+  const conversation = await repository.createConversation('user-1');
+  const app = createApp({
+    paidHandler,
+    conversationRepository: repository as unknown as ConversationRepository,
+    agentServiceToken: 'agent-service-token-12345',
+  });
+
+  const response = await app(authenticatedRequest(
+    'agent-service-token-12345',
+    `http://localhost/v1/conversations/${conversation.id}/messages`,
+  ));
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { messages: [] });
+});
+
 test('persists immutable owner-scoped agent interaction evidence', async () => {
   const repository = new MockConversationRepository();
   const conversation = await repository.createConversation('user-1');

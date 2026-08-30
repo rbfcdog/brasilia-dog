@@ -1098,15 +1098,7 @@ export function createApp({
       }
       try {
         const messages = await conversationRepository.listMessages(conversation.id);
-        return json({
-          conversation: {
-            id: conversation.id,
-            ownerId: conversation.ownerId,
-            createdAt: conversation.createdAt,
-            updatedAt: conversation.updatedAt,
-          },
-          messages,
-        });
+        return json({ messages });
       } catch {
         return json({ error: 'conversation_messages_unavailable' }, 500);
       }
