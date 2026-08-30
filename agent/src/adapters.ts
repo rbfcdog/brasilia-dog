@@ -119,7 +119,7 @@ const conversationMessagesSchema = z.strictObject({
     conversationId: z.string().trim().min(1),
     role: z.enum(['user', 'assistant']),
     content: z.string(),
-    createdAt: z.string().datetime(),
+    createdAt: z.string().datetime({ offset: true }),
   })),
 });
 

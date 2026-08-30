@@ -21,7 +21,7 @@ test('HTTP adapter reads an agent-authorized conversation transcript from the ba
       conversationId: 'conversation-123',
       role: 'user',
       content: 'Find the cheapest available flight to Córdoba.',
-      createdAt: '2026-08-30T00:00:00.000Z',
+      createdAt: '2026-08-30T00:00:00+00:00',
     },
     {
       id: 'message-2',
