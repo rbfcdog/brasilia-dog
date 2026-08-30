@@ -1,4 +1,5 @@
 import type { AgentAdapters, CatalogProduct, ConversationContextAdapter, ConversationMessage, ProductCatalogAdapter } from './adapters.js';
+import type { AgentIdentityView, LocalAgentIdentity } from './identity.js';
 import type { AgentChatRequest, AgentChatResponse, ChatResponder } from './chat.js';
 import type {
   PublicRun,
@@ -48,8 +49,9 @@ export class AgentService {
   readonly store: RunStore;
   private readonly graph: AgentGraph;
   private readonly conversations?: ConversationContextAdapter;
-  private readonly products?: ProductCatalogAdapter;
+  private readonly identityProvider?: LocalAgentIdentity;
   private readonly responder?: ChatResponder;
+  private readonly products?: ProductCatalogAdapter;
   private readonly schedule: Scheduler;
   constructor({
     adapters,
@@ -57,6 +59,7 @@ export class AgentService {
     store = new RunStore(),
     logger = consoleStepLogger,
     responder,
+    identity,
     now,
     scheduler = defaultScheduler,
   }: {
@@ -65,10 +68,12 @@ export class AgentService {
     store?: RunStore;
     logger?: StepLogger;
     responder?: ChatResponder;
+    identity?: LocalAgentIdentity;
     now?: () => Date;
     scheduler?: Scheduler;
   }) {
     this.store = store;
+    this.identityProvider = identity;
     this.responder = responder;
     this.conversations = adapters.conversations;
     this.products = adapters.products;
@@ -130,6 +135,12 @@ export class AgentService {
       throw new AgentError('PRODUCT_CATALOG_UNAVAILABLE', 'The backend product catalog is not configured.', 503);
     }
     return this.products.listProducts();
+  }
+  identity(): AgentIdentityView {
+    if (!this.identityProvider) {
+      throw new AgentError('IDENTITY_UNAVAILABLE', 'Identity is not configured for this agent service.', 404);
+    }
+    return this.identityProvider.identity();
   }
 
   private async executeInitial(runId: string): Promise<void> {

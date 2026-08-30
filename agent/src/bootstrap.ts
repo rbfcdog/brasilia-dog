@@ -4,6 +4,7 @@ import { OpenAIShoppingResponder } from './chat.js';
 import { createApp } from './app.js';
 import { loadConfig } from './config.js';
 import { AgentService } from './service.js';
+import { LocalAgentIdentity } from './identity.js';
 import { OpenAIFlightSelector } from './selector.js';
 import { loadEnvironment } from './environment.js';
 
@@ -25,7 +26,7 @@ const responder = new OpenAIShoppingResponder({
   apiKey: config.openAIApiKey,
   model: config.openAIModel,
 });
-const service = new AgentService({ adapters, selector, responder });
+const service = new AgentService({ adapters, selector, responder, identity: new LocalAgentIdentity(config.serviceToken) });
 const app = createApp({ service, serviceToken: config.serviceToken });
 const server = createServer(app);
 

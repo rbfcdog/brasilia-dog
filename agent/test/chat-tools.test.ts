@@ -37,7 +37,9 @@ interface CapturedRequest {
 test('shopping responder executes a ranked backend category search and returns exact products', async () => {
   const searches: unknown[] = [];
   const catalog = {
-    listProducts: async () => [product],
+    listProducts: async () => {
+      throw new Error('search must not download the full catalog');
+    },
     searchProducts: async (input: unknown) => {
       searches.push(input);
       return [product];
@@ -84,14 +86,14 @@ test('shopping responder executes a ranked backend category search and returns e
   } as unknown as OpenAI;
   const responder = new OpenAIShoppingResponder({ apiKey: 'test-key', model: 'test-model', client });
 
-  const result = await responder.respond({ message: 'Buy an ultrawide monitor up to $300', catalog });
+  const result = await responder.respond({ message: 'Find an ultrawide monitor up to $300', catalog });
 
   assert.deepEqual(searches, [{
     query: null,
     category: 'home',
     maximumAmountMinor: 10_000,
     slugs: [],
-    limit: 3,
+    limit: 10,
   }]);
   assert.equal(requests.length, 2);
   assert.deepEqual(requests[0]?.tool_choice, { type: 'function', name: 'search_products' });
@@ -426,50 +428,64 @@ test('shopping responder returns verified tool results when the model selection 
   });
 });
 
-test('shopping responder executes a deterministic backend search when a forced model tool call is omitted', async () => {
+test('shopping responder proposes a purchase mandate before any catalog search', async () => {
   const searches: unknown[] = [];
+  const lists: unknown[][] = [];
   const catalog = {
-    listProducts: async () => [product],
+    listProducts: async () => {
+      const products = [product];
+      lists.push(products);
+      return products;
+    },
     searchProducts: async (input: unknown) => {
       searches.push(input);
       return [product];
     },
   };
+  const created: unknown[] = [];
   const client = {
     responses: {
-      create: async () => ({
-        output_text: JSON.stringify({
-          message: 'How can I help with shopping today?',
-          scope: null,
-          maximumAmount: null,
-          minimumScreenSize: null,
-          category: null,
-          products: [],
-        }),
-        output: [],
-      }),
+      create: async (request: unknown) => {
+        created.push(request);
+        throw new Error('The model must not be called before mandate approval.');
+      },
     },
   } as unknown as OpenAI;
-  const responder = new OpenAIShoppingResponder({ apiKey: 'test-key', model: 'test-model', client });
+  const responder = new OpenAIShoppingResponder({
+    apiKey: 'test-key',
+    model: 'test-model',
+    now: () => new Date('2026-09-01T00:00:00.000Z'),
+    client,
+  });
 
   const result = await responder.respond({ message: 'Buy an ultrawide monitor up to $300', catalog });
 
-  assert.deepEqual(searches, [{
-    query: 'an ultrawide monitor',
-    category: null,
-    maximumAmountMinor: 30_000,
-    slugs: [],
-    limit: 3,
-  }]);
-  assert.equal(result.kind, 'products');
-  assert.deepEqual(result.products, [{
-    slug: product.slug,
-    name: product.name,
-    description: product.description,
-    category: 'home',
-    price: 95,
+  assert.deepEqual(created, []);
+  assert.deepEqual(searches, []);
+  assert.deepEqual(lists, []);
+  assert.equal(result.kind, 'mandate');
+  assert.equal(result.message, 'I can search for an ultrawide monitor up to $300.00 after you approve this mandate.');
+  assert.deepEqual({
+    scope: result.mandate.scope,
+    maximumAmount: result.mandate.maximumAmount,
+    currency: result.mandate.currency,
+    status: result.mandate.status,
+    validUntil: result.mandate.validUntil,
+    marketplaceScope: result.mandate.marketplaceScope,
+  }, {
+    scope: 'an ultrawide monitor',
+    maximumAmount: 300,
     currency: 'USD',
-  }]);
+    status: 'pending',
+    validUntil: '2026-09-04T00:00:00.000Z',
+    marketplaceScope: {
+      query: 'an ultrawide monitor',
+      category: 'electronics',
+      constraints: [{ field: 'price', operator: 'lte', value: 300 }],
+      searchWindowSeconds: 60,
+    },
+  });
+  assert.deepEqual(result.activity, []);
 });
 
 test('shopping responder forces exact-slug comparison only for explicit comparison requests', async () => {
