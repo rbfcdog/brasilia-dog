@@ -21,6 +21,18 @@ vi.mock("@/services/backend-service", () => ({
     conversationMessages: mocks.conversationMessages,
   },
 }));
+vi.mock("@/lib/supabase/client", () => ({
+  createMerchantBrowserClient: () => ({
+    auth: {
+      getSession: vi.fn().mockResolvedValue({
+        data: { session: { user: { email: "buyer@example.com" } } },
+      }),
+      onAuthStateChange: vi.fn(() => ({
+        data: { subscription: { unsubscribe: vi.fn() } },
+      })),
+    },
+  }),
+}));
 
 import { AppShell } from "@/components/layout/app-shell";
 
@@ -36,6 +48,8 @@ describe("recent conversations", () => {
     window.addEventListener("nomad:open-conversation", opened);
 
     render(<AppShell><div>Chat</div></AppShell>);
+    expect(screen.queryByText("Henrique Lacerda")).not.toBeInTheDocument();
+    expect((await screen.findAllByText("buyer@example.com")).length).toBeGreaterThan(0);
     const conversation = await screen.findByRole("button", { name: "Find household appliances under $100" });
     await userEvent.click(conversation);
 

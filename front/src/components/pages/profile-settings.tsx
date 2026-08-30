@@ -125,6 +125,8 @@ export function ProfileSettings() {
   const identityLabel = supabaseUser?.email ?? "No Supabase user";
   const passkeyUserId = supabaseUser?.id ?? null;
   const passkeyAccessToken = supabaseUser?.accessToken ?? null;
+  const accountInitials = supabaseUser?.email.split("@")[0]!.split(/[._-]/)
+    .map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "?";
 
   return (
     <div className="space-y-4">
@@ -132,8 +134,8 @@ export function ProfileSettings() {
         <article className="h-full rounded-2xl border border-line bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex items-center gap-4">
-              <div className="grid size-12 place-items-center rounded-full bg-ink text-sm font-semibold text-white">HL</div>
-              <div><h2 className="font-semibold tracking-[-0.02em]">{supabaseUser?.email ?? "Buyer account"}</h2><p className="mt-1 text-sm text-subtle">{identityLabel}</p></div>
+              <div className="grid size-12 place-items-center rounded-full bg-ink text-sm font-semibold text-white">{accountInitials}</div>
+              <div><h2 className="font-semibold tracking-[-0.02em]">{supabaseUser?.email ?? "Sign in required"}</h2><p className="mt-1 text-sm text-subtle">{identityLabel}</p></div>
             </div>
             <span className={`rounded-full px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.1em] ${authenticated ? "bg-success/40 text-success-ink" : "bg-canvas text-subtle"}`}>{authLabel}</span>
           </div>

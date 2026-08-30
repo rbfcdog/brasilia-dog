@@ -5,8 +5,12 @@ import { isMerchantMockMode } from "@/lib/supabase/config";
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
   const pathname = request.nextUrl.pathname;
+  const buyerProtected = ["/assistant", "/scheduled", "/history", "/support", "/profile"]
+    .some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  const merchantProtected = pathname.startsWith("/merchant/") && pathname !== "/merchant/login";
+  const protectedRoute = buyerProtected || merchantProtected;
 
-  if (isMerchantMockMode()) {
+  if (isMerchantMockMode() && pathname.startsWith("/merchant")) {
     return response;
   }
 
@@ -14,13 +18,10 @@ export async function proxy(request: NextRequest) {
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim();
 
   if (!url || !key) {
-    if (
-      request.nextUrl.pathname.startsWith("/merchant/") &&
-      request.nextUrl.pathname !== "/merchant/login"
-    ) {
+    if (protectedRoute) {
       const login = request.nextUrl.clone();
-      login.pathname = "/merchant/login";
-      login.search = "?error=not_configured";
+      login.pathname = merchantProtected ? "/merchant/login" : "/";
+      login.search = merchantProtected ? "?error=not_configured" : "?error=not_configured#workspace-auth";
       return NextResponse.redirect(login);
     }
     return response;
@@ -43,12 +44,13 @@ export async function proxy(request: NextRequest) {
 
   const { data } = await supabase.auth.getUser();
   const isLogin = pathname === "/merchant/login";
-  const isProtected = pathname.startsWith("/merchant/") && !isLogin;
+  const isProtected = protectedRoute;
 
   if (isProtected && !data.user) {
     const login = request.nextUrl.clone();
-    login.pathname = "/merchant/login";
+    login.pathname = merchantProtected ? "/merchant/login" : "/";
     login.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
+    if (buyerProtected) login.hash = "workspace-auth";
     return NextResponse.redirect(login);
   }
 
@@ -60,5 +62,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/merchant/:path*"],
+  matcher: ["/assistant/:path*", "/scheduled/:path*", "/history/:path*", "/support/:path*", "/profile/:path*", "/merchant/:path*"],
 };

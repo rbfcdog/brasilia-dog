@@ -19,6 +19,7 @@ import { useEffect, useState } from "react";
 import { demoStorage } from "@/lib/demo-storage";
 import { backendService, type BackendConversation } from "@/services/backend-service";
 import { useShoppingStore } from "@/components/providers/shopping-provider";
+import { createMerchantBrowserClient } from "@/lib/supabase/client";
 
 const navigation = [
   { href: "/assistant", label: "Assistant", icon: MessageSquareText },
@@ -48,6 +49,29 @@ function SidebarContent({ closeMenu }: { closeMenu?: () => void }) {
   const router = useRouter();
   const { scheduledPurchases } = useShoppingStore();
   const [recentConversations, setRecentConversations] = useState<Array<BackendConversation & { label: string }>>([]);
+  const [account, setAccount] = useState<{ email: string; initials: string } | null>(null);
+  const [accountChecked, setAccountChecked] = useState(false);
+
+  useEffect(() => {
+    let supabase;
+    try {
+      supabase = createMerchantBrowserClient();
+    } catch {
+      queueMicrotask(() => setAccountChecked(true));
+      return;
+    }
+    const applySession = (session: { user: { email?: string } } | null) => {
+      const email = session?.user.email?.trim();
+      setAccount(email ? {
+        email,
+        initials: email.split("@")[0]!.split(/[._-]/).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "U",
+      } : null);
+      setAccountChecked(true);
+    };
+    void supabase.auth.getSession().then(({ data }) => applySession(data.session));
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => applySession(session));
+    return () => data.subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     void backendService.listConversations().then(async ({ conversations }) => {
@@ -140,17 +164,19 @@ function SidebarContent({ closeMenu }: { closeMenu?: () => void }) {
           <p className="mt-2 text-xs leading-5 text-subtle">Every purchase stays inside an approved mandate.</p>
         </div>
         <Link
-          href="/profile"
+          href={account ? "/profile" : "/#workspace-auth"}
           onClick={closeMenu}
           aria-current={pathname === "/profile" ? "page" : undefined}
           className={`flex items-center gap-3 rounded-xl border p-3 transition hover:border-line-strong hover:bg-canvas ${
             pathname === "/profile" ? "border-primary/20 bg-primary-soft" : "border-line"
           }`}
         >
-          <div className="grid size-9 place-items-center rounded-full bg-ink text-xs font-semibold text-white">HL</div>
+          <div className="grid size-9 place-items-center rounded-full bg-ink text-xs font-semibold text-white">
+            {account?.initials ?? (accountChecked ? "?" : "…")}
+          </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">Henrique Lacerda</p>
-            <p className="text-[11px] text-muted">Personal account</p>
+            <p className="truncate text-sm font-medium">{account?.email ?? (accountChecked ? "Sign in required" : "Checking account")}</p>
+            <p className="text-[11px] text-muted">{account ? "Supabase account" : "No active account"}</p>
           </div>
           <UserRound className="size-4 text-muted" aria-hidden="true" />
         </Link>
