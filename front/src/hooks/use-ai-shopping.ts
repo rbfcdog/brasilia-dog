@@ -167,8 +167,11 @@ async function persistMessage(
 
 export function useAIShopping() {
   const [state, dispatch] = useReducer(aiShoppingReducer, initialAIShoppingState);
-  const { addScheduledPurchase, paymentMethods, preferredPaymentMethodId } = useShoppingStore();
-  const { addScheduledPurchase } = useShoppingStore();
+  const {
+    addScheduledPurchase: schedulePurchase,
+    paymentMethods,
+    preferredPaymentMethodId,
+  } = useShoppingStore();
   const conversationIdRef = useRef<string | null>(null);
 
   // On mount: hydrate from backend if a passkey session exists, else from demoStorage.
@@ -300,7 +303,7 @@ export function useAIShopping() {
       if (result.kind === "purchased") {
         dispatch({ type: "PURCHASED", message: assistantMessage, receipt: result.receipt });
       } else {
-        addScheduledPurchase(result.scheduledPurchase);
+        schedulePurchase(result.scheduledPurchase);
         dispatch({
           type: "SCHEDULED",
           message: assistantMessage,
@@ -318,7 +321,7 @@ export function useAIShopping() {
         message: error instanceof Error ? error.message : "Approval could not be completed.",
       });
     }
-  }, [addScheduledPurchase, paymentMethods, state.mandate]);
+  }, [paymentMethods, schedulePurchase, state.mandate]);
 
   return {
     state,
