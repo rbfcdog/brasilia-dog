@@ -1,0 +1,130 @@
+export interface VerifiedOwnerSession {
+  token: string;
+  userId: string;
+  issuedAt: number;
+  expiresAt: number;
+}
+
+export interface MarketplaceProposal {
+  scope: {
+    query: string;
+    category: string;
+    constraints: Array<{ field: string; operator: "eq" | "gte" | "lte"; value: string | number | boolean }>;
+    searchWindowSeconds: 60;
+  };
+  maximumAmount: number;
+  currency: "usd";
+}
+
+export class BffError extends Error {
+  constructor(public code: string, message: string, public status: number) {
+    super(message);
+  }
+}
+
+function configuredUrl(name: "BACKEND_API_URL" | "AGENT_SERVICE_URL", path: string): URL {
+  const value = process.env[name]?.trim();
+  if (!value) throw new BffError("BACKEND_UNAVAILABLE", `${name} is not configured.`, 503);
+  return new URL(path, value.endsWith("/") ? value : `${value}/`);
+}
+
+async function responseError(response: Response): Promise<BffError> {
+  const body = await response.json().catch(() => null) as {
+    error?: string | { code?: string; message?: string };
+    detail?: string;
+  } | null;
+  const nested = typeof body?.error === "object" ? body.error : null;
+  const code = nested?.code ?? (typeof body?.error === "string" ? body.error : "UPSTREAM_ERROR");
+  const message = body?.detail ?? nested?.message ?? `Upstream request failed with status ${response.status}.`;
+  return new BffError(code, message, response.status);
+}
+
+export function bffError(error: unknown): Response {
+  const failure = error instanceof BffError
+    ? error
+    : new BffError("AGENT_RUN_FAILED", error instanceof Error ? error.message : "Agent run request failed.", 500);
+  return Response.json({ ok: false, error: { code: failure.code, message: failure.message } }, { status: failure.status });
+}
+
+export function requireIdempotencyKey(request: Request): string {
+  const value = request.headers.get("idempotency-key");
+  if (!value || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)) {
+    throw new BffError("IDEMPOTENCY_KEY_INVALID", "Idempotency-Key must be a UUID.", 400);
+  }
+  return value.toLowerCase();
+}
+
+export async function verifyOwnerSession(request: Request, fresh = false): Promise<VerifiedOwnerSession> {
+  const authorization = request.headers.get("authorization");
+  const token = authorization?.match(/^Bearer (.+)$/)?.[1];
+  if (!token) throw new BffError("AUTHENTICATION_REQUIRED", "A passkey session is required.", 401);
+  const response = await fetch(configuredUrl("BACKEND_API_URL", "passkey/session/verify"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionToken: token }),
+    cache: "no-store",
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!response.ok) throw await responseError(response);
+  const session = await response.json() as Omit<VerifiedOwnerSession, "token">;
+  if (fresh && Date.now() - session.issuedAt > 120_000) {
+    throw new BffError("FRESH_PASSKEY_REQUIRED", "Authenticate with the passkey again to approve this action.", 401);
+  }
+  return { token, ...session };
+}
+
+export async function backend<T>(path: string, sessionToken: string, init: RequestInit = {}): Promise<T> {
+  const headers = new Headers(init.headers);
+  headers.set("Authorization", `Bearer ${sessionToken}`);
+  headers.set("Accept", "application/json");
+  if (init.body) headers.set("Content-Type", "application/json");
+  const response = await fetch(configuredUrl("BACKEND_API_URL", path.replace(/^\//, "")), {
+    ...init, headers, cache: "no-store", signal: AbortSignal.timeout(15_000),
+  });
+  if (!response.ok) throw await responseError(response);
+  return response.json() as Promise<T>;
+}
+
+export async function agent<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const token = process.env.AGENT_SERVICE_TOKEN?.trim();
+  if (!token) throw new BffError("AGENT_UNAVAILABLE", "AGENT_SERVICE_TOKEN is not configured.", 503);
+  const headers = new Headers(init.headers);
+  headers.set("Authorization", `Bearer ${token}`);
+  headers.set("Accept", "application/json");
+  if (init.body) headers.set("Content-Type", "application/json");
+  const response = await fetch(configuredUrl("AGENT_SERVICE_URL", path.replace(/^\//, "")), {
+    ...init, headers, cache: "no-store", signal: AbortSignal.timeout(35_000),
+  });
+  if (!response.ok) throw await responseError(response);
+  const envelope = await response.json() as { ok?: boolean; data?: T };
+  if (envelope.ok !== true || envelope.data === undefined) throw new BffError("INVALID_AGENT_RESPONSE", "The agent response is invalid.", 502);
+  return envelope.data;
+}
+
+export function parseProposal(value: unknown): MarketplaceProposal {
+  if (!value || typeof value !== "object") throw new BffError("INVALID_PROPOSAL", "A structured marketplace proposal is required.", 422);
+  const proposal = value as Record<string, unknown>;
+  const scope = proposal.scope as Record<string, unknown> | null;
+  const constraints = scope?.constraints;
+  if (!scope || typeof scope.query !== "string" || !scope.query.trim() || typeof scope.category !== "string" || !scope.category.trim()
+    || scope.searchWindowSeconds !== 60 || !Array.isArray(constraints) || constraints.length > 8
+    || !constraints.every((item) => {
+      if (!item || typeof item !== "object") return false;
+      const constraint = item as Record<string, unknown>;
+      return typeof constraint.field === "string" && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(constraint.field)
+        && (constraint.operator === "eq" || constraint.operator === "gte" || constraint.operator === "lte")
+        && ["string", "number", "boolean"].includes(typeof constraint.value)
+        && ((constraint.operator === "eq") || typeof constraint.value === "number");
+    })
+    || typeof proposal.maximumAmount !== "number" || !Number.isFinite(proposal.maximumAmount)
+    || proposal.maximumAmount <= 0 || proposal.maximumAmount > 100_000 || proposal.currency !== "usd") {
+    throw new BffError("INVALID_PROPOSAL", "The structured marketplace proposal is invalid.", 422);
+  }
+  return {
+    scope: {
+      query: scope.query.trim(), category: scope.category.trim(),
+      constraints: constraints as MarketplaceProposal["scope"]["constraints"], searchWindowSeconds: 60,
+    },
+    maximumAmount: proposal.maximumAmount, currency: "usd",
+  };
+}

@@ -61,6 +61,34 @@ export class AgentIdentityRepository {
     return mapIdentity(data as AgentIdentityRow);
   }
 
+  async ensureIdentity(params: {
+    ownerId: string;
+    displayName: string;
+    publicKeyJwk: JsonWebKey;
+    fingerprint: string;
+  }): Promise<{ identity: AgentIdentity; signingKey: AgentSigningKey }> {
+    const { data, error } = await this.client.rpc('ensure_agent_identity', {
+      p_owner_id: params.ownerId,
+      p_display_name: params.displayName,
+      p_public_key_jwk: params.publicKeyJwk,
+      p_public_key_fingerprint: params.fingerprint,
+    });
+    if (error || !data || typeof data !== 'object') throw new Error('Could not ensure agent identity.');
+    const result = data as {
+      identity: AgentIdentity;
+      signingKey: Omit<AgentSigningKey, 'publicKeyFingerprint' | 'notBefore' | 'notAfter'> & { fingerprint: string };
+    };
+    return {
+      identity: result.identity,
+      signingKey: {
+        ...result.signingKey,
+        publicKeyFingerprint: result.signingKey.fingerprint,
+        notBefore: new Date().toISOString(),
+        notAfter: null,
+      },
+    };
+  }
+
   async getIdentity(identityId: string): Promise<AgentIdentity | null> {
     const { data, error } = await this.client
       .from('agent_identities')

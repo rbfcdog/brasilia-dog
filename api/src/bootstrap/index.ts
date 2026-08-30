@@ -26,6 +26,7 @@ import { MerchantService } from '../services/merchant-service.js';
 import { UserAuthService } from '../services/user-auth-service.js';
 import { PasskeyEnrollmentService } from '../services/passkey-enrollment-service.js';
 import { BackendChatService } from '../services/backend-chat-service.js';
+import { MarketplaceAuthorityService } from '../services/marketplace-authority-service.js';
 
 loadEnvironment();
 
@@ -51,6 +52,9 @@ const userAuthService = supabase ? new UserAuthService(supabase) : null;
 const passkeyEnrollmentService = supabase ? new PasskeyEnrollmentService(supabase) : null;
 const backendChatService = conversationRepository && config.agentServiceUrl && config.agentServiceOutboundToken
   ? new BackendChatService(conversationRepository, config.agentServiceUrl, config.agentServiceOutboundToken)
+  : null;
+const marketplaceAuthorityService = mandateRepository && productRepository
+  ? new MarketplaceAuthorityService(mandateRepository, productRepository)
   : null;
 
 const sessionStore = supabase ? new SupabaseSessionStore(supabase) : new InMemorySessionStore();
@@ -127,6 +131,7 @@ const app = createApp({
     : null,
   userAuthService,
   passkeyEnrollmentService,
+  marketplaceAuthorityService,
 });
 const server = createExpressApp(app).listen(config.port, '0.0.0.0', () => {
   console.log(`Stripe MPP ${config.mode} service listening on http://0.0.0.0:${config.port}`);

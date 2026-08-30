@@ -146,10 +146,16 @@ export const startRunRequestSchema = z.strictObject({
   goal: z.string().trim().min(1).max(2_000),
   mandateId: id,
   conversationId: id.optional(),
+  ownerId: z.string().uuid().optional(),
+  agentIdentityId: z.string().uuid().optional(),
+  agentSigningKeyId: z.string().uuid().optional(),
 });
 
 export const resumeRunRequestSchema = z.strictObject({
-  approvalResolutionId: id,
+  approvalResolutionId: id.optional(),
+  extensionId: z.string().uuid().optional(),
+}).refine((value) => Boolean(value.approvalResolutionId || value.extensionId), {
+  message: 'An approval resolution or extension is required.',
 });
 
 export type StartRunRequest = z.infer<typeof startRunRequestSchema>;

@@ -21,7 +21,7 @@ test('HTTP adapter reads an agent-authorized conversation transcript from the ba
       conversationId: 'conversation-123',
       role: 'user',
       content: 'Find the cheapest available flight to Córdoba.',
-      createdAt: '2026-08-30T00:00:00+00:00',
+      createdAt: '2026-08-30T00:00:00.000+00:00',
     },
     {
       id: 'message-2',
@@ -36,7 +36,15 @@ test('HTTP adapter reads an agent-authorized conversation transcript from the ba
     assert.equal(request.url, '/v1/agent/conversations/conversation-123/messages');
     assert.equal(request.headers.authorization, `Bearer ${backendToken}`);
     response.writeHead(200, { 'Content-Type': 'application/json' });
-    response.end(JSON.stringify({ messages }));
+    response.end(JSON.stringify({
+      conversation: {
+        id: 'conversation-123',
+        ownerId: '2d3febe3-de23-459e-a5da-aa0a1a4d71cf',
+        createdAt: '2026-08-30T00:00:00.000+00:00',
+        updatedAt: '2026-08-30T00:01:00.000+00:00',
+      },
+      messages,
+    }));
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise<void>((resolve) => server.close(() => resolve())));

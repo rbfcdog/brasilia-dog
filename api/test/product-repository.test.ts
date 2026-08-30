@@ -27,6 +27,7 @@ const endpointRow = {
       slug: 'market-signal',
       name: 'Market signal',
       description: 'A controlled market signal.',
+      metadata: {},
     },
   },
 };
@@ -79,11 +80,12 @@ test('loads an enabled product endpoint with its offering and product', async ()
       slug: 'market-signal',
       name: 'Market signal',
       description: 'A controlled market signal.',
+      metadata: {},
     },
   });
   assert.deepEqual(calls.slice(0, 5), [
     ['from', 'product_endpoints'],
-    ['select', 'id,method,path,response_status,response_body,offering:product_payment_offerings!inner(id,rail,amount_minor,currency,scale,network_id,product:products!inner(id,slug,name,description))'],
+    ['select', 'id,method,path,response_status,response_body,offering:product_payment_offerings!inner(id,rail,amount_minor,currency,scale,network_id,product:products!inner(id,slug,name,description,status,metadata,owner_id))'],
     ['eq', 'method', 'GET'],
     ['eq', 'path', '/v1/products/market-signal/mpp'],
     ['eq', 'offering.rail', 'stripe_mpp'],
