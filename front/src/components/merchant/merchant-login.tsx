@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { type FormEvent, useState } from "react";
 import { authenticatePasskey, registerEnrolledPasskey } from "@/hooks/use-passkey";
 import { isValidCnpj, isValidCpf } from "@/lib/brazilian-tax-id";
 import { backendService } from "@/services/backend-service";
