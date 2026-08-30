@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import type { CrossCredentialAuth } from './cross-credential-auth.js';
+import type { CrossCredentialAuth, CrossCredentialResult } from './cross-credential-auth.js';
 import type { ProductRepository } from '../repositories/product-repository.js';
 import type { ProductEndpoint } from '../domain/types.js';
 
@@ -83,9 +83,30 @@ export class PurchaseService {
 
     this.crossCredentialAuth.checkScope(auth.mandate, slug, endpoint.offering.amountMinor);
 
-    // The database RPC rejects a reused nonce. Do not continue when the proof
-    // cannot be persisted, because that would make replay detection advisory.
-    const executionProofId = await this.recordProof({
+    const executionProofId = await this.recordProofForAuthorization(
+      auth,
+      method,
+      path,
+      canonicalIntent,
+      purchaseRequest.agentProof,
+    );
+
+    return {
+      agentId: auth.agent.id,
+      mandateId: auth.mandate.id,
+      executionProofId,
+      endpoint,
+    };
+  }
+
+  async recordProofForAuthorization(
+    auth: CrossCredentialResult,
+    method: string,
+    path: string,
+    canonicalIntent: string,
+    agentProof: PurchaseRequest['agentProof'],
+  ): Promise<string> {
+    return this.recordProof({
       agentIdentityId: auth.agent.id,
       agentSigningKeyId: auth.key.id,
       mandateId: auth.mandate.id,
@@ -94,16 +115,9 @@ export class PurchaseService {
       requestPath: path,
       requestBodySha256: createHash('sha256').update(canonicalIntent).digest('hex'),
       nonce: auth.proofId.nonce,
-      issuedAt: purchaseRequest.agentProof.issuedAt,
-      expiresAt: purchaseRequest.agentProof.expiresAt,
-      signature: purchaseRequest.agentProof.signature,
+      issuedAt: agentProof.issuedAt,
+      expiresAt: agentProof.expiresAt,
+      signature: agentProof.signature,
     });
-
-    return {
-      agentId: auth.agent.id,
-      mandateId: auth.mandate.id,
-      executionProofId,
-      endpoint,
-    };
   }
 }

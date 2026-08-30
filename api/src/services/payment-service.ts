@@ -8,6 +8,8 @@ import type {
   ProductEndpoint,
 } from '../domain/types.js';
 
+const AGENT_EXECUTION_PROOF_HEADER = 'x-agent-execution-proof-id';
+
 function amountToDecimal(amountMinor: number, scale: number): string {
   if (!Number.isSafeInteger(amountMinor) || amountMinor <= 0) {
     throw new Error('Product offering amount must be a positive integer.');
@@ -106,6 +108,7 @@ export class PaymentService {
             currency: endpoint.offering.currency,
             scale: endpoint.offering.scale,
             requestFingerprint: fingerprintRequest(input),
+            agentExecutionProofId: input?.headers.get(AGENT_EXECUTION_PROOF_HEADER) ?? undefined,
             receipt: summary,
           });
         },

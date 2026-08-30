@@ -16,6 +16,7 @@ export interface AppConfig {
   supabase: SupabaseConfig | null;
   passkey: PasskeyConfig;
   sessionSecret: string;
+  agentServiceToken: string | null;
 }
 
 export interface PasskeyConfig {
@@ -73,6 +74,7 @@ export interface PaymentAttemptInput {
   requestFingerprint?: string | null;
   receipt?: Record<string, unknown>;
   failureCode?: string;
+  agentExecutionProofId?: string;
 }
 
 export interface ProductEndpointRepository {
@@ -130,11 +132,32 @@ export interface Mandate {
   expiresAt: string;
   createdAt: string;
 }
+export interface SellerPriceDisclosure {
+  merchantIds: string[];
+  maxPriceMinor: number;
+  requirements?: string[];
+}
 
 export interface MandateScope {
   allowedProductSlugs?: string[];
   allowedPaths?: string[];
   guidelines?: string[];
+  sellerPriceDisclosure?: SellerPriceDisclosure;
+}
+
+export interface SellerQuoteRequestRecord {
+  id: string;
+  merchantId: string;
+  ownerId: string;
+  agentIdentityId: string;
+  mandateId: string;
+  credentialCommitment: string;
+  agentVerificationHash: string;
+  priceLimitMinor: number;
+  currency: string;
+  requirements: string[];
+  expiresAt: string;
+  createdAt: string;
 }
 
 export interface MandateUsage {
@@ -165,6 +188,31 @@ export interface PasskeySession {
   credentialId: string;
   issuedAt: number;
   expiresAt: number;
+}
+
+// Conversation history types
+
+export interface Conversation {
+  id: string;
+  ownerId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ConversationMessage {
+  id: string;
+  conversationId: string;
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt: string;
+}
+
+export interface ConversationMessageInput {
+  ownerId: string;
+  conversationId: string;
+  role: ConversationMessage['role'];
+  content: string;
+  createdAt: string;
 }
 
 // Payment history types

@@ -13,6 +13,7 @@ const sandboxConfig: AppConfig = {
   supabase: null,
   passkey: { rpName: 'Test', rpId: 'localhost', origin: 'http://localhost:3000' },
   sessionSecret: 'a'.repeat(64),
+  agentServiceToken: null,
 };
 
 test('issues a Stripe MPP payment challenge before serving the controlled resource', async () => {
@@ -22,4 +23,8 @@ test('issues a Stripe MPP payment challenge before serving the controlled resour
 
   assert.equal(response.status, 402);
   assert.match(response.headers.get('www-authenticate') ?? '', /^Payment /);
+  assert.match(
+    response.headers.get('www-authenticate') ?? '',
+    /header="Payment-Authorization"/,
+  );
 });
