@@ -1,11 +1,12 @@
 "use client";
 
-import { ArrowRight, Bot, Fingerprint, Loader2, Store } from "lucide-react";
+import { Bot, Fingerprint, Loader2, QrCode, Store } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { type FormEvent, useEffect, useState } from "react";
+import QRCode from "qrcode";
+import { type FormEvent, useCallback, useEffect, useState } from "react";
 
-import { registerEnrolledPasskey } from "@/hooks/use-passkey";
-import { backendService } from "@/services/backend-service";
+import { authenticatePasskey, registerEnrolledPasskey } from "@/hooks/use-passkey";
+import { backendService, type PasskeyEnrollment } from "@/services/backend-service";
 import { isValidCnpj, isValidCpf } from "@/lib/brazilian-tax-id";
 import { authService, type AuthUser } from "@/services/auth-service";
 
@@ -27,32 +28,45 @@ export function WorkspaceAuth() {
   const [businessName, setBusinessName] = useState("");
   const [cpf, setCpf] = useState("");
   const [cnpj, setCnpj] = useState("");
-  const [authenticatedEmail, setAuthenticatedEmail] = useState<string | null>(null);
   const [pendingEnrollment, setPendingEnrollment] = useState<{ user: AuthUser; destination: string } | null>(null);
+  const [pendingPasskey, setPendingPasskey] = useState<{ destination: string } | null>(null);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    void authService.session()
-      .then(({ user }) => setAuthenticatedEmail(user.email))
-      .catch(() => setAuthenticatedEmail(null));
-  }, []);
+  const [enrollment, setEnrollment] = useState<PasskeyEnrollment | null>(null);
+  const [enrollmentQr, setEnrollmentQr] = useState<string | null>(null);
 
   const destination = role === "buyer" && searchParams.get("next")?.startsWith("/")
     ? searchParams.get("next")!
     : destinations[role];
 
-  async function completeAccess(user: AuthUser) {
+  const completeAccess = useCallback(async (user: AuthUser) => {
     const status = await backendService.passkeyStatus();
-    setAuthenticatedEmail(user.email);
     if (!status.registered) {
       setPendingEnrollment({ user, destination });
       return;
     }
-    router.push(destination);
-    router.refresh();
-  }
+    setPendingPasskey({ destination });
+  }, [destination]);
 
+  useEffect(() => {
+    void authService.session()
+      .then(({ user }) => completeAccess(user))
+      .catch(() => {});
+  }, [completeAccess]);
+
+  useEffect(() => {
+    if (!enrollment) return;
+    void QRCode.toDataURL(enrollment.enrollmentUrl, {
+      color: { dark: "#0A1120", light: "#FFFFFF" },
+      margin: 1,
+      width: 240,
+    }).then(setEnrollmentQr).catch(() => setMessage("Could not generate the passkey enrollment QR code."));
+  }, [enrollment]);
+
+  function shouldOfferEnrollmentFallback(error: unknown): boolean {
+    if (!(error instanceof Error)) return false;
+    return error.name === "SecurityError" || /\b(insecure|secure context)\b/i.test(error.message);
+  }
   async function registerFirstPasskey() {
     if (!pendingEnrollment) return;
     setPending(true);
@@ -60,10 +74,55 @@ export function WorkspaceAuth() {
     try {
       const result = await registerEnrolledPasskey();
       if (!result.verified) throw new Error("Passkey registration was not verified.");
-      router.push(pendingEnrollment.destination);
+      await authService.signOut();
+      setPendingEnrollment(null);
+      setMode("signin");
+      setMessage("Passkey created. Sign in to continue.");
+    } catch (error) {
+      setEnrollment(null);
+      setMessage(error instanceof Error ? error.message : "Passkey registration failed.");
+      if (shouldOfferEnrollmentFallback(error)) {
+        try {
+          setEnrollment(await backendService.createPasskeyEnrollment());
+          setMessage("This browser cannot create a passkey here. Open the QR code on a secure device to finish setup.");
+          return;
+        } catch {
+          setMessage("This browser cannot create a passkey here, and a secure-device enrollment link could not be created.");
+          return;
+        }
+      }
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function authenticateForAccess() {
+    if (!pendingPasskey) return;
+    setPending(true);
+    setMessage("Verify your passkey to continue.");
+    try {
+      const result = await authenticatePasskey();
+      if (!result.verified) throw new Error("Passkey verification was not approved.");
+      router.push(pendingPasskey.destination);
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Passkey registration failed.");
+      setMessage(error instanceof Error ? error.message : "Passkey verification failed.");
+    } finally {
+      setPending(false);
+    }
+  }
+  async function switchAccount() {
+    setPending(true);
+    setMessage(null);
+    try {
+      await authService.signOut();
+      setPendingPasskey(null);
+      setPendingEnrollment(null);
+      setEnrollment(null);
+      setPassword("");
+      setMode("signin");
+    } catch {
+      setMessage("Could not switch accounts. Try again.");
     } finally {
       setPending(false);
     }
@@ -134,14 +193,33 @@ export function WorkspaceAuth() {
             {pending ? <Loader2 className="size-4 animate-spin" /> : <Fingerprint className="size-4" />} Set up passkey
           </button>
           {message ? <p role="alert" className="mt-3 text-xs leading-5 text-danger">{message}</p> : null}
+          {enrollment ? (
+            <section className="mt-4 rounded-xl border border-white/15 bg-white p-4 text-ink" aria-labelledby="passkey-qr-heading">
+              <div className="flex items-start gap-3">
+                <QrCode className="mt-0.5 size-5 text-primary" aria-hidden="true" />
+                <div>
+                  <h2 id="passkey-qr-heading" className="text-sm font-semibold">Finish on a secure device</h2>
+                  <p className="mt-1 text-xs leading-5 text-ink/70">Open this QR code on a secure device. It expires at {new Date(enrollment.expiresAt).toLocaleString()}.</p>
+                </div>
+              </div>
+              <div className="mt-3 grid place-items-center rounded-lg bg-white p-2">
+                <img alt="Passkey enrollment QR code" src={enrollmentQr ?? ""} className="size-52" />
+              </div>
+            </section>
+          ) : null}
         </div>
-      ) : authenticatedEmail ? (
-        <div className="mt-5 rounded-2xl border border-white/12 bg-white/[0.07] p-4">
-          <p className="text-xs text-white/55">Signed in as</p>
-          <p className="mt-1 truncate text-sm font-medium">{authenticatedEmail}</p>
-          <button type="button" onClick={() => router.push(destination)} className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-white text-sm font-medium text-ink">
-            Continue as {role} <ArrowRight className="size-4" />
+      ) : pendingPasskey ? (
+        <div className="mt-5 rounded-2xl border border-success/30 bg-white/[0.07] p-4">
+          <Fingerprint className="size-6 text-success" aria-hidden="true" />
+          <p className="mt-3 text-sm font-medium">Verify your device passkey</p>
+          <p className="mt-1 text-xs leading-5 text-white/60">A passkey verification is required before entering this workspace. Your device may use biometrics, a PIN, or another local verifier.</p>
+          <button type="button" disabled={pending} onClick={() => void authenticateForAccess()} className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-white text-sm font-medium text-ink disabled:opacity-60">
+            {pending ? <Loader2 className="size-4 animate-spin" /> : <Fingerprint className="size-4" />} Continue with passkey
           </button>
+          <button type="button" disabled={pending} onClick={() => void switchAccount()} className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-xl border border-white/20 text-xs font-medium text-white/80 disabled:opacity-60">
+            Use another account
+          </button>
+          {message ? <p role="alert" className="mt-3 text-xs leading-5 text-danger">{message}</p> : null}
         </div>
       ) : (
         <form onSubmit={submit} className="mt-5 space-y-3 rounded-2xl border border-white/12 bg-white/[0.07] p-4">
