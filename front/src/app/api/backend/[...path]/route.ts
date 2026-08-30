@@ -215,6 +215,14 @@ async function proxy(request: Request, context: RouteContext): Promise<Response>
       }
     }
 
+    const contentType = upstream.headers.get("content-type") ?? "";
+    if (!contentType.toLowerCase().includes("json")) {
+      return NextResponse.json(
+        { error: "backend_invalid_response", detail: "The backend gateway returned a non-JSON response." },
+        { status: 502 },
+      );
+    }
+
     const responseBody = await upstream.arrayBuffer();
     const response = new Response(responseBody, {
       status: upstream.status,

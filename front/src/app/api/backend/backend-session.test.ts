@@ -88,6 +88,56 @@ describe("passkey BFF session continuity", () => {
     expect((init.headers as Headers).get("authorization")).toBe("Bearer cookie-session");
   });
 
+  it("proxies anonymous chat through the backend gateway", async () => {
+    process.env.BACKEND_API_URL = "https://api.example.test";
+    mocks.fetch.mockResolvedValue(new Response(JSON.stringify({
+      ok: true,
+      data: {
+        kind: "clarification",
+        message: "What is your budget?",
+        conversationId: "conversation-anon",
+      },
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    vi.stubGlobal("fetch", mocks.fetch);
+
+    const response = await POST(new Request("https://shop.example.test/api/backend/v1/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "Show me appliances" }),
+    }), { params: Promise.resolve({ path: ["v1", "chat"] }) });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("application/json");
+    expect(mocks.fetch).toHaveBeenCalledWith(
+      new URL("https://api.example.test/v1/chat"),
+      expect.objectContaining({ method: "POST" }),
+    );
+    const init = mocks.fetch.mock.calls[0]?.[1] as RequestInit;
+    expect((init.headers as Headers).get("authorization")).toBeNull();
+  });
+
+  it("converts a non-JSON backend chat response into a JSON gateway error", async () => {
+    process.env.BACKEND_API_URL = "https://api.example.test";
+    mocks.fetch.mockResolvedValue(new Response("upstream failure", {
+      status: 502,
+      headers: { "Content-Type": "text/html" },
+    }));
+    vi.stubGlobal("fetch", mocks.fetch);
+
+    const response = await POST(new Request("https://shop.example.test/api/backend/v1/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "Show me appliances" }),
+    }), { params: Promise.resolve({ path: ["v1", "chat"] }) });
+
+    expect(response.status).toBe(502);
+    expect(response.headers.get("content-type")).toContain("application/json");
+    await expect(response.json()).resolves.toEqual({
+      error: "backend_invalid_response",
+      detail: "The backend gateway returned a non-JSON response.",
+    });
+  });
+
   it("keeps the browser's passkey bearer for chat when an account cookie is also present", async () => {
     process.env.BACKEND_API_URL = "https://api.example.test";
     mocks.cookies.set("nomad-auth-access", "account-token");
