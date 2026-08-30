@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
+import { augmentMerchantDashboard } from './merchant-dashboard-demo.js';
 
 type MetadataValue = string | number | boolean;
 
@@ -40,6 +41,7 @@ export class MerchantService {
     private readonly client: SupabaseClient,
     private readonly stripeProfileId: string,
     private readonly userClientConfig?: { url: string; key: string },
+    private readonly demoDashboardEnabled = false,
   ) {}
 
   async authenticate(accessToken: string): Promise<User> {
@@ -76,7 +78,8 @@ export class MerchantService {
     ]);
     const error = summary.error ?? dailySales.error ?? recentOrders.error;
     if (error) throw new MerchantCommandError('Merchant dashboard is unavailable.', 500);
-    return { summary: summary.data, dailySales: dailySales.data ?? [], recentOrders: recentOrders.data ?? [] };
+    const projection = { summary: summary.data, dailySales: dailySales.data ?? [], recentOrders: recentOrders.data ?? [] };
+    return this.demoDashboardEnabled ? augmentMerchantDashboard(projection) : projection;
   }
 
   async projection(accessToken: string, name: 'orders' | 'catalog' | 'finance', orderId?: string): Promise<unknown> {

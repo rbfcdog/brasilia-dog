@@ -63,7 +63,7 @@ const conversationRepository = config.mode === 'sandbox'
     ? new ConversationRepository(supabase)
     : null;
 const merchantService = supabase && config.supabase
-  ? new MerchantService(supabase, config.stripeProfileId, config.supabase)
+  ? new MerchantService(supabase, config.stripeProfileId, config.supabase, config.mode === 'sandbox')
   : null;
 const userAuthService = supabase ? new UserAuthService(supabase) : null;
 const passkeyEnrollmentService = config.mode === 'sandbox'

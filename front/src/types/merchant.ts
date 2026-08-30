@@ -20,6 +20,10 @@ export interface MerchantDashboardSummary {
   agent_conversion_rate: number;
   refunded_orders: number;
   failed_orders: number;
+  gmv_growth_rate?: number;
+  conversion_growth_points?: number;
+  automation_rate?: number;
+  average_order_value_minor?: number;
 }
 
 export interface MerchantDailySale {

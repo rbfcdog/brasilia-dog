@@ -13,6 +13,7 @@ type DashboardState = {
   summary: MerchantDashboardSummary;
   dailySales: MerchantDailySale[];
   recentOrders: MerchantOrder[];
+  demo?: boolean;
 };
 
 function fillLastThirtyDays(sales: MerchantDailySale[]): Array<{ label: string; total: number }> {
@@ -38,7 +39,7 @@ function MetricCard({ label, value, detail, icon: Icon, tone = "default" }: { la
 }
 
 export function DashboardView() {
-  const [data, setData] = useState<DashboardState>({ summary: emptyDashboardSummary, dailySales: [], recentOrders: [] });
+  const [data, setData] = useState<DashboardState>({ summary: emptyDashboardSummary, dailySales: [], recentOrders: [], demo: false });
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState("");
 
@@ -67,11 +68,13 @@ export function DashboardView() {
         <div role="alert" className="mb-5 flex flex-col gap-4 rounded-2xl border border-danger/20 bg-danger-soft p-5 text-sm sm:flex-row sm:items-center"><AlertTriangle className="size-5 shrink-0 text-danger" /><div className="flex-1"><p className="font-medium text-danger">Projection unavailable</p><p className="mt-1 text-subtle">{error}</p></div><button onClick={() => void load()} className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 font-medium"><RotateCcw className="size-4" /> Retry</button></div>
       ) : null}
 
+      {data.demo ? <div className="mb-5 flex items-center gap-3 rounded-xl border border-primary/15 bg-primary-soft px-4 py-3 text-xs text-subtle"><Bot className="size-4 shrink-0 text-primary" /><p><strong className="text-ink">Corporate demo dataset.</strong> Synthetic 30-day metrics are combined with this account&apos;s live sandbox activity.</p></div> : null}
+
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Merchant metrics">
-        <MetricCard label="Gross merchandise value" value={formatCompactMoney(summary.gmv_minor, summary.currency)} detail="Settled volume · last 30 days" icon={CircleDollarSign} tone="success" />
-        <MetricCard label="AI-agent conversion" value={`${summary.agent_conversion_rate.toFixed(1)}%`} detail={`${summary.converted_orders} of ${summary.agent_attempts} verified attempts`} icon={Bot} />
-        <MetricCard label="Settled orders" value={String(summary.settled_orders)} detail="Fixed-price orders completed" icon={ShoppingBag} tone="success" />
-        <MetricCard label="Refunded / failed" value={`${summary.refunded_orders} / ${summary.failed_orders}`} detail="Requires operational attention" icon={RotateCcw} tone={summary.refunded_orders + summary.failed_orders > 0 ? "danger" : "default"} />
+        <MetricCard label="Gross merchandise value" value={formatCompactMoney(summary.gmv_minor, summary.currency)} detail={summary.gmv_growth_rate === undefined ? "Settled volume · last 30 days" : `+${summary.gmv_growth_rate.toFixed(1)}% vs previous period`} icon={CircleDollarSign} tone="success" />
+        <MetricCard label="AI-agent conversion" value={`${summary.agent_conversion_rate.toFixed(1)}%`} detail={summary.conversion_growth_points === undefined ? `${summary.converted_orders} of ${summary.agent_attempts} verified attempts` : `+${summary.conversion_growth_points.toFixed(1)}pp · ${summary.converted_orders} converted`} icon={Bot} />
+        <MetricCard label="Settled orders" value={String(summary.settled_orders)} detail={summary.automation_rate === undefined || summary.average_order_value_minor === undefined ? "Fixed-price orders completed" : `${formatMoney(summary.average_order_value_minor, summary.currency)} avg · ${summary.automation_rate.toFixed(1)}% autonomous`} icon={ShoppingBag} tone="success" />
+        <MetricCard label="Refunded / failed" value={`${summary.refunded_orders} / ${summary.failed_orders}`} detail={summary.agent_attempts === 0 ? "Requires operational attention" : `${(((summary.refunded_orders + summary.failed_orders) / summary.agent_attempts) * 100).toFixed(1)}% exception rate`} icon={RotateCcw} tone={summary.refunded_orders + summary.failed_orders > 0 ? "danger" : "default"} />
       </section>
 
       <section className="mt-4 grid gap-4 xl:grid-cols-[1.55fr_.8fr]">

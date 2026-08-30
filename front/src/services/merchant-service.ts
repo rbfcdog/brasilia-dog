@@ -44,8 +44,8 @@ export const emptyDashboardSummary: MerchantDashboardSummary = {
 };
 
 export const merchantService = {
-  async dashboard(): Promise<{ summary: MerchantDashboardSummary; dailySales: MerchantDailySale[]; recentOrders: MerchantOrder[] }> {
-    const result = await merchantRequest<{ summary: MerchantDashboardSummary | null; dailySales: MerchantDailySale[]; recentOrders: MerchantOrder[] }>("/v1/merchant/dashboard");
+  async dashboard(): Promise<{ summary: MerchantDashboardSummary; dailySales: MerchantDailySale[]; recentOrders: MerchantOrder[]; demo?: boolean }> {
+    const result = await merchantRequest<{ summary: MerchantDashboardSummary | null; dailySales: MerchantDailySale[]; recentOrders: MerchantOrder[]; demo?: boolean }>("/v1/merchant/dashboard");
     return { ...result, summary: result.summary ?? emptyDashboardSummary };
   },
   async orders(): Promise<MerchantOrder[]> {

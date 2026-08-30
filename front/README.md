@@ -83,6 +83,8 @@ These prompts are demonstrations of the product flow, not a guarantee that the d
 6. Review whether the product has an active MPP endpoint and is discoverable by buyer agents.
 7. Inspect orders, audit evidence, and finance projections.
 
+In sandbox mode, the Merchant dashboard adds a clearly labelled synthetic corporate 30-day scenario to the account's real sandbox activity. This keeps the demo populated with coherent GMV, conversion, automation, daily sales, and recent-order metrics without changing live-mode projections or writing mock rows to Supabase.
+
 Publishing a product does not itself create a buyer mandate or authorize a purchase. A product is searchable as an agent offer only when its product status, Stripe MPP offering, and endpoint are all eligible.
 
 ## Architecture
