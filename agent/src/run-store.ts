@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import type {
   PublicRun,
   RunEvent,
@@ -35,9 +37,12 @@ export class RunStore {
   private readonly startIdempotency = new Map<string, string>();
   private readonly resumeIdempotency = new Map<string, ResumeIdempotencyRecord>();
   private readonly now: () => Date;
+  private readonly persistencePath?: string;
 
-  constructor(now: () => Date = () => new Date()) {
+  constructor(now: () => Date = () => new Date(), persistencePath?: string) {
     this.now = now;
+    this.persistencePath = persistencePath;
+    this.load();
   }
 
   createOrGet(idempotencyKey: string, request: StartRunRequest): CreateRunResult {
@@ -70,6 +75,7 @@ export class RunStore {
     };
     this.runs.set(run.runId, run);
     this.startIdempotency.set(idempotencyKey, run.runId);
+    this.save();
     return { run: this.toPublic(run), created: true };
   }
 
@@ -90,6 +96,7 @@ export class RunStore {
     const run = this.requireInternal(runId);
     run.status = status;
     run.updatedAt = this.now().toISOString();
+    this.save();
   }
 
   appendEvent(runId: string, type: RunEventType, data: Record<string, unknown> = {}): RunEvent {
@@ -102,6 +109,7 @@ export class RunStore {
     };
     run.events.push(event);
     run.updatedAt = event.occurredAt;
+    this.save();
     return structuredClone(event);
   }
 
@@ -110,6 +118,7 @@ export class RunStore {
     run.status = 'waiting_for_human';
     run.approvalRequest = structuredClone(approvalRequest);
     run.updatedAt = this.now().toISOString();
+    this.save();
   }
 
   finish(runId: string, status: Extract<RunStatus, 'completed' | 'rejected' | 'failed'>, result: TerminalResult): void {
@@ -118,6 +127,7 @@ export class RunStore {
     run.result = structuredClone(result);
     delete run.approvalRequest;
     run.updatedAt = this.now().toISOString();
+    this.save();
   }
 
   beginResume(runId: string, idempotencyKey: string, approvalResolutionId: string): BeginResumeResult {
@@ -133,26 +143,51 @@ export class RunStore {
       }
       return { run: this.require(runId), replay: true };
     }
-
     const run = this.requireInternal(runId);
     if (run.status !== 'waiting_for_human') {
       throw new AgentError('RUN_NOT_WAITING', 'Only a run waiting for human approval can be resumed.', 409);
     }
-
     this.resumeIdempotency.set(idempotencyKey, { runId, bodyHash });
     run.status = 'running';
     run.updatedAt = this.now().toISOString();
+    this.save();
     return { run: this.toPublic(run), replay: false };
   }
 
   private requireInternal(runId: string): InternalRun {
     const run = this.runs.get(runId);
+    this.save();
     if (!run) {
       throw new AgentError('RUN_NOT_FOUND', 'The agent run was not found.', 404);
     }
     return run;
   }
 
+  private load(): void {
+    if (!this.persistencePath || !existsSync(this.persistencePath)) return;
+    try {
+      const data = JSON.parse(readFileSync(this.persistencePath, 'utf8')) as {
+        runs?: InternalRun[];
+        startIdempotency?: [string, string][];
+        resumeIdempotency?: [string, ResumeIdempotencyRecord][];
+      };
+      for (const run of data.runs ?? []) this.runs.set(run.runId, run);
+      for (const entry of data.startIdempotency ?? []) this.startIdempotency.set(...entry);
+      for (const entry of data.resumeIdempotency ?? []) this.resumeIdempotency.set(...entry);
+    } catch {
+      // A corrupt cache must not prevent the service from starting.
+    }
+  }
+
+  private save(): void {
+    if (!this.persistencePath) return;
+    mkdirSync(dirname(this.persistencePath), { recursive: true });
+    writeFileSync(this.persistencePath, JSON.stringify({
+      runs: [...this.runs.values()],
+      startIdempotency: [...this.startIdempotency.entries()],
+      resumeIdempotency: [...this.resumeIdempotency.entries()],
+    }), 'utf8');
+  }
   private bodyHash(value: unknown): string {
     return sha256Utf8(JSON.stringify(value));
   }
