@@ -67,6 +67,29 @@ function backendUrl(pathname: string, search: string): URL | null {
   return baseUrl;
 }
 
+async function ensureFreshAccessToken(cookieStore: Awaited<ReturnType<typeof cookies>>): Promise<string | null> {
+  const accessToken = cookieStore.get("nomad-auth-access")?.value;
+  if (accessToken) return accessToken;
+  const refreshToken = cookieStore.get("nomad-auth-refresh")?.value;
+  if (!refreshToken) return null;
+  const base = process.env.BACKEND_API_URL?.trim();
+  if (!base) return null;
+  try {
+    const response = await fetch(new URL("v1/auth/refresh", base.endsWith("/") ? base : `${base}/`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ refreshToken }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!response.ok) return null;
+    const payload = await response.json() as { session?: { accessToken?: string } };
+    return payload.session?.accessToken ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function requestHeaders(request: Request, pathname: string): Promise<Headers> {
   const headers = new Headers();
   for (const name of FORWARDED_REQUEST_HEADERS) {
@@ -75,13 +98,28 @@ async function requestHeaders(request: Request, pathname: string): Promise<Heade
   }
   const cookieStore = await cookies();
   const passkeyRoute = /^\/passkey\/(?:register|auth)\//.test(pathname);
-  const passkeySession = cookieStore.get("nomad-passkey-session")?.value;
-  if (!headers.has("authorization") && !passkeyRoute && passkeySession) {
-    headers.set("authorization", `Bearer ${passkeySession}`);
-  }
-  if (!headers.has("authorization") || passkeyRoute) {
-    const accessToken = cookieStore.get("nomad-auth-access")?.value;
-    if (accessToken) headers.set("authorization", `Bearer ${accessToken}`);
+  const chatRoute = pathname === "/v1/chat" || pathname === "/v1/conversations" || /^\/v1\/conversations\//.test(pathname);
+
+  // Chat and conversation routes use the Supabase account token for persistence.
+  // Payment and mandate routes use the passkey session for biometric authorization.
+  if (chatRoute) {
+    const accessToken = await ensureFreshAccessToken(cookieStore);
+    if (!headers.has("authorization") && accessToken) {
+      headers.set("authorization", `Bearer ${accessToken}`);
+    }
+    const passkeySession = cookieStore.get("nomad-passkey-session")?.value;
+    if (!headers.has("authorization") && !passkeyRoute && passkeySession) {
+      headers.set("authorization", `Bearer ${passkeySession}`);
+    }
+  } else {
+    const passkeySession = cookieStore.get("nomad-passkey-session")?.value;
+    if (!headers.has("authorization") && !passkeyRoute && passkeySession) {
+      headers.set("authorization", `Bearer ${passkeySession}`);
+    }
+    if (!headers.has("authorization") || passkeyRoute) {
+      const accessToken = cookieStore.get("nomad-auth-access")?.value;
+      if (accessToken) headers.set("authorization", `Bearer ${accessToken}`);
+    }
   }
   if (pathname.startsWith("/passkey/register/")) {
     const enrollmentToken = cookieStore.get("nomad-passkey-enrollment")?.value;
