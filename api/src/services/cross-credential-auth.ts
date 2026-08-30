@@ -142,4 +142,35 @@ export class CrossCredentialAuth {
       throw new Error('Purchase amount exceeds the mandate maximum.');
     }
   }
+
+  checkSellerPriceDisclosure(
+    mandate: Mandate,
+    merchantId: string,
+    priceLimitMinor: number,
+    requirements: string[],
+  ): void {
+    const disclosure = (mandate.scope as MandateScope).sellerPriceDisclosure;
+
+    if (!disclosure || !disclosure.merchantIds.includes(merchantId)) {
+      throw new Error('Mandate does not authorize price disclosure to this seller.');
+    }
+
+    if (
+      !Number.isSafeInteger(priceLimitMinor) ||
+      priceLimitMinor <= 0 ||
+      priceLimitMinor > mandate.maxAmountMinor ||
+      priceLimitMinor > disclosure.maxPriceMinor
+    ) {
+      throw new Error('Seller price limit exceeds the authorized mandate limit.');
+    }
+
+    if (!requirements.every((requirement) => typeof requirement === 'string' && requirement.length <= 280)) {
+      throw new Error('Seller requirements are invalid.');
+    }
+
+    const allowedRequirements = disclosure.requirements ?? [];
+    if (!requirements.every((requirement) => allowedRequirements.includes(requirement))) {
+      throw new Error('Seller requirements are not authorized by the mandate scope.');
+    }
+  }
 }

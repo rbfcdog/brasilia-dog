@@ -398,6 +398,48 @@ test('checkScope passes for allowed product within limit', async () => {
   assert.ok(true);
 });
 
+test('checkSellerPriceDisclosure requires an authorized seller and bounded price', () => {
+  const sessionStore = new InMemorySessionStore();
+  const sessionService = new SessionService({ secret, store: sessionStore });
+  const auth = new CrossCredentialAuth(
+    sessionService,
+    new MockAgentRepo() as unknown as AgentIdentityRepository,
+    new MockMandateRepo() as unknown as MandateRepository,
+  );
+  const mandate: Mandate = {
+    id: 'm1',
+    ownerId: 'user-1',
+    agentIdentityId: 'agent-1',
+    version: 1,
+    status: 'active',
+    scope: {
+      sellerPriceDisclosure: {
+        merchantIds: ['merchant-1'],
+        maxPriceMinor: 500,
+        requirements: ['size: 34-inch'],
+      },
+    },
+    maxAmountMinor: 500,
+    currency: 'usd',
+    expiresAt: new Date(Date.now() + 86400000).toISOString(),
+    createdAt: new Date().toISOString(),
+  };
+
+  auth.checkSellerPriceDisclosure(mandate, 'merchant-1', 500, ['size: 34-inch']);
+  assert.throws(
+    () => auth.checkSellerPriceDisclosure(mandate, 'merchant-2', 500, []),
+    /does not authorize price disclosure/,
+  );
+  assert.throws(
+    () => auth.checkSellerPriceDisclosure(mandate, 'merchant-1', 501, []),
+    /exceeds the authorized mandate limit/,
+  );
+  assert.throws(
+    () => auth.checkSellerPriceDisclosure(mandate, 'merchant-1', 500, ['unapproved requirement']),
+    /not authorized by the mandate scope/,
+  );
+});
+
 test('POST /v1/products/:slug/purchase returns 401 without sessionToken', async () => {
   const sessionStore = new InMemorySessionStore();
   const sessionService = new SessionService({ secret, store: sessionStore });

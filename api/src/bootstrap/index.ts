@@ -8,6 +8,8 @@ import { ProductInfoRepository } from '../repositories/product-info-repository.j
 import { AgentIdentityRepository } from '../repositories/agent-identity-repository.js';
 import { MandateRepository } from '../repositories/mandate-repository.js';
 import { PaymentHistoryRepository } from '../repositories/payment-history-repository.js';
+import { SellerQuoteRepository } from '../repositories/seller-quote-repository.js';
+import { ConversationRepository } from '../repositories/conversation-repository.js';
 import { createExpressApp } from '../http/server.js';
 import { ProductCatalogService } from '../services/product-catalog-service.js';
 import { PaymentService } from '../services/payment-service.js';
@@ -17,6 +19,7 @@ import { RefundService } from '../services/refund-service.js';
 import { SessionService, InMemorySessionStore } from '../services/session-service.js';
 import { CrossCredentialAuth } from '../services/cross-credential-auth.js';
 import { PurchaseService } from '../services/purchase-service.js';
+import { SellerAgentVerificationService } from '../services/seller-agent-verification.js';
 import { createSupabaseClient } from '../integrations/supabase.js';
 
 loadEnvironment();
@@ -33,9 +36,12 @@ const productInfoRepository = supabase ? new ProductInfoRepository(supabase) : n
 const agentIdentityRepository = supabase ? new AgentIdentityRepository(supabase) : null;
 const mandateRepository = supabase ? new MandateRepository(supabase) : null;
 const paymentHistoryRepository = supabase ? new PaymentHistoryRepository(supabase) : null;
+const sellerQuoteRepository = supabase ? new SellerQuoteRepository(supabase) : null;
+const conversationRepository = supabase ? new ConversationRepository(supabase) : null;
 
 const sessionStore = new InMemorySessionStore();
 const sessionService = new SessionService({ secret: config.sessionSecret, store: sessionStore });
+const sellerAgentVerificationService = new SellerAgentVerificationService(config.sessionSecret);
 
 const passkeyService = new PasskeyService({
   rpName: config.passkey.rpName,
@@ -70,10 +76,10 @@ const purchaseService = (crossCredentialAuth && supabase)
           p_expires_at: new Date(params.expiresAt * 1000).toISOString(),
           p_signature: params.signature,
         });
-        if (error) {
+        if (error || !data || typeof data !== 'object' || !('id' in data) || typeof data.id !== 'string') {
           throw new Error('Could not record agent execution proof.');
         }
-        return (data as { id: string }).id;
+        return data.id;
       },
     })
   : null;
@@ -88,19 +94,23 @@ const app = createApp({
   agentIdentityRepository,
   mandateRepository,
   paymentHistoryRepository,
+  conversationRepository,
   purchaseService,
+  crossCredentialAuth,
+  sellerAgentVerificationService,
+  sellerQuoteRepository,
   sessionService,
+  agentServiceToken: config.agentServiceToken,
 });
-const server = createExpressApp(app).listen(config.port, '0.0.0.0');
+const server = createExpressApp(app).listen(config.port, '0.0.0.0', () => {
+  console.log(`Stripe MPP ${config.mode} service listening on http://0.0.0.0:${config.port}`);
+});
 
 server.on('error', (error) => {
   console.error('Stripe MPP server failed to start.', error.message);
   process.exitCode = 1;
 });
 
-server.listen(config.port, '0.0.0.0', () => {
-  console.log(`Stripe MPP ${config.mode} service listening on http://0.0.0.0:${config.port}`);
-});
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.once(signal, () => server.close());

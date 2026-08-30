@@ -119,4 +119,7 @@ test('serves an OpenAPI discovery document with payment info at /openapi.json', 
   assert.ok(body.paths['/paid'].get['x-payment-info']);
   assert.equal(body.paths['/paid'].get['x-payment-info'].amount, '50');
   assert.equal(body.paths['/paid'].get['x-payment-info'].currency, 'usd');
+  assert.ok(body.paths['/v1/seller/quote-requests']);
+  assert.ok(body.paths['/v1/seller/quote-requests/{id}']);
+  assert.ok(body.paths['/v1/seller/quote-requests/{id}/verify']);
 });

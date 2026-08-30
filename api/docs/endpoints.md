@@ -360,6 +360,75 @@ Creates an agent mandate. The target agent must belong to the authenticated user
 
 `maxAmountMinor` is a per-purchase ceiling in the currency's minor unit. `allowedProductSlugs`, when present and non-empty, is an allowlist. The API rejects any purchase outside either constraint.
 
+### Seller price disclosure scope
+
+An owner may allow a named seller to receive a bounded quote request. Add `sellerPriceDisclosure` to the mandate `scope`:
+
+```json
+{
+  "sellerPriceDisclosure": {
+    "merchantIds": ["merchant-integration-uuid"],
+    "maxPriceMinor": 22000,
+    "requirements": ["34-inch ultrawide monitor", "USB-C power delivery"]
+  }
+}
+```
+
+
+`requirements` is an allowlist, not a prompt template. A quote request may disclose only exact strings listed there. Omit it to authorize a price ceiling with no requirements disclosure.
+This is a disclosure authorization only. It neither grants a seller payment authority nor changes `maxAmountMinor`, product allowlists, or the agent's requirement to obtain a fresh user-bound execution proof for a purchase.
+
+## Seller quote request endpoints
+
+The API never accepts a passkey credential ID, WebAuthn assertion, biometric sample, user ID, or agent private key from a seller. A seller receives only an opaque, seller-scoped agent verification hash and the approved quote constraints.
+
+### `POST /v1/seller/quote-requests`
+
+Creates a quote request after both credentials pass:
+
+1. `Authorization: Bearer <sessionToken>` must authenticate the passkey user.
+2. `agentProof` must be an active agent's valid, short-lived Ed25519 proof over the canonical `intent`.
+3. The mandate must name the submitted `merchantId` in `sellerPriceDisclosure.merchantIds` and the requested ceiling may not exceed `sellerPriceDisclosure.maxPriceMinor`.
+
+```json
+{
+  "merchantId": "merchant-integration-uuid",
+  "intent": {
+    "priceLimitMinor": 22000,
+    "requirements": ["34-inch ultrawide monitor", "USB-C power delivery"]
+  },
+  "agentProof": {
+    "agentId": "agent-uuid",
+    "agentKeyId": "signing-key-uuid",
+    "bodySha256": "<sha256 of canonical intent JSON>",
+    "issuedAt": 1735689600,
+    "expiresAt": 1735689720,
+    "mandateId": "mandate-uuid",
+    "mandateVersion": 1,
+    "method": "POST",
+    "path": "/v1/seller/quote-requests",
+    "nonce": "base64url-random-value",
+    "signature": "base64url-ed25519-signature"
+  }
+}
+```
+
+The response is `201` with an ID, seller ID, price ceiling, currency, requirements, and an expiry no later than 24 hours or the mandate expiry. The signed intent uses the same canonical JSON rules as an agent purchase and excludes the session token and signature. The proof nonce is stored before disclosure, so a replay is rejected.
+
+### `GET /v1/seller/quote-requests/{id}`
+
+Seller-only route. Send `X-Merchant-Api-Key: <merchant-api-key>`. The API hashes the submitted key and scopes the query to an active `merchant_integrations` row. It returns the seller-scoped `agentVerificationHash`, price ceiling, currency, requirements, and expiry. It never returns `ownerId`, a credential commitment, passkey credential ID, agent key, or mandate contents.
+
+### `POST /v1/seller/quote-requests/{id}/verify`
+
+Seller-only route. Send the same `X-Merchant-Api-Key` header:
+
+```json
+{"agentVerificationHash": "<hash from the quote request>"}
+```
+
+Returns `{"valid": true}` only when the hash is bound to that stored quote request's credential commitment, owner commitment, agent, mandate, seller, and expiry. The hash is a seller-scoped correlation proof, not a credential that can execute a payment.
+
 ### `GET /v1/mandates`
 
 Lists mandates owned by the authenticated user.
@@ -428,7 +497,32 @@ Returns recent payment attempts connected to mandates owned by the authenticated
 
 Returns a payment attempt only if it is connected to a mandate owned by the authenticated user. Unknown and foreign payment IDs both return `404`.
 
+## Conversation endpoints
+
+Conversation history is owner-scoped. All routes require a passkey bearer session (`Authorization: Bearer <sessionToken>`), except where noted otherwise for agent access.
+
+### `POST /v1/conversations`
+
+Creates a new conversation owned by the authenticated user. Returns `201` with `{"conversation": {"id", "ownerId", "createdAt", "updatedAt"}}`.
+
+### `GET /v1/conversations`
+
+Lists conversations owned by the authenticated user, ordered by recent activity. Returns `{"conversations": [...]}`.
+
+When `AGENT_SERVICE_TOKEN` is configured, this route also accepts `Authorization: Bearer <AGENT_SERVICE_TOKEN>` with a `?userId=<ownerId>` query parameter for agent-accessible reads. The agent receives only conversation metadata, never passkey credentials or biometric material.
+
+### `GET /v1/conversations/{id}/messages`
+
+Returns the message transcript for a conversation owned by the authenticated user. Returns `{"messages": [...]}`. Foreign conversations return `404`.
+
+When `AGENT_SERVICE_TOKEN` is configured, this route also accepts `Authorization: Bearer <AGENT_SERVICE_TOKEN>` for agent-accessible reads. The agent receives `{"conversation": {...}, "messages": [...]}` with the conversation metadata and full transcript for contextualized reasoning.
+
+### `POST /v1/conversations/{id}/messages`
+
+Persists one message. Requires `role` ("user" or "assistant"), `content` (1 to 16000 characters), and `createdAt` (valid ISO timestamp). Returns `201` with the persisted message including its server-generated ID.
+
 ## Errors
+
 
 | Status | Body or header | Meaning |
 | --- | --- | --- |

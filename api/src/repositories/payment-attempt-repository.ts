@@ -18,6 +18,7 @@ export class PaymentAttemptRepository {
       p_currency: input.currency,
       p_scale: input.scale,
       p_request_fingerprint: input.requestFingerprint ?? null,
+      p_agent_execution_proof_id: input.agentExecutionProofId ?? null,
       p_receipt: input.receipt ?? null,
       p_failure_code: input.failureCode ?? null,
     });

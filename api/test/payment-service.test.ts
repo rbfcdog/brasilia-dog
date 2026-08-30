@@ -57,7 +57,10 @@ test('uses an endpoint offering to create a Stripe MPP charge and records only r
   assert.ok(onPaymentSuccess);
   await onPaymentSuccess({
     input: new Request('https://api.example/v1/products/market-signal/mpp', {
-      headers: { authorization: 'Payment credential-that-must-not-be-persisted' },
+      headers: {
+        authorization: 'Bearer passkey-session-that-must-not-be-persisted',
+        'x-agent-execution-proof-id': 'proof-1',
+      },
     }),
     receipt: {
       method: 'stripe/charge',
@@ -75,11 +78,12 @@ test('uses an endpoint offering to create a Stripe MPP charge and records only r
     rail: 'stripe_mpp',
     providerPaymentId: 'charge-1',
     idempotencyKey: 'cb535c19-0629-442d-8eb3-c61b787c791b',
-    requestFingerprint: 'e823cde9ef77ab25d59567a82d14a0c43ceb732f677b33dea216cdf3df052c2b',
+    requestFingerprint: 'e14b74ff1b094305b4fa3fc33b5dffdaf000fdab2155805c2462aed6048a05d4',
     status: 'settled',
     amountMinor: 50,
     currency: 'usd',
     scale: 2,
+    agentExecutionProofId: 'proof-1',
     receipt: {
       method: 'stripe/charge',
       reference: 'payment-reference-1',
