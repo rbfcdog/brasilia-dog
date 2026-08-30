@@ -17,11 +17,13 @@ const mockData = vi.hoisted(() => ({
     status: "pending" as const,
     mockOutcome: "immediate" as const,
   },
+  approve: vi.fn(),
+  execute: vi.fn(),
 }));
 
 vi.mock("@/services/biometric-provider", () => ({
-  simulatedBiometricProvider: {
-    approve: vi.fn().mockResolvedValue({ approved: true, method: "simulated", approvedAt: "2026-08-29T00:00:00Z" }),
+  passkeyBiometricProvider: {
+    approve: mockData.approve,
   },
 }));
 
@@ -32,36 +34,52 @@ vi.mock("@/services/shopping-service", () => ({
       message: "Review the scope before approval.",
       mandate: mockData.mandate,
     }),
-    execute: vi.fn().mockResolvedValue({
-      kind: "purchased",
-      message: "Purchase complete.",
-      receipt: {
-        id: "RCT-DEMO1234",
-        mandateId: mockData.mandate.id,
-        merchant: "Northstar Displays",
-        item: "Aster 34-inch UWQHD Monitor",
-        subtotal: 274,
-        taxes: 18.43,
-        total: 292.43,
-        currency: "USD",
-        purchasedAt: "2026-08-29T00:00:00Z",
-        paymentMethod: { brand: "Visa", label: "Personal Visa", last4: "4242" },
-        status: "approved",
-      },
-    }),
+    execute: mockData.execute,
   },
 }));
 
-describe("chat purchase flow", () => {
-  beforeEach(() => window.localStorage.clear());
+const purchaseResult = {
+  kind: "purchased" as const,
+  message: "Purchase complete.",
+  receipt: {
+    id: "RCT-DEMO1234",
+    mandateId: mockData.mandate.id,
+    merchant: "Northstar Displays",
+    item: "Aster 34-inch UWQHD Monitor",
+    subtotal: 274,
+    taxes: 18.43,
+    total: 292.43,
+    currency: "USD" as const,
+    purchasedAt: "2026-08-29T00:00:00Z",
+    paymentMethod: { brand: "Visa", label: "Personal Visa", last4: "4242" },
+    status: "approved" as const,
+  },
+};
 
-  it("completes the deterministic $300 mandate flow", async () => {
+function renderChat() {
+  render(
+    <ShoppingProvider>
+      <ChatExperience />
+    </ShoppingProvider>,
+  );
+}
+
+describe("chat purchase flow", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    mockData.approve.mockReset();
+    mockData.execute.mockReset();
+    mockData.approve.mockResolvedValue({
+      approved: true,
+      method: "passkey",
+      approvedAt: "2026-08-29T00:00:00Z",
+    });
+    mockData.execute.mockResolvedValue(purchaseResult);
+  });
+
+  it("executes a mandate only after a verified native passkey approval", async () => {
     const user = userEvent.setup();
-    render(
-      <ShoppingProvider>
-        <ChatExperience />
-      </ShoppingProvider>,
-    );
+    renderChat();
 
     await user.click(await screen.findByRole("button", { name: /buy now/i }));
     expect(await screen.findByText("34-inch ultrawide monitor")).toBeInTheDocument();
@@ -69,9 +87,30 @@ describe("chat purchase flow", () => {
     await user.click(screen.getByRole("button", { name: /approve mandate/i }));
     expect(await screen.findByRole("dialog")).toHaveTextContent("Confirm your identity");
 
-    await user.click(screen.getByRole("button", { name: /confirm with simulated biometrics/i }));
+    await user.click(screen.getByRole("button", { name: /confirm with passkey/i }));
+    expect(mockData.approve).toHaveBeenCalledWith({
+      ...mockData.mandate,
+      paymentMethodId: "payment-visa-4242",
+    });
     expect(await screen.findByText("Aster 34-inch UWQHD Monitor")).toBeInTheDocument();
     expect(screen.getAllByText("$292.43").length).toBeGreaterThan(0);
     expect(screen.getByRole("status")).toHaveTextContent("Purchase completed within your mandate");
+  });
+
+  it("does not execute when the native passkey approval is rejected", async () => {
+    mockData.approve.mockResolvedValue({
+      approved: false,
+      method: "passkey",
+      approvedAt: "2026-08-29T00:00:00Z",
+    });
+    const user = userEvent.setup();
+    renderChat();
+
+    await user.click(await screen.findByRole("button", { name: /buy now/i }));
+    await user.click(screen.getByRole("button", { name: /approve mandate/i }));
+    await user.click(await screen.findByRole("button", { name: /confirm with passkey/i }));
+
+    expect(mockData.execute).not.toHaveBeenCalled();
+    expect(await screen.findByText(/Native passkey verification is required/i)).toBeInTheDocument();
   });
 });

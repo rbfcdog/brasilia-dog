@@ -1,17 +1,19 @@
 import { apiFetch } from "@/lib/api";
 import type {
   AgentResponse,
-  ChatMessage,
   Mandate,
   PaymentMethod,
   PurchaseResponse,
 } from "@/types/shopping";
 
 export const shoppingService = {
-  analyze(message: string, conversationContext: ChatMessage[]) {
+  analyze(message: string, conversationId?: string) {
     return apiFetch<AgentResponse>("/api/agent", {
       method: "POST",
-      body: JSON.stringify({ message, conversationContext }),
+      body: JSON.stringify({
+        message,
+        ...(conversationId ? { conversationId } : {}),
+      }),
     });
   },
 

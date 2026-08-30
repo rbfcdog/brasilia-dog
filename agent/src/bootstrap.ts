@@ -1,8 +1,8 @@
 import { createServer } from 'node:http';
 import { createAgentAdapters } from './adapter-factory.js';
+import { OpenAIShoppingResponder } from './chat.js';
 import { createApp } from './app.js';
 import { loadConfig } from './config.js';
-import { DemoBackend } from './demo.js';
 import { AgentService } from './service.js';
 import { OpenAIFlightSelector } from './selector.js';
 
@@ -16,7 +16,11 @@ const selector = new OpenAIFlightSelector({
   apiKey: config.openAIApiKey,
   model: config.openAIModel,
 });
-const service = new AgentService({ adapters, selector });
+const responder = new OpenAIShoppingResponder({
+  apiKey: config.openAIApiKey,
+  model: config.openAIModel,
+});
+const service = new AgentService({ adapters, selector, responder });
 const app = createApp({ service, serviceToken: config.serviceToken });
 const server = createServer(app);
 

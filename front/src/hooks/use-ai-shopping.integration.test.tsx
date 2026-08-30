@@ -1,0 +1,83 @@
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  getPasskeySessionToken: vi.fn(),
+  listConversations: vi.fn(),
+  conversationMessages: vi.fn(),
+  createConversation: vi.fn(),
+  appendConversationMessage: vi.fn(),
+  analyze: vi.fn(),
+  execute: vi.fn(),
+  addScheduledPurchase: vi.fn(),
+  readMessages: vi.fn(),
+  writeMessages: vi.fn(),
+  clearMessages: vi.fn(),
+}));
+
+vi.mock("@/lib/passkey-session", () => ({
+  getPasskeySessionToken: mocks.getPasskeySessionToken,
+}));
+vi.mock("@/services/backend-service", () => ({
+  backendService: {
+    listConversations: mocks.listConversations,
+    conversationMessages: mocks.conversationMessages,
+    createConversation: mocks.createConversation,
+    appendConversationMessage: mocks.appendConversationMessage,
+  },
+}));
+vi.mock("@/services/shopping-service", () => ({
+  shoppingService: {
+    analyze: mocks.analyze,
+    execute: mocks.execute,
+  },
+}));
+vi.mock("@/lib/demo-storage", () => ({
+  demoStorage: {
+    readMessages: mocks.readMessages,
+    writeMessages: mocks.writeMessages,
+    clearMessages: mocks.clearMessages,
+  },
+}));
+vi.mock("@/components/providers/shopping-provider", () => ({
+  useShoppingStore: () => ({ addScheduledPurchase: mocks.addScheduledPurchase }),
+}));
+vi.mock("@/services/biometric-provider", () => ({
+  passkeyBiometricProvider: { approve: vi.fn() },
+}));
+
+import { useAIShopping } from "@/hooks/use-ai-shopping";
+
+describe("live agent chat", () => {
+  it("persists the user turn before invoking the agent with its backend conversation ID", async () => {
+    let resolveUserPersistence: (() => void) | undefined;
+    mocks.getPasskeySessionToken.mockReturnValue("passkey-session");
+    mocks.listConversations.mockResolvedValue({ conversations: [{ id: "conversation-123" }] });
+    mocks.conversationMessages.mockResolvedValue({ messages: [] });
+    mocks.appendConversationMessage.mockImplementation(
+      () => new Promise<void>((resolve) => { resolveUserPersistence = resolve; }),
+    );
+    mocks.analyze.mockResolvedValue({
+      kind: "clarification",
+      message: "What is your maximum budget?",
+    });
+
+    const { result } = renderHook(() => useAIShopping());
+    await waitFor(() => expect(result.current.state.hydrated).toBe(true));
+
+    let send: Promise<void> | undefined;
+    act(() => {
+      send = result.current.sendMessage("I need a monitor.");
+    });
+
+    await waitFor(() => expect(mocks.appendConversationMessage).toHaveBeenCalledOnce());
+    expect(mocks.analyze).not.toHaveBeenCalled();
+
+    resolveUserPersistence?.();
+    await act(async () => { await send; });
+
+    expect(mocks.analyze).toHaveBeenCalledWith("I need a monitor.", "conversation-123");
+    expect(result.current.state.status).toBe("clarification");
+    expect(result.current.state.messages.at(-1)?.content).toBe("What is your maximum budget?");
+  });
+});

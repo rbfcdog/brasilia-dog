@@ -153,8 +153,8 @@ export function ProfileSettings() {
               )}
             </div>
             <div className="flex items-center justify-between gap-5 rounded-xl border border-line p-4">
-              <div><p className="text-sm font-medium">Simulated biometrics</p><p className="mt-1 text-xs leading-5 text-subtle">Used by the chat flow for mandate approval. Falls back when native WebAuthn is unavailable.</p></div>
-              <span className="rounded-full bg-success/40 px-2.5 py-1 font-mono text-[9px] uppercase text-success-ink">Active</span>
+              <div><p className="text-sm font-medium">Mandate approval</p><p className="mt-1 text-xs leading-5 text-subtle">Purchase mandates require a fresh native WebAuthn passkey verification. There is no simulated approval fallback.</p></div>
+              <span className="rounded-full bg-success/40 px-2.5 py-1 font-mono text-[9px] uppercase text-success-ink">Passkey required</span>
             </div>
           </div>
         </article>
