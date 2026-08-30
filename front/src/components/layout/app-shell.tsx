@@ -17,8 +17,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { backendService, type BackendConversation } from "@/services/backend-service";
-import { useShoppingStore } from "@/components/providers/shopping-provider";
 import { authService } from "@/services/auth-service";
+import { shoppingService } from "@/services/shopping-service";
 
 const navigation = [
   { href: "/assistant", label: "Assistant", icon: MessageSquareText },
@@ -46,7 +46,7 @@ function Brand() {
 function SidebarContent({ closeMenu }: { closeMenu?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { scheduledPurchases } = useShoppingStore();
+  const [activeRuns, setActiveRuns] = useState(0);
   const [recentConversations, setRecentConversations] = useState<Array<BackendConversation & { label: string }>>([]);
   const [account, setAccount] = useState<{ email: string; initials: string } | null>(null);
   const [accountChecked, setAccountChecked] = useState(false);
@@ -78,6 +78,12 @@ function SidebarContent({ closeMenu }: { closeMenu?: () => void }) {
     }).catch(() => setRecentConversations([]));
   }, []);
 
+  useEffect(() => {
+    void shoppingService.listRuns().then(({ runs }) => {
+      setActiveRuns(runs.filter((run) => ["queued", "running", "monitoring", "waiting_for_extension"].includes(run.status)).length);
+    }).catch(() => setActiveRuns(0));
+  }, []);
+
   function newRequest() {
     window.dispatchEvent(new Event("nomad:new-request"));
     closeMenu?.();
@@ -87,7 +93,7 @@ function SidebarContent({ closeMenu }: { closeMenu?: () => void }) {
 
   function openConversation(conversationId: string) {
     closeMenu?.();
-    router.push(`/?conversation=${encodeURIComponent(conversationId)}`);
+    router.push(`/assistant?conversation=${encodeURIComponent(conversationId)}`);
     window.dispatchEvent(new CustomEvent("nomad:open-conversation", { detail: { conversationId } }));
   }
   return (
@@ -122,9 +128,9 @@ function SidebarContent({ closeMenu }: { closeMenu?: () => void }) {
               >
                 <Icon className="size-4" strokeWidth={1.8} aria-hidden="true" />
                 <span>{item.label}</span>
-                {item.href === "/scheduled" && scheduledPurchases.some((purchase) => purchase.status === "searching") ? (
+                {item.href === "/scheduled" && activeRuns > 0 ? (
                   <span className="ml-auto rounded-full bg-success px-2 py-0.5 font-mono text-[9px] text-success-ink">
-                    {scheduledPurchases.filter((purchase) => purchase.status === "searching").length}
+                    {activeRuns}
                   </span>
                 ) : null}
               </Link>
