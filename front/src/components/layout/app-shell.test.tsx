@@ -37,7 +37,7 @@ describe("recent conversations", () => {
       messages: [{ id: "message-1", conversationId: "conversation-123", role: "user", content: "Find household appliances under $100", createdAt: "2026-08-30T00:00:00Z" }],
     });
     const opened = vi.fn();
-    window.addEventListener("nomad:open-conversation", opened);
+    window.addEventListener("vero:open-conversation", opened);
 
     render(<AppShell><div>Chat</div></AppShell>);
     expect(screen.queryByText("Henrique Lacerda")).not.toBeInTheDocument();
@@ -47,6 +47,6 @@ describe("recent conversations", () => {
 
     await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/assistant?conversation=conversation-123"));
     expect(opened).toHaveBeenCalledOnce();
-    window.removeEventListener("nomad:open-conversation", opened);
+    window.removeEventListener("vero:open-conversation", opened);
   });
 });

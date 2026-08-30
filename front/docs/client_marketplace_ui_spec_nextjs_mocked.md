@@ -427,7 +427,7 @@ Criar nome temporário do produto ou usar placeholder.
 Exemplo:
 
 ```text
-◈ NOMAD
+◈ VERO
 AGENTIC COMMERCE
 ```
 

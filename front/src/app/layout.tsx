@@ -26,7 +26,7 @@ export async function generateMetadata(): Promise<Metadata> {
     // Keep the safe local fallback when proxy metadata is malformed.
   }
 
-  const title = "Nomad — Agentic commerce for buyers and sellers";
+  const title = "Vero — Agentic commerce for buyers and sellers";
   const description = "A fixed-price commerce operating system where people set the rules and AI agents execute with proof.";
   const socialImage = `${origin}/og.png`;
 
@@ -39,7 +39,7 @@ export async function generateMetadata(): Promise<Metadata> {
       description,
       type: "website",
       url: origin,
-      images: [{ url: socialImage, width: 1536, height: 1024, alt: "Nomad — fixed-price commerce for people and AI agents." }],
+      images: [{ url: socialImage, width: 1536, height: 1024, alt: "Vero — fixed-price commerce for people and AI agents." }],
     },
     twitter: {
       card: "summary_large_image",

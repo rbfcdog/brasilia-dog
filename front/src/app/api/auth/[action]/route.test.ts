@@ -35,7 +35,7 @@ describe("authentication BFF", () => {
       user: { id: "user-1", email: "buyer@example.com" },
       confirmationRequired: false,
     });
-    expect(cookieSet).toHaveBeenCalledWith("nomad-auth-access", "access-secret", expect.objectContaining({ httpOnly: true }));
-    expect(cookieSet).toHaveBeenCalledWith("nomad-auth-refresh", "refresh-secret", expect.objectContaining({ httpOnly: true }));
+    expect(cookieSet).toHaveBeenCalledWith("vero-auth-access", "access-secret", expect.objectContaining({ httpOnly: true }));
+    expect(cookieSet).toHaveBeenCalledWith("vero-auth-refresh", "refresh-secret", expect.objectContaining({ httpOnly: true }));
   });
 });

@@ -10,7 +10,7 @@ function backend(path: string): URL | null {
 
 export async function POST(request: Request): Promise<Response> {
   const target = backend("v1/passkey/enrollments");
-  const accessToken = (await cookies()).get("nomad-auth-access")?.value;
+  const accessToken = (await cookies()).get("vero-auth-access")?.value;
   if (!target || !accessToken) return Response.json({ error: "authentication_required" }, { status: 401 });
 
   const upstream = await fetch(target, {

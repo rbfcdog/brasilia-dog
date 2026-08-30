@@ -30,14 +30,14 @@ function MerchantBrand() {
     <Link
       href="/merchant/dashboard"
       className="flex w-fit items-center gap-3 rounded-xl"
-      aria-label="Nomad merchant dashboard"
+      aria-label="Vero merchant dashboard"
     >
       <span className="grid size-10 place-items-center rounded-xl bg-white text-primary shadow-sm">
         <Sparkles className="size-4" />
       </span>
       <span>
         <span className="block text-[15px] font-semibold tracking-[-0.04em]">
-          NOMAD
+          VERO
         </span>
         <span className="mt-1 block font-mono text-[9px] uppercase tracking-[0.16em] text-white/45">
           Merchant OS

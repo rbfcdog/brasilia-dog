@@ -1,6 +1,6 @@
-# Nomad unified commerce platform
+# Vero unified commerce platform
 
-Nomad is a unified Buyer and Merchant frontend for governed, fixed-price agentic commerce. Buyers define purchasing mandates; Merchants publish structured products and audit the proof behind agent-originated orders.
+Vero is a unified Buyer and Merchant frontend for governed, fixed-price agentic commerce. Buyers define purchasing mandates; Merchants publish structured products and audit the proof behind agent-originated orders.
 
 The browser communicates only with same-origin Next.js BFF routes. Authentication, database access, merchant projections, passkeys, conversations, and payment commands are handled by the Node API. The frontend contains no Supabase SDK, project URL, publishable key, service-role key, or direct database access.
 

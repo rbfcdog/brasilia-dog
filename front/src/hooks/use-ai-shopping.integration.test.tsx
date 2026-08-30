@@ -93,7 +93,7 @@ describe("live agent chat", () => {
   });
 
   it("clears legacy browser transcripts instead of hydrating them", async () => {
-    window.localStorage.setItem("nomad:chat:v1", JSON.stringify([{
+    window.localStorage.setItem("vero:chat:v1", JSON.stringify([{
       id: "legacy-message",
       role: "user",
       content: "Stored only in the browser",
@@ -105,7 +105,7 @@ describe("live agent chat", () => {
 
     await waitFor(() => expect(result.current.state.hydrated).toBe(true));
     expect(result.current.state.messages).toEqual([]);
-    expect(window.localStorage.getItem("nomad:chat:v1")).toBeNull();
+    expect(window.localStorage.getItem("vero:chat:v1")).toBeNull();
   });
 
   it("loads a conversation selected from the recent history controls", async () => {
@@ -129,7 +129,7 @@ describe("live agent chat", () => {
     await waitFor(() => expect(result.current.state.messages[0]?.content).toBe("Newest history"));
 
     act(() => {
-      window.dispatchEvent(new CustomEvent("nomad:open-conversation", {
+      window.dispatchEvent(new CustomEvent("vero:open-conversation", {
         detail: { conversationId: "conversation-selected" },
       }));
     });
@@ -150,7 +150,7 @@ describe("live agent chat", () => {
     const { result } = renderHook(() => useAIShopping());
     await waitFor(() => expect(result.current.state.hydrated).toBe(true));
 
-    act(() => window.dispatchEvent(new Event("nomad:new-request")));
+    act(() => window.dispatchEvent(new Event("vero:new-request")));
     await act(async () => {
       await result.current.sendMessage("Find appliances");
     });

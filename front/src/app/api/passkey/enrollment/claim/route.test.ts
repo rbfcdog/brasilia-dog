@@ -19,7 +19,7 @@ describe("passkey enrollment QR claim", () => {
 
     expect(response.status).toBe(303);
     expect(response.headers.get("location")).toBe("https://shop.example.test/passkey/enroll");
-    expect(response.headers.get("set-cookie")).toContain("nomad-passkey-enrollment=");
+    expect(response.headers.get("set-cookie")).toContain("vero-passkey-enrollment=");
     expect(response.headers.get("set-cookie")).toContain("HttpOnly");
     expect(response.headers.get("set-cookie")?.toLowerCase()).toContain("samesite=strict");
     expect(response.headers.get("set-cookie")).toContain("Path=/api/backend/passkey");

@@ -3,8 +3,8 @@ import { cookies } from "next/headers";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const ACCESS_COOKIE = "nomad-auth-access";
-const REFRESH_COOKIE = "nomad-auth-refresh";
+const ACCESS_COOKIE = "vero-auth-access";
+const REFRESH_COOKIE = "vero-auth-refresh";
 const cookieOptions = {
   httpOnly: true,
   sameSite: "lax" as const,

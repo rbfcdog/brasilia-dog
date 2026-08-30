@@ -24,7 +24,7 @@ describe("passkey BFF session continuity", () => {
 
   it("stores a verified passkey session in an HttpOnly BFF cookie", async () => {
     process.env.BACKEND_API_URL = "https://api.example.test";
-    mocks.cookies.set("nomad-auth-access", "account-token");
+    mocks.cookies.set("vero-auth-access", "account-token");
     mocks.fetch.mockResolvedValue(new Response(JSON.stringify({
       verified: true,
       sessionToken: "passkey-session",
@@ -38,14 +38,14 @@ describe("passkey BFF session continuity", () => {
     }), { params: Promise.resolve({ path: ["passkey", "auth", "verify"] }) });
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("set-cookie")).toContain("nomad-passkey-session=passkey-session");
+    expect(response.headers.get("set-cookie")).toContain("vero-passkey-session=passkey-session");
     expect(response.headers.get("set-cookie")).toContain("HttpOnly");
-    expect(response.headers.get("set-cookie")).toContain("nomad-passkey-authenticated=1");
+    expect(response.headers.get("set-cookie")).toContain("vero-passkey-authenticated=1");
   });
 
   it("forwards the BFF passkey cookie to conversation routes", async () => {
     process.env.BACKEND_API_URL = "https://api.example.test";
-    mocks.cookies.set("nomad-passkey-session", "cookie-session");
+    mocks.cookies.set("vero-passkey-session", "cookie-session");
     mocks.fetch.mockResolvedValue(new Response(JSON.stringify({ conversations: [] }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
@@ -66,7 +66,7 @@ describe("passkey BFF session continuity", () => {
 
   it("proxies buyer chat through the API with the passkey session", async () => {
     process.env.BACKEND_API_URL = "https://api.example.test";
-    mocks.cookies.set("nomad-passkey-session", "cookie-session");
+    mocks.cookies.set("vero-passkey-session", "cookie-session");
     mocks.fetch.mockResolvedValue(new Response(JSON.stringify({
       ok: true,
       data: { kind: "clarification", message: "What is your budget?" },
@@ -140,7 +140,7 @@ describe("passkey BFF session continuity", () => {
 
   it("keeps the browser's passkey bearer for chat when an account cookie is also present", async () => {
     process.env.BACKEND_API_URL = "https://api.example.test";
-    mocks.cookies.set("nomad-auth-access", "account-token");
+    mocks.cookies.set("vero-auth-access", "account-token");
     mocks.fetch.mockResolvedValue(new Response(JSON.stringify({
       ok: true,
       data: { kind: "clarification", message: "What is your budget?" },

@@ -3,8 +3,8 @@ import { redirect } from "next/navigation";
 
 export async function requireMerchant() {
   const store = await cookies();
-  let accessToken = store.get("nomad-auth-access")?.value;
-  const refreshToken = store.get("nomad-auth-refresh")?.value;
+  let accessToken = store.get("vero-auth-access")?.value;
+  const refreshToken = store.get("vero-auth-refresh")?.value;
   const backend = process.env.BACKEND_API_URL?.trim();
   if (!backend || (!accessToken && !refreshToken)) redirect("/merchant/login");
 

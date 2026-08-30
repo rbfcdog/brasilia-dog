@@ -14,7 +14,7 @@ export default function SupportPage() {
     <PageFrame
       eyebrow="Trust by design"
       title="Your agent can shop. You stay in control."
-      description="Nomad separates shopping intelligence from financial authority. The agent can recommend and request; the mandate decides what is permitted."
+      description="Vero separates shopping intelligence from financial authority. The agent can recommend and request; the mandate decides what is permitted."
       actions={<Link href="/" className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 font-mono text-[10px] uppercase tracking-[0.1em] text-white">Try the assistant <ArrowRight className="size-3.5" /></Link>}
     >
       <div className="grid gap-4 md:grid-cols-2">

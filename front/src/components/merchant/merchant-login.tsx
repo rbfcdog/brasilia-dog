@@ -91,7 +91,7 @@ export function MerchantLogin({
           </span>
           <span>
             <span className="block text-[15px] font-semibold tracking-[-0.04em]">
-              NOMAD
+              VERO
             </span>
             <span className="mt-1 block font-mono text-[9px] uppercase tracking-[0.16em] text-white/45">
               Merchant OS
@@ -124,7 +124,7 @@ export function MerchantLogin({
           </div>
         </div>
         <p className="relative font-mono text-[9px] uppercase tracking-[0.12em] text-white/35">
-          Nomad commerce protocol · 2026
+          Vero commerce protocol · 2026
         </p>
       </section>
 
@@ -134,14 +134,14 @@ export function MerchantLogin({
             href="/"
             className="mb-8 inline-flex items-center gap-2 text-xs text-subtle hover:text-ink lg:hidden"
           >
-            <ArrowLeft className="size-3.5" /> Back to Nomad
+            <ArrowLeft className="size-3.5" /> Back to Vero
           </Link>
           <div className="mb-7 flex items-center gap-3 lg:hidden">
             <span className="grid size-10 place-items-center rounded-xl bg-primary text-white">
               <Store className="size-4" />
             </span>
             <div>
-              <p className="font-semibold">NOMAD</p>
+              <p className="font-semibold">VERO</p>
               <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted">
                 Merchant OS
               </p>

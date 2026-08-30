@@ -29,7 +29,7 @@ function merchantClient(options: { rpc?: (name: string, args: Record<string, unk
 
 test('merchant authentication rejects an invalid Supabase user token', async () => {
   const { client } = merchantClient({ authenticated: false });
-  const service = new MerchantService(client, 'profile_test_nomad');
+  const service = new MerchantService(client, 'profile_test_vero');
   await assert.rejects(() => service.authenticate('invalid'), (error: unknown) => error instanceof MerchantCommandError && error.status === 401);
 });
 
@@ -45,7 +45,7 @@ test('merchant command routes reject requests without a Supabase bearer token', 
 
 test('product creation sends the verified owner and server payment profile to the atomic RPC', async () => {
   const { client, calls } = merchantClient();
-  const service = new MerchantService(client, 'profile_test_nomad');
+  const service = new MerchantService(client, 'profile_test_vero');
   const result = await service.createProduct('11111111-1111-4111-8111-111111111111', {
     name: 'Ultrawide monitor',
     slug: 'ultrawide-monitor',
@@ -57,13 +57,13 @@ test('product creation sends the verified owner and server payment profile to th
   assert.equal(result.status, 'draft');
   assert.equal(calls[0]?.name, 'create_merchant_product');
   assert.equal(calls[0]?.args.p_owner_id, '11111111-1111-4111-8111-111111111111');
-  assert.equal(calls[0]?.args.p_network_id, 'profile_test_nomad');
+  assert.equal(calls[0]?.args.p_network_id, 'profile_test_vero');
   assert.equal(calls[0]?.args.p_amount_minor, 29900);
 });
 
 test('product creation rejects non-positive or non-USD prices before persistence', async () => {
   const { client, calls } = merchantClient();
-  const service = new MerchantService(client, 'profile_test_nomad');
+  const service = new MerchantService(client, 'profile_test_vero');
   await assert.rejects(() => service.createProduct('owner', {
     name: 'Monitor', slug: 'monitor', description: 'A detailed monitor.', amountMinor: 0, currency: 'usd', metadata: { size: 34 },
   }), MerchantCommandError);
@@ -75,7 +75,7 @@ test('product creation rejects non-positive or non-USD prices before persistence
 
 test('refund case creation maps duplicate open cases to a conflict and never calls Stripe', async () => {
   const { client } = merchantClient({ rpc: async () => ({ data: null, error: { code: '23505', message: 'duplicate' } }) });
-  const service = new MerchantService(client, 'profile_test_nomad');
+  const service = new MerchantService(client, 'profile_test_vero');
   await assert.rejects(
     () => service.createRefundCase('11111111-1111-4111-8111-111111111111', {
       paymentAttemptId: '22222222-2222-4222-8222-222222222222', amountMinor: 5000, reason: 'requested_by_customer', note: 'Package returned.',

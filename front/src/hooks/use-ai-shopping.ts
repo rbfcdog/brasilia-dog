@@ -100,8 +100,39 @@ export function useAIShopping() {
     })) });
   }, []);
 
+// Conversation transcripts are server-owned. Never hydrate browser storage.
   useEffect(() => {
-    window.localStorage.removeItem("nomad:chat:v1");
+    const selectedConversationId = new URLSearchParams(window.location.search).get("conversation");
+    void backendService
+      .listConversations()
+      .then(async ({ conversations }) => {
+        const selected = selectedConversationId
+          ? conversations.find((conversation) => conversation.id === selectedConversationId)
+          : conversations[0];
+        if (selected) {
+          await loadConversation(selected.id);
+          return;
+        }
+        dispatch({ type: "HYDRATE", messages: [], storage: "backend" });
+      })
+      .catch(() => dispatch({ type: "HYDRATE", messages: [], storage: "unavailable" }));
+  }, [loadConversation]);
+
+  useEffect(() => {
+    function openConversation(event: Event) {
+      const conversationId = (event as CustomEvent<{ conversationId?: string }>).detail?.conversationId;
+      if (!conversationId) return;
+      void loadConversation(conversationId).catch(() => {
+        dispatch({ type: "ERROR", message: "The selected conversation could not be loaded." });
+      });
+    }
+    window.addEventListener("vero:open-conversation", openConversation);
+    return () => window.removeEventListener("vero:open-conversation", openConversation);
+  }, [loadConversation]);
+
+  // One-time migration cleanup for transcripts saved by prior browser builds.
+  useEffect(() => {
+    window.localStorage.removeItem("vero:chat:v1");
   }, []);
 
   useEffect(() => {
@@ -129,8 +160,8 @@ export function useAIShopping() {
     dispatch({ type: "RESET" });
   }, []);
   useEffect(() => {
-    window.addEventListener("nomad:new-request", reset);
-    return () => window.removeEventListener("nomad:new-request", reset);
+    window.addEventListener("vero:new-request", reset);
+    return () => window.removeEventListener("vero:new-request", reset);
   }, [reset]);
   useEffect(() => {
     const open = (event: Event) => {
@@ -162,7 +193,7 @@ export function useAIShopping() {
   const requestApproval = useCallback(() => { if (state.mandate) dispatch({ type: "REQUEST_APPROVAL" }); }, [state.mandate]);
 
   const confirmApproval = useCallback(async () => {
-    if (!state.mandate) return;
+if (!state.mandate) return;
     try {
       const approval = await passkeyBiometricProvider.approve(state.mandate);
       if (!approval.approved) throw new Error("Fresh passkey verification is required.");

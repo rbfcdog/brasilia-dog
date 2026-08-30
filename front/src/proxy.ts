@@ -7,7 +7,7 @@ export function proxy(request: NextRequest) {
   const buyerProtected = protectedBuyerRoutes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
   const merchantLogin = pathname === "/merchant/login";
   const merchantProtected = pathname.startsWith("/merchant/") && !merchantLogin;
-  const authenticated = Boolean(request.cookies.get("nomad-auth-access") || request.cookies.get("nomad-auth-refresh"));
+  const authenticated = Boolean(request.cookies.get("vero-auth-access") || request.cookies.get("vero-auth-refresh"));
 
   if ((buyerProtected || merchantProtected) && !authenticated) {
     const login = request.nextUrl.clone();

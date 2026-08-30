@@ -55,7 +55,7 @@ export function PasskeyEnrollment({ initialError }: { initialError?: string }) {
         </button>
         {!supported ? <p className="mt-3 text-xs text-danger">This browser or device does not support WebAuthn passkeys.</p> : null}
         {message ? <p role="status" className={`mt-4 text-sm leading-6 ${status === "error" ? "text-danger" : "text-success-ink"}`}>{message}</p> : null}
-        <Link href="/" className="mt-6 block text-center text-xs text-muted hover:text-ink">Return to Nomad</Link>
+        <Link href="/" className="mt-6 block text-center text-xs text-muted hover:text-ink">Return to Vero</Link>
       </section>
     </main>
   );

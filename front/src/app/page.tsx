@@ -25,12 +25,12 @@ export default function LandingPage() {
         <div className="pointer-events-none absolute -right-32 top-72 size-80 rounded-full bg-success/25 blur-3xl" />
 
         <nav className="relative z-10 mx-auto flex max-w-7xl items-center justify-between px-5 py-5 md:px-8">
-          <Link href="/" className="flex items-center gap-3 rounded-xl" aria-label="Nomad home">
+          <Link href="/" className="flex items-center gap-3 rounded-xl" aria-label="Vero home">
             <span className="grid size-10 place-items-center rounded-xl bg-ink text-white shadow-sm">
               <Sparkles className="size-4" aria-hidden="true" />
             </span>
             <span>
-              <span className="block text-[15px] font-semibold leading-none tracking-[-0.04em]">NOMAD</span>
+              <span className="block text-[15px] font-semibold leading-none tracking-[-0.04em]">VERO</span>
               <span className="mt-1.5 block font-mono text-[9px] uppercase leading-none tracking-[0.18em] text-muted">Agentic commerce</span>
             </span>
           </Link>
@@ -48,7 +48,7 @@ export default function LandingPage() {
               Commerce for people <span className="text-primary">and their agents.</span>
             </h1>
             <p className="mt-7 max-w-2xl text-pretty text-base leading-7 text-subtle md:text-lg md:leading-8">
-              Buyers define the mandate. Merchants publish exact product data and one fixed price. Nomad turns that agreement into a verifiable purchase.
+              Buyers define the mandate. Merchants publish exact product data and one fixed price. Vero turns that agreement into a verifiable purchase.
             </p>
 
             <div className="mt-9 grid gap-3 sm:grid-cols-3">

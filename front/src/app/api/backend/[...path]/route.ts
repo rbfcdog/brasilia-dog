@@ -68,7 +68,7 @@ function backendUrl(pathname: string, search: string): URL | null {
 }
 
 async function ensureFreshAccessToken(cookieStore: Awaited<ReturnType<typeof cookies>>): Promise<string | null> {
-  const accessToken = cookieStore.get("nomad-auth-access")?.value;
+  const accessToken = cookieStore.get("vero-auth-access")?.value;
   if (accessToken) {
     // Verify it works by checking if it's likely still valid (has JWT structure and not expired)
     try {
@@ -80,7 +80,7 @@ async function ensureFreshAccessToken(cookieStore: Awaited<ReturnType<typeof coo
     }
   }
   // Token missing or expired, try refresh
-  const refreshToken = cookieStore.get("nomad-auth-refresh")?.value;
+  const refreshToken = cookieStore.get("vero-auth-refresh")?.value;
   if (!refreshToken) return null;
   const base = process.env.BACKEND_API_URL?.trim();
   if (!base) return null;
@@ -97,13 +97,13 @@ async function ensureFreshAccessToken(cookieStore: Awaited<ReturnType<typeof coo
     const newAccess = payload.session?.accessToken;
     const newRefresh = payload.session?.refreshToken;
     if (newAccess) {
-      cookieStore.set("nomad-auth-access", newAccess, {
+      cookieStore.set("vero-auth-access", newAccess, {
         httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production",
         path: "/", maxAge: 3600,
       });
     }
     if (newRefresh) {
-      cookieStore.set("nomad-auth-refresh", newRefresh, {
+      cookieStore.set("vero-auth-refresh", newRefresh, {
         httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production",
         path: "/", maxAge: 30 * 24 * 3600,
       });
@@ -131,22 +131,22 @@ async function requestHeaders(request: Request, pathname: string): Promise<Heade
     if (!headers.has("authorization") && accessToken) {
       headers.set("authorization", `Bearer ${accessToken}`);
     }
-    const passkeySession = cookieStore.get("nomad-passkey-session")?.value;
+    const passkeySession = cookieStore.get("vero-passkey-session")?.value;
     if (!headers.has("authorization") && !passkeyRoute && passkeySession) {
       headers.set("authorization", `Bearer ${passkeySession}`);
     }
   } else {
-    const passkeySession = cookieStore.get("nomad-passkey-session")?.value;
+    const passkeySession = cookieStore.get("vero-passkey-session")?.value;
     if (!headers.has("authorization") && !passkeyRoute && passkeySession) {
       headers.set("authorization", `Bearer ${passkeySession}`);
     }
     if (!headers.has("authorization") || passkeyRoute) {
-      const accessToken = cookieStore.get("nomad-auth-access")?.value;
+      const accessToken = cookieStore.get("vero-auth-access")?.value;
       if (accessToken) headers.set("authorization", `Bearer ${accessToken}`);
     }
   }
   if (/^\/passkey\/(?:register|auth)\//.test(pathname)) {
-    const enrollmentToken = cookieStore.get("nomad-passkey-enrollment")?.value;
+    const enrollmentToken = cookieStore.get("vero-passkey-enrollment")?.value;
     if (enrollmentToken) {
       headers.delete("authorization");
       headers.set("x-passkey-enrollment", enrollmentToken);
@@ -229,14 +229,14 @@ async function proxy(request: Request, context: RouteContext): Promise<Response>
       headers: responseHeaders(upstream),
     });
     if (upstream.ok && /^\/passkey\/(?:register|auth)\/verify$/.test(pathname)) {
-      response.headers.append("Set-Cookie", "nomad-passkey-enrollment=; Max-Age=0; Path=/api/backend/passkey; HttpOnly; SameSite=Strict");
+      response.headers.append("Set-Cookie", "vero-passkey-enrollment=; Max-Age=0; Path=/api/backend/passkey; HttpOnly; SameSite=Strict");
     }
     if (upstream.ok && pathname === "/passkey/auth/verify") {
       const payload = JSON.parse(new TextDecoder().decode(responseBody)) as { sessionToken?: unknown };
       if (typeof payload.sessionToken === "string" && payload.sessionToken.length > 0) {
         const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
-        response.headers.append("Set-Cookie", `nomad-passkey-session=${encodeURIComponent(payload.sessionToken)}; Max-Age=86400; Path=/api/backend; HttpOnly; SameSite=Strict${secure}`);
-        response.headers.append("Set-Cookie", `nomad-passkey-authenticated=1; Max-Age=86400; Path=/; SameSite=Strict${secure}`);
+        response.headers.append("Set-Cookie", `vero-passkey-session=${encodeURIComponent(payload.sessionToken)}; Max-Age=86400; Path=/api/backend; HttpOnly; SameSite=Strict${secure}`);
+        response.headers.append("Set-Cookie", `vero-passkey-authenticated=1; Max-Age=86400; Path=/; SameSite=Strict${secure}`);
       }
     }
     return response;

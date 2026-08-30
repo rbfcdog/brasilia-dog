@@ -17,7 +17,7 @@ export async function GET(request: Request): Promise<Response> {
   if (!upstream.ok) return NextResponse.redirect(new URL("/passkey/enroll?error=expired", request.url), 303);
 
   const response = NextResponse.redirect(new URL("/passkey/enroll", request.url), 303);
-  response.cookies.set("nomad-passkey-enrollment", token, {
+  response.cookies.set("vero-passkey-enrollment", token, {
     httpOnly: true,
     sameSite: "strict",
     secure: process.env.NODE_ENV === "production",

@@ -29,12 +29,12 @@ const navigation = [
 
 function Brand() {
   return (
-    <Link href="/assistant" className="group flex w-fit items-center gap-3 rounded-lg" aria-label="Nomad buyer assistant">
+    <Link href="/assistant" className="group flex w-fit items-center gap-3 rounded-lg" aria-label="Vero buyer assistant">
       <div className="grid size-9 place-items-center rounded-[10px] bg-ink text-white shadow-sm transition-transform duration-200 group-hover:-rotate-3 motion-reduce:transform-none">
         <Sparkles className="size-4" aria-hidden="true" />
       </div>
       <div>
-        <p className="text-[15px] font-semibold leading-none tracking-[-0.04em]">NOMAD</p>
+        <p className="text-[15px] font-semibold leading-none tracking-[-0.04em]">VERO</p>
         <p className="mt-1.5 font-mono text-[9px] uppercase leading-none tracking-[0.18em] text-muted">
           Agentic commerce
         </p>
@@ -85,7 +85,7 @@ function SidebarContent({ closeMenu }: { closeMenu?: () => void }) {
   }, []);
 
   function newRequest() {
-    window.dispatchEvent(new Event("nomad:new-request"));
+    window.dispatchEvent(new Event("vero:new-request"));
     closeMenu?.();
     router.push("/assistant");
   }
@@ -93,8 +93,8 @@ function SidebarContent({ closeMenu }: { closeMenu?: () => void }) {
 
   function openConversation(conversationId: string) {
     closeMenu?.();
-    router.push(`/assistant?conversation=${encodeURIComponent(conversationId)}`);
-    window.dispatchEvent(new CustomEvent("nomad:open-conversation", { detail: { conversationId } }));
+router.push(`/assistant?conversation=${encodeURIComponent(conversationId)}`);
+    window.dispatchEvent(new CustomEvent("vero:open-conversation", { detail: { conversationId } }));
   }
   return (
     <div className="flex h-full flex-col">

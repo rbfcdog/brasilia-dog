@@ -67,6 +67,8 @@ const modelProposalSchema = z.strictObject({
   products: z.array(discoveredProductSchema).max(10),
 });
 
+const MANDATE_VALIDITY_HOURS = 72;
+
 const chatResponseSchema = z.discriminatedUnion('kind', [
   z.strictObject({
     kind: z.literal('clarification'),
@@ -89,6 +91,7 @@ const chatResponseSchema = z.discriminatedUnion('kind', [
       currency: z.literal('USD'),
       minimumScreenSize: z.number().int().min(1).max(200).optional(),
       validUntil: z.string().datetime(),
+      validityHours: z.literal(MANDATE_VALIDITY_HOURS),
       status: z.literal('pending'),
       marketplaceScope: z.strictObject({
         query: z.string().trim().min(1).max(500),
@@ -450,7 +453,7 @@ export class OpenAIShoppingResponder implements ChatResponder {
         });
       }
 
-      const validUntil = new Date(this.now().getTime() + MANDATE_VALIDITY_MS).toISOString();
+const validUntil = new Date(this.now().getTime() + MANDATE_VALIDITY_MS).toISOString();
       const category = marketplaceCategory(proposal.category ?? proposal.scope);
       return chatResponseSchema.parse({
         kind: 'mandate',
@@ -464,6 +467,7 @@ export class OpenAIShoppingResponder implements ChatResponder {
             ? {}
             : { minimumScreenSize: proposal.minimumScreenSize }),
           validUntil,
+          validityHours: MANDATE_VALIDITY_HOURS,
           status: 'pending',
           marketplaceScope: {
             query: proposal.scope,

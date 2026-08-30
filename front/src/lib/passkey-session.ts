@@ -1,5 +1,5 @@
 const PASSKEY_SESSION_STORAGE_KEY = "brasilia-dog.passkey-session";
-const PASSKEY_SESSION_MARKER = "nomad-passkey-authenticated";
+const PASSKEY_SESSION_MARKER = "vero-passkey-authenticated";
 
 export function getPasskeySessionToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -16,7 +16,7 @@ export function hasPasskeySession(): boolean {
 export function hasAccountSession(): boolean {
   if (typeof document === "undefined") return false;
   return hasPasskeySession() ||
-    document.cookie.split("; ").some((cookie) => cookie.startsWith("nomad-auth-access="));
+    document.cookie.split("; ").some((cookie) => cookie.startsWith("vero-auth-access="));
 }
 
 export function storePasskeySessionToken(token: string): void {
