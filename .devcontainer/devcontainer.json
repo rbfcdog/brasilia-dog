@@ -2,9 +2,8 @@
   "name": "brasilia-dog",
   "image": "mcr.microsoft.com/devcontainers/typescript-node:22",
 
-  // Injects the repository-root .env into every process in the container.
-  // The agent service reads process.env directly and does not load dotenv,
-  // so this is what makes its configuration resolve.
+  // Injects one repository-root environment snapshot into every process in the
+  // container. Service-level dotenv loading remains a fallback for native runs.
   "runArgs": ["--env-file", "${localWorkspaceFolder}/.env"],
 
   // Runs on the host before the container is created. Without a .env file the
@@ -16,10 +15,11 @@
   "mounts": [
     "source=brasilia-dog-api-modules,target=${containerWorkspaceFolder}/api/node_modules,type=volume",
     "source=brasilia-dog-agent-modules,target=${containerWorkspaceFolder}/agent/node_modules,type=volume",
-    "source=brasilia-dog-front-modules,target=${containerWorkspaceFolder}/front/node_modules,type=volume"
+    "source=brasilia-dog-front-modules,target=${containerWorkspaceFolder}/front/node_modules,type=volume",
+    "source=brasilia-dog-playwright,target=/home/node/.cache/ms-playwright,type=volume"
   ],
 
-  "postCreateCommand": "sudo chown -R node:node api/node_modules agent/node_modules front/node_modules && npm --prefix api install && npm --prefix agent install && npm --prefix front install",
+  "postCreateCommand": "sudo chown -R node:node api/node_modules agent/node_modules front/node_modules /home/node/.cache/ms-playwright && npm --prefix api install && npm --prefix agent install && npm --prefix front install && npm --prefix front exec playwright -- install --with-deps chromium",
 
   "forwardPorts": [3000, 3001, 3002],
   "portsAttributes": {

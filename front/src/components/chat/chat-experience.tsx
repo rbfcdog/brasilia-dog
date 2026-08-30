@@ -61,7 +61,7 @@ export function ChatExperience() {
     return () => window.clearTimeout(timer);
   }, [dismissToast, state.toast]);
 
-  const composerDisabled = [
+  const composerDisabled = !state.hydrated || [
     "analyzing",
     "mandate_ready",
     "biometric_confirmation",

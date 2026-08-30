@@ -1,3 +1,10 @@
+const agentServiceToken = process.env.AGENT_SERVICE_TOKEN?.trim();
+if (!agentServiceToken) {
+  console.error("AGENT_SERVICE_TOKEN is required for the local readiness checks.");
+  process.exit(1);
+}
+
+const agentAuthorization = { Authorization: `Bearer ${agentServiceToken}` };
 const checks = [
   {
     name: "api",
@@ -18,6 +25,18 @@ const checks = [
     name: "front -> api",
     url: "http://127.0.0.1:3002/api/backend/health",
     validate: async (response) => (await response.json()).status === "ok",
+  },
+  {
+    name: "api -> Supabase",
+    url: "http://127.0.0.1:3000/v1/agent/products",
+    init: { headers: agentAuthorization },
+    validate: async (response) => Array.isArray((await response.json()).products),
+  },
+  {
+    name: "agent -> Supabase",
+    url: "http://127.0.0.1:3001/v1/agent-runs?ownerId=00000000-0000-4000-8000-000000000001",
+    init: { headers: agentAuthorization },
+    validate: async (response) => Array.isArray((await response.json()).data?.runs),
   },
 ];
 
@@ -41,7 +60,10 @@ process.exit(1);
 
 async function runCheck(check) {
   try {
-    const response = await fetch(check.url, { signal: AbortSignal.timeout(2_000) });
+    const response = await fetch(check.url, {
+      ...check.init,
+      signal: AbortSignal.timeout(2_000),
+    });
     if (!response.ok) return { name: check.name, ok: false, reason: `HTTP ${response.status}` };
     if (!(await check.validate(response))) {
       return { name: check.name, ok: false, reason: "unexpected response" };

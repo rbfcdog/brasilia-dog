@@ -7,7 +7,8 @@ hot-reloads without rebuilding an image.
 ## Start
 
 1. **Open in Dev Container** (Command Palette → *Dev Containers: Reopen in Container*).
-   First open copies `.env.example` to `.env` and installs dependencies.
+   First open copies `.env.example` to `.env`, installs dependencies, and
+   provisions the Chromium binary used by the end-to-end tests.
 2. Put your key in `.env`:
    ```
    OPENAI_API_KEY=sk-...
@@ -15,8 +16,9 @@ hot-reloads without rebuilding an image.
    Then rebuild once so the container picks it up (*Dev Containers: Rebuild Container*).
    Editing `.env` later always requires a rebuild — it is injected at container start.
 3. The **Dev: all** task starts automatically when the repository opens in the
-   container. Its readiness terminal confirms the API, agent, frontend, and the
-   frontend-to-API proxy before declaring the stack ready. If automatic tasks
+   container. Its readiness terminal confirms the API, agent, frontend,
+   frontend-to-API proxy, and read-only Supabase access from both backend
+   services before declaring the stack ready. If automatic tasks
    were previously disabled for this workspace, run Command Palette →
    *Tasks: Run Build Task* (`Cmd+Shift+B`) once.
 
@@ -42,10 +44,10 @@ node scripts/verify-local.mjs
 There is one `.env` at the repository root, injected into the container with
 `docker run --env-file`, so every process inherits it.
 
-This matters because **the agent service does not load dotenv** — `agent/src/config.ts`
-parses `process.env` directly with zod. A file at `agent/.env` would be ignored.
-Injecting at the container level is what makes its configuration resolve, and it
-also removes the need to keep three separate `.env` files in sync.
+The API and agent also read the repository-root `.env` as a fallback when they
+run outside the dev container. Existing process variables remain authoritative,
+so container-level injection still gives all three processes one consistent
+configuration snapshot and removes the need to maintain separate service files.
 
 `PORT` is deliberately not in `.env`: the three services need different values,
 so each is set per task in `.vscode/tasks.json`.
@@ -67,11 +69,11 @@ two hops can be rotated independently.
 
 ### Supabase
 
-Leave all `SUPABASE_*` empty to run self-contained. In `ADAPTER_MODE=demo`, the
-agent uses its in-memory product and flight catalogs while the API keeps its
-database-backed routes disabled. Populate the Supabase variables together to
-exercise the database-backed repositories in `ADAPTER_MODE=http`; the target
-database must already have the migrations from `api/supabase/migrations`.
+The current runtime uses `ADAPTER_MODE=http` and requires `SUPABASE_URL` plus a
+server credential (`SUPABASE_SECRET_KEY`). Configure the related public frontend
+values together. The target database must have every migration from
+`api/supabase/migrations`; the readiness gate performs read-only queries through
+both the API and agent so a missing credential or schema fails visibly.
 
 ## Why node_modules lives in a volume
 
@@ -79,6 +81,10 @@ The host installs macOS binaries; the container is Linux. Sharing `node_modules`
 breaks Next.js SWC and any native module. Each service gets a Docker volume, so
 host and container installs stay independent and you can still run things
 natively on the host if you want.
+
+The Playwright Chromium cache also has its own volume. This keeps the browser
+available after container rebuilds while still allowing Playwright to install a
+new matching revision when its package version changes.
 
 If dependencies change, rerun the install for that service inside the container
 (`npm --prefix front install`), or rebuild the container.

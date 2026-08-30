@@ -59,6 +59,22 @@ describe("real agent-run presentation", () => {
     mocks.state = baseState;
   });
 
+  it("keeps the composer disabled until backend conversation hydration finishes", () => {
+    mocks.state = {
+      ...baseState,
+      status: "idle",
+      messages: [],
+      mandate: null,
+      hydrated: false,
+      storage: "unavailable",
+    };
+
+    render(<ChatExperience />);
+
+    expect(screen.getByLabelText("Describe what you want to buy")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Send request" })).toBeDisabled();
+  });
+
   it("requests passkey approval for the structured mandate", async () => {
     render(<ChatExperience />);
     await userEvent.click(screen.getByRole("button", { name: /approve search mandate/i }));
