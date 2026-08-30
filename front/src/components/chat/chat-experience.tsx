@@ -81,7 +81,13 @@ export function ChatExperience() {
             <h1 className="font-semibold tracking-[-0.025em]">Shopping Agent</h1>
             <span className="relative flex size-2" aria-label="Online"><span className="absolute inline-flex size-full animate-ping rounded-full bg-success-ink/30 motion-reduce:animate-none" /><span className="relative inline-flex size-2 rounded-full bg-success-ink" /></span>
           </div>
-          <p className="mt-0.5 text-xs text-subtle">Ready to search, compare, and purchase</p>
+          <p className={`mt-0.5 text-xs ${state.storage === "unavailable" ? "text-danger" : "text-subtle"}`}>
+            {state.storage === "backend"
+              ? "Conversation saved to the backend"
+              : state.storage === "unavailable"
+                ? "Backend persistence unavailable"
+                : "Local only · authenticate in Profile to save"}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <span className="hidden rounded-full border border-success/70 bg-success/30 px-3 py-1.5 font-mono text-[9px] uppercase tracking-[0.1em] text-success-ink sm:inline-flex">

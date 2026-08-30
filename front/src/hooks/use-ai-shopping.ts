@@ -19,6 +19,8 @@ import type {
 } from "@/types/shopping";
 import { useShoppingStore } from "@/components/providers/shopping-provider";
 
+export type ConversationStorage = "backend" | "local" | "unavailable";
+
 export interface AIShoppingState {
   status: ChatFlowState;
   messages: ChatMessage[];
@@ -30,11 +32,12 @@ export interface AIShoppingState {
   paymentChallenge: PaymentChallenge | null;
   error: string | null;
   hydrated: boolean;
+  storage: ConversationStorage;
   toast: string | null;
 }
 
 export type AIShoppingAction =
-  | { type: "HYDRATE"; messages: ChatMessage[] }
+  | { type: "HYDRATE"; messages: ChatMessage[]; storage: ConversationStorage }
   | { type: "SUBMIT"; message: ChatMessage }
   | { type: "CLARIFICATION"; message: ChatMessage }
   | { type: "MANDATE_READY"; message: ChatMessage; mandate: Mandate }
@@ -47,6 +50,7 @@ export type AIShoppingAction =
   | { type: "SCHEDULED"; message: ChatMessage; purchase: ScheduledPurchase; listings: MarketplaceListing[] }
   | { type: "PAYMENT_CHALLENGE"; challenge: PaymentChallenge }
   | { type: "ERROR"; message: string }
+  | { type: "SET_STORAGE"; storage: ConversationStorage }
   | { type: "DISMISS_TOAST" }
   | { type: "RESET" };
 
@@ -61,6 +65,7 @@ export const initialAIShoppingState: AIShoppingState = {
   paymentChallenge: null,
   error: null,
   hydrated: false,
+  storage: "local",
   toast: null,
 };
 
@@ -74,6 +79,7 @@ export function aiShoppingReducer(
         ...initialAIShoppingState,
         messages: action.messages,
         hydrated: true,
+        storage: action.storage,
       };
     case "SUBMIT":
       return {
@@ -149,10 +155,12 @@ export function aiShoppingReducer(
       };
     case "ERROR":
       return { ...state, status: "error", error: action.message };
+    case "SET_STORAGE":
+      return { ...state, storage: action.storage };
     case "DISMISS_TOAST":
       return { ...state, toast: null };
     case "RESET":
-      return { ...initialAIShoppingState, hydrated: true };
+      return { ...initialAIShoppingState, hydrated: true, storage: state.storage };
   }
 }
 
@@ -164,26 +172,42 @@ function createMessage(role: ChatMessage["role"], content: string): ChatMessage 
     createdAt: new Date().toISOString(),
   };
 }
+class ConversationPersistenceError extends Error {
+  constructor(cause: unknown) {
+    super("This conversation could not be saved to the backend.");
+    this.name = "ConversationPersistenceError";
+    this.cause = cause;
+  }
+}
 
-/**
- * Persist a message to the backend conversation API when a passkey session exists.
- * Errors are swallowed so the chat flow is never blocked by persistence failures.
- */
+
+async function ensureBackendConversation(
+  conversationIdRef: React.RefObject<string | null>,
+): Promise<string | null> {
+  if (conversationIdRef.current) return conversationIdRef.current;
+  if (!getPasskeySessionToken()) return null;
+
+  const { conversation } = await backendService.createConversation();
+  conversationIdRef.current = conversation.id;
+  return conversation.id;
+}
+
 async function persistMessage(
   conversationIdRef: React.RefObject<string | null>,
   message: ChatMessage,
-): Promise<void> {
-  const conversationId = conversationIdRef.current;
-  if (!conversationId) return;
-
+): Promise<boolean> {
   try {
+    const conversationId = await ensureBackendConversation(conversationIdRef);
+    if (!conversationId) return false;
+
     await backendService.appendConversationMessage(conversationId, {
       role: message.role,
       content: message.content,
       createdAt: message.createdAt,
     });
-  } catch {
-    // Persistence is best-effort. The chat continues working locally.
+    return true;
+  } catch (error) {
+    throw new ConversationPersistenceError(error);
   }
 }
 
@@ -201,6 +225,7 @@ export function useAIShopping() {
     conversationIdRef.current = conversationId;
     dispatch({
       type: "HYDRATE",
+      storage: "backend",
       messages: messages.map((message) => ({
         id: message.id,
         role: message.role,
@@ -214,7 +239,7 @@ export function useAIShopping() {
   useEffect(() => {
     const sessionToken = getPasskeySessionToken();
     if (!sessionToken) {
-      dispatch({ type: "HYDRATE", messages: demoStorage.readMessages() });
+      dispatch({ type: "HYDRATE", messages: demoStorage.readMessages(), storage: "local" });
       return;
     }
 
@@ -231,9 +256,9 @@ export function useAIShopping() {
         }
         const { conversation } = await backendService.createConversation();
         conversationIdRef.current = conversation.id;
-        dispatch({ type: "HYDRATE", messages: [] });
+        dispatch({ type: "HYDRATE", messages: [], storage: "backend" });
       })
-      .catch(() => dispatch({ type: "HYDRATE", messages: demoStorage.readMessages() }));
+      .catch(() => dispatch({ type: "HYDRATE", messages: demoStorage.readMessages(), storage: "unavailable" }));
   }, [loadConversation]);
 
   useEffect(() => {
@@ -277,31 +302,34 @@ export function useAIShopping() {
       const userMessage = createMessage("user", trimmed);
       dispatch({ type: "SUBMIT", message: userMessage });
 
-      // Persist before the agent reads the transcript so its context includes this turn.
-      await persistMessage(conversationIdRef, userMessage);
 
       try {
+        const userPersisted = await persistMessage(conversationIdRef, userMessage);
+        dispatch({ type: "SET_STORAGE", storage: userPersisted ? "backend" : "local" });
         const response = await shoppingService.analyze(trimmed, conversationIdRef.current ?? undefined);
         const assistantMessage = createMessage("assistant", response.message);
 
         if (response.kind === "clarification") {
+          await persistMessage(conversationIdRef, assistantMessage);
           dispatch({ type: "CLARIFICATION", message: assistantMessage });
-          void persistMessage(conversationIdRef, assistantMessage);
           return;
         }
         if (response.kind === "products") {
+          await persistMessage(conversationIdRef, assistantMessage);
           dispatch({ type: "PRODUCT_RESULTS", message: assistantMessage, products: response.products });
-          void persistMessage(conversationIdRef, assistantMessage);
           return;
         }
 
+        await persistMessage(conversationIdRef, assistantMessage);
         dispatch({
           type: "MANDATE_READY",
           message: assistantMessage,
           mandate: { ...response.mandate, paymentMethodId: preferredPaymentMethodId },
         });
-        void persistMessage(conversationIdRef, assistantMessage);
       } catch (error) {
+        if (error instanceof ConversationPersistenceError) {
+          dispatch({ type: "SET_STORAGE", storage: "unavailable" });
+        }
         if (error instanceof PaymentChallengeError) {
           dispatch({ type: "PAYMENT_CHALLENGE", challenge: error.challenge });
           return;
@@ -332,8 +360,8 @@ export function useAIShopping() {
         "assistant",
         "Search mandate approved. I am now comparing verified merchants and will automatically buy the best qualifying offer.",
       );
+      await persistMessage(conversationIdRef, searchingMessage);
       dispatch({ type: "SEARCHING", message: searchingMessage });
-      void persistMessage(conversationIdRef, searchingMessage);
 
       const paymentMethod = paymentMethods.find((method) => method.id === state.mandate?.paymentMethodId);
       if (!paymentMethod) throw new Error("Select a payment method before approving this mandate.");
@@ -356,8 +384,11 @@ export function useAIShopping() {
           listings: result.listings,
         });
       }
-      void persistMessage(conversationIdRef, assistantMessage);
+      await persistMessage(conversationIdRef, assistantMessage);
     } catch (error) {
+      if (error instanceof ConversationPersistenceError) {
+        dispatch({ type: "SET_STORAGE", storage: "unavailable" });
+      }
       if (error instanceof PaymentChallengeError) {
         dispatch({ type: "PAYMENT_CHALLENGE", challenge: error.challenge });
         return;
