@@ -13,6 +13,13 @@ const signingKeyId = "425db812-2965-42c3-a30d-d91a2916e04d";
 const extensionId = "b81cc26f-e3cc-4c6e-8255-fe4514e0c72d";
 const idempotencyKey = "514dc8ef-f6b4-455b-9ad4-12bc2a600444";
 
+const cookieMock = vi.hoisted(() => ({ values: {} as Record<string, string | undefined> }));
+vi.mock("next/headers", () => ({
+  cookies: async () => ({
+    get: (name: string) => (cookieMock.values[name] ? { value: cookieMock.values[name]! } : undefined),
+  }),
+}));
+
 function json(value: unknown, status = 200): Response {
   return Response.json(value, { status });
 }
@@ -47,6 +54,8 @@ describe("agent-run BFF authority boundary", () => {
     process.env.BACKEND_API_URL = "https://api.example.test";
     process.env.AGENT_SERVICE_URL = "https://agent.example.test";
     process.env.AGENT_SERVICE_TOKEN = "server-only-agent-token";
+    vi.clearAllMocks();
+    cookieMock.values = {};
   });
 
   afterEach(() => {
@@ -56,7 +65,6 @@ describe("agent-run BFF authority boundary", () => {
     delete process.env.AGENT_SERVICE_URL;
     delete process.env.AGENT_SERVICE_TOKEN;
   });
-
   it("requires a passkey session before starting a run", async () => {
     const upstream = vi.fn();
     vi.stubGlobal("fetch", upstream);
@@ -65,6 +73,28 @@ describe("agent-run BFF authority boundary", () => {
     }));
     expect(response.status).toBe(401);
     expect(upstream).not.toHaveBeenCalled();
+  });
+
+  it("accepts the browser passkey-session cookie set by the backend proxy", async () => {
+    cookieMock.values = { "vero-passkey-session": "cookie-session" };
+    const publicKeyJwk = { kty: "OKP", crv: "Ed25519", x: "public-key-x" };
+    const upstream = vi.fn()
+      .mockResolvedValueOnce(session())
+      .mockResolvedValueOnce(json({ ok: true, data: { algorithm: "Ed25519", publicKeyJwk, fingerprint: "fingerprint" } }))
+      .mockResolvedValueOnce(json({ identity: { id: identityId }, signingKey: { id: signingKeyId } }))
+      .mockResolvedValueOnce(json({ mandate: { id: mandateId } }))
+      .mockResolvedValueOnce(json({ ok: true, data: { runId, status: "queued" } }));
+    vi.stubGlobal("fetch", upstream);
+
+    const response = await startRun(new Request("http://localhost/api/agent-runs", {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey, "Content-Type": "application/json" },
+      body: JSON.stringify({ goal: "Buy a monitor", proposal }),
+    }));
+
+    expect(response.status).toBe(202);
+    const verifyCall = upstream.mock.calls[0]!;
+    expect(JSON.parse(String(verifyCall[1].body))).toEqual({ sessionToken: "cookie-session" });
   });
 
   it("rejects a missing or malformed idempotency key", async () => {

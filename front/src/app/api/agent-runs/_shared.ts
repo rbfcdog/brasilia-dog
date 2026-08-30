@@ -1,6 +1,8 @@
 import { cookies } from "next/headers";
 
-const PASSKEY_SESSION_COOKIE = "nomad-passkey-session";
+// Must stay aligned with the cookie set by /api/backend after passkey or demo
+// verification (see app/api/backend/[...path]/route.ts).
+const PASSKEY_SESSION_COOKIE = "vero-passkey-session";
 
 // Must match MANDATE_VALIDITY_MS in agent/src/chat.ts: the authority granted here has to
 // be the same window the user saw and approved on the mandate card.
@@ -69,7 +71,8 @@ async function passkeySessionToken(request: Request): Promise<string | null> {
   // HttpOnly passkey cookie is the carrier for a signed-in session, exactly as in the
   // /api/backend proxy.
   try {
-    return (await cookies()).get(PASSKEY_SESSION_COOKIE)?.value?.trim() || null;
+    const store = await cookies();
+    return store.get(PASSKEY_SESSION_COOKIE)?.value?.trim() || null;
   } catch {
     return null;
   }

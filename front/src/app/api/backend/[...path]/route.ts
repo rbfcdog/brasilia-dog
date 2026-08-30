@@ -235,7 +235,7 @@ async function proxy(request: Request, context: RouteContext): Promise<Response>
       const payload = JSON.parse(new TextDecoder().decode(responseBody)) as { sessionToken?: unknown };
       if (typeof payload.sessionToken === "string" && payload.sessionToken.length > 0) {
         const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
-        response.headers.append("Set-Cookie", `vero-passkey-session=${encodeURIComponent(payload.sessionToken)}; Max-Age=86400; Path=/api/backend; HttpOnly; SameSite=Strict${secure}`);
+        response.headers.append("Set-Cookie", `vero-passkey-session=${encodeURIComponent(payload.sessionToken)}; Max-Age=86400; Path=/api; HttpOnly; SameSite=Strict${secure}`);
         response.headers.append("Set-Cookie", `vero-passkey-authenticated=1; Max-Age=86400; Path=/; SameSite=Strict${secure}`);
       }
     }
