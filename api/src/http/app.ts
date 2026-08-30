@@ -114,11 +114,14 @@ function publicAgentJwk(value: unknown): JsonWebKey | null {
 
 function parseProductCatalogSearch(value: unknown): ProductCatalogSearch | null {
   if (!isRecord(value)) return null;
-  const query = value.query;
-  const category = value.category;
-  const maximumAmountMinor = value.maximumAmountMinor;
-  const slugs = value.slugs;
-  const limit = value.limit;
+  const query = value.query === undefined ? null : value.query;
+  const category = value.category === undefined ? null : value.category;
+  const rawMaximum = value.maximumAmountMinor ?? value.maximumAmount ?? null;
+  const maximumAmountMinor = value.maximumAmountMinor === undefined && typeof value.maximumAmount === 'number'
+    ? Math.round(value.maximumAmount * 100)
+    : rawMaximum;
+  const slugs = value.slugs === undefined ? [] : value.slugs;
+  const limit = value.limit === undefined ? 3 : value.limit;
   if ((query !== null && typeof query !== 'string')
     || (category !== null && typeof category !== 'string')
     || (maximumAmountMinor !== null
