@@ -2,10 +2,13 @@
 
 @theme inline {
   --color-canvas: #f7f7f5;
+  --color-surface: #ffffff;
+  --color-surface-raised: #fbfbfa;
   --color-ink: #101114;
   --color-subtle: #64666c;
   --color-muted: #92949a;
   --color-line: #e5e6e8;
+  --color-line-strong: #d7d8dc;
   --color-primary: #3e4fe0;
   --color-primary-hover: #3342c5;
   --color-primary-light: #aeb7ff;
@@ -54,6 +57,7 @@ body {
   margin: 0;
   background: #f7f7f5;
   color: #101114;
+  text-rendering: optimizeLegibility;
 }
 
 button,
@@ -66,9 +70,13 @@ button {
   cursor: pointer;
 }
 
+button:disabled {
+  cursor: not-allowed;
+}
+
 .dot-grid {
   background-color: #f7f7f5;
-  background-image: radial-gradient(rgb(16 17 20 / 0.08) 0.7px, transparent 0.7px);
+  background-image: radial-gradient(rgb(16 17 20 / 0.065) 0.7px, transparent 0.7px);
   background-size: 18px 18px;
 }
 

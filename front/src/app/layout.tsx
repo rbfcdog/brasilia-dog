@@ -58,7 +58,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-canvas font-sans text-ink">
+      <body suppressHydrationWarning className="min-h-full bg-canvas font-sans text-ink">
         <ShoppingProvider>
           <AppShell>{children}</AppShell>
         </ShoppingProvider>

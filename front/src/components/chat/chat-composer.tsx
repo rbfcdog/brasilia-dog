@@ -30,7 +30,7 @@ export function ChatComposer({
   }
 
   return (
-    <div className="border-t border-line bg-white px-4 py-3 md:px-7 md:py-4">
+    <div className="border-t border-line bg-white/95 px-4 py-3 backdrop-blur-md md:px-7 md:py-4">
       <form onSubmit={submit} className="mx-auto max-w-3xl">
         <div className="flex items-end gap-2 rounded-2xl border border-line bg-white p-2.5 pl-4 shadow-input transition focus-within:border-primary/35 focus-within:ring-4 focus-within:ring-primary/[0.06]">
           <label htmlFor="shopping-request" className="sr-only">Describe what you want to buy</label>
@@ -48,7 +48,7 @@ export function ChatComposer({
             type="submit"
             disabled={disabled || !value.trim()}
             aria-label="Send request"
-            className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-line disabled:text-muted"
+            className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary text-white shadow-sm transition hover:bg-primary-hover hover:shadow-md active:translate-y-px disabled:bg-line disabled:text-muted disabled:shadow-none motion-reduce:transform-none"
           >
             <ArrowUp className="size-4" aria-hidden="true" />
           </button>

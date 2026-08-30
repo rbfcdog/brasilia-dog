@@ -4,7 +4,7 @@ import type { ScheduledPurchase } from "@/types/shopping";
 
 export function ScheduledResultCard({ purchase }: { purchase: ScheduledPurchase }) {
   return (
-    <article className="ml-10 max-w-xl rounded-2xl border border-primary/15 bg-primary-soft/60 p-5 shadow-sm">
+    <article className="max-w-xl rounded-2xl border border-primary/15 bg-primary-soft/60 p-5 shadow-sm sm:ml-10">
       <div className="flex items-center gap-2 text-primary">
         <Radar className="size-4 animate-pulse motion-reduce:animate-none" />
         <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em]">Mandate activated</p>

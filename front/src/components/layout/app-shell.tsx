@@ -27,8 +27,8 @@ const navigation = [
 
 function Brand() {
   return (
-    <Link href="/" className="flex items-center gap-3" aria-label="Nomad home">
-      <div className="grid size-9 place-items-center rounded-[10px] bg-ink text-white shadow-sm">
+    <Link href="/" className="group flex w-fit items-center gap-3 rounded-lg" aria-label="Nomad home">
+      <div className="grid size-9 place-items-center rounded-[10px] bg-ink text-white shadow-sm transition-transform duration-200 group-hover:-rotate-3 motion-reduce:transform-none">
         <Sparkles className="size-4" aria-hidden="true" />
       </div>
       <div>
@@ -59,7 +59,7 @@ function SidebarContent({ closeMenu }: { closeMenu?: () => void }) {
 
       <button
         onClick={newRequest}
-        className="mt-7 flex h-11 w-full items-center justify-center gap-2 rounded-[10px] bg-ink px-4 font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-white transition hover:bg-neutral-800"
+        className="mt-7 flex h-11 w-full items-center justify-center gap-2 rounded-[10px] bg-ink px-4 font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-white shadow-sm transition hover:bg-neutral-800 hover:shadow-md active:translate-y-px motion-reduce:transform-none"
       >
         <Plus className="size-4" aria-hidden="true" />
         New request
@@ -76,9 +76,10 @@ function SidebarContent({ closeMenu }: { closeMenu?: () => void }) {
                 key={item.href}
                 href={item.href}
                 onClick={closeMenu}
-                className={`flex h-10 items-center gap-3 rounded-[9px] px-3 text-sm transition ${
+                aria-current={active ? "page" : undefined}
+                className={`relative flex h-10 items-center gap-3 rounded-[9px] px-3 text-sm transition ${
                   active
-                    ? "bg-primary-soft font-medium text-primary"
+                    ? "bg-primary-soft font-medium text-primary before:absolute before:inset-y-2.5 before:left-0 before:w-0.5 before:rounded-full before:bg-primary"
                     : "text-subtle hover:bg-canvas hover:text-ink"
                 }`}
               >
@@ -104,7 +105,7 @@ function SidebarContent({ closeMenu }: { closeMenu?: () => void }) {
       </div>
 
       <div className="mt-auto">
-        <div className="mb-3 rounded-xl border border-line bg-canvas p-3.5">
+        <div className="mb-3 rounded-xl border border-line bg-surface-raised p-3.5">
           <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.1em] text-success-ink">
             <ShieldCheck className="size-4" aria-hidden="true" />
             Protected session
@@ -114,7 +115,8 @@ function SidebarContent({ closeMenu }: { closeMenu?: () => void }) {
         <Link
           href="/profile"
           onClick={closeMenu}
-          className={`flex items-center gap-3 rounded-xl border p-3 transition hover:bg-canvas ${
+          aria-current={pathname === "/profile" ? "page" : undefined}
+          className={`flex items-center gap-3 rounded-xl border p-3 transition hover:border-line-strong hover:bg-canvas ${
             pathname === "/profile" ? "border-primary/20 bg-primary-soft" : "border-line"
           }`}
         >
