@@ -28,6 +28,7 @@ import { UserAuthService } from '../services/user-auth-service.js';
 import { InMemoryPasskeyEnrollmentService, PasskeyEnrollmentService } from '../services/passkey-enrollment-service.js';
 import { BackendChatService } from '../services/backend-chat-service.js';
 import { MarketplaceAuthorityService } from '../services/marketplace-authority-service.js';
+import { AgentRefundService } from '../services/agent-refund-service.js';
 
 loadEnvironment();
 
@@ -70,8 +71,18 @@ const passkeyEnrollmentService = config.mode === 'sandbox'
   : supabase
     ? new PasskeyEnrollmentService(supabase)
     : null;
+const refundService = new RefundService(config.stripeSecretKey);
+const agentRefundService = paymentHistoryRepository
+  ? new AgentRefundService(paymentHistoryRepository, refundService)
+  : null;
 const backendChatService = conversationRepository && config.agentServiceUrl && config.agentServiceOutboundToken
-  ? new BackendChatService(conversationRepository, config.agentServiceUrl, config.agentServiceOutboundToken)
+  ? new BackendChatService(
+      conversationRepository,
+      config.agentServiceUrl,
+      config.agentServiceOutboundToken,
+      fetch,
+      agentRefundService,
+    )
   : null;
 const marketplaceAuthorityService = mandateRepository && productRepository
   ? new MarketplaceAuthorityService(mandateRepository, productRepository)
@@ -98,8 +109,6 @@ const passkeyService = new PasskeyService({
       : new InMemoryPasskeyStore(),
   sessionService,
 });
-
-const refundService = new RefundService(config.stripeSecretKey);
 
 const crossCredentialAuth = (agentIdentityRepository && mandateRepository)
   ? new CrossCredentialAuth(sessionService, agentIdentityRepository, mandateRepository)

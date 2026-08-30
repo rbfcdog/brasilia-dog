@@ -118,6 +118,86 @@ test('chat remains available when a demo agent has no conversation context adapt
   assert.equal(demoResponderInput.conversationContext, undefined);
 });
 
+test('chat detects an explicit refund intent without asking the shopping model to choose a payment', async () => {
+  const backend = new DemoBackend();
+  let responderCalls = 0;
+  const service = new AgentService({
+    adapters: backend,
+    selector: new FakeFlightSelector(),
+    logger: silentStepLogger,
+    responder: {
+      async respond() {
+        responderCalls += 1;
+        return { kind: 'clarification', message: 'Unexpected model call.', activity: [] };
+      },
+    },
+  });
+
+  const response = await service.chat({ message: 'I want the refund' });
+  const typoResponse = await service.chat({ message: 'Please refunt my purchase.' });
+
+  assert.deepEqual(response, {
+    kind: 'refund',
+    message: 'Refund intent detected. I am sending it to the secure payment service.',
+    refund: {
+      selection: 'latest',
+      paymentAttemptId: null,
+      reason: 'requested_by_customer',
+    },
+    activity: [],
+  });
+  assert.equal(typoResponse.kind, 'refund');
+  assert.equal(responderCalls, 0);
+});
+
+test('chat extracts an explicitly labeled payment and maps a fraud refund reason', async () => {
+  const backend = new DemoBackend();
+  const service = new AgentService({
+    adapters: backend,
+    selector: new FakeFlightSelector(),
+    logger: silentStepLogger,
+    responder: {
+      async respond() {
+        return { kind: 'clarification', message: 'Unexpected model call.', activity: [] };
+      },
+    },
+  });
+  const paymentAttemptId = '01925f4e-7d2a-7f1e-8f4d-29be417905e1';
+
+  const response = await service.chat({
+    message: `Quero o reembolso do pagamento id ${paymentAttemptId}; não reconheço, foi fraude.`,
+  });
+
+  assert.equal(response.kind, 'refund');
+  if (response.kind !== 'refund') return;
+  assert.deepEqual(response.refund, {
+    selection: 'payment',
+    paymentAttemptId,
+    reason: 'fraudulent',
+  });
+});
+
+test('chat does not execute an informational refund-policy question', async () => {
+  const backend = new DemoBackend();
+  let responderCalls = 0;
+  const service = new AgentService({
+    adapters: backend,
+    selector: new FakeFlightSelector(),
+    logger: silentStepLogger,
+    responder: {
+      async respond() {
+        responderCalls += 1;
+        return { kind: 'clarification', message: 'Refunds are available for settled payments.', activity: [] };
+      },
+    },
+  });
+
+  const response = await service.chat({ message: 'I want to know your refund policy.' });
+
+  assert.equal(response.kind, 'clarification');
+  assert.equal(responderCalls, 1);
+});
+
 test('the authenticated chat endpoint returns the agent response envelope', async (t) => {
   const backend = new DemoBackend();
   const service = new AgentService({

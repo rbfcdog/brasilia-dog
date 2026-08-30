@@ -1,4 +1,10 @@
 import type { ConversationStore } from '../repositories/conversation-repository.js';
+import {
+  AgentRefundError,
+  type AgentRefundIntent,
+  type AgentRefundResult,
+  type AgentRefundService,
+} from './agent-refund-service.js';
 
 interface ChatInput {
   message: string;
@@ -9,6 +15,8 @@ interface AgentEnvelope {
   ok: true;
   data: Record<string, unknown> & { kind: string; message: string };
 }
+
+const REFUND_REASONS = new Set(['duplicate', 'fraudulent', 'requested_by_customer']);
 
 export class BackendChatError extends Error {
   constructor(
@@ -25,17 +33,63 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
+function parseRefundIntent(value: unknown): AgentRefundIntent {
+  if (!isRecord(value)) {
+    throw new BackendChatError('The agent returned an invalid refund request.', 'INVALID_AGENT_RESPONSE', 502);
+  }
+  const selection = value.selection;
+  const paymentAttemptId = value.paymentAttemptId;
+  const reason = value.reason;
+  if (
+    (selection !== 'latest' && selection !== 'payment')
+    || (paymentAttemptId !== null && typeof paymentAttemptId !== 'string')
+    || (selection === 'payment' && (typeof paymentAttemptId !== 'string' || !paymentAttemptId.trim()))
+    || (selection === 'latest' && paymentAttemptId !== null)
+    || typeof reason !== 'string'
+    || !REFUND_REASONS.has(reason)
+  ) {
+    throw new BackendChatError('The agent returned an invalid refund request.', 'INVALID_AGENT_RESPONSE', 502);
+  }
+  return {
+    selection,
+    paymentAttemptId: paymentAttemptId === null ? null : paymentAttemptId.trim(),
+    reason: reason as AgentRefundIntent['reason'],
+  };
+}
+
+function refundMessage(refund: AgentRefundResult): string {
+  const amount = new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: refund.currency.toUpperCase(),
+  }).format(refund.amount / (10 ** refund.scale));
+  const outcome = refund.status === 'succeeded' ? 'completed' : 'submitted';
+  return `Your refund was ${outcome} with Stripe for ${amount}. Refund reference: ${refund.id}.`;
+}
+
+function publicRefund(refund: AgentRefundResult): Record<string, unknown> {
+  return {
+    id: refund.id,
+    paymentAttemptId: refund.paymentAttemptId,
+    amount: refund.amount,
+    currency: refund.currency,
+    scale: refund.scale,
+    status: refund.status,
+    reason: refund.reason,
+  };
+}
+
 function parseAgentEnvelope(value: unknown): AgentEnvelope {
   if (!isRecord(value) || value.ok !== true || !isRecord(value.data)) {
     throw new BackendChatError('The agent returned an invalid response.', 'INVALID_AGENT_RESPONSE', 502);
   }
   const { kind, message } = value.data;
-  if (!['clarification', 'products', 'mandate'].includes(String(kind)) || typeof message !== 'string' || !message.trim()) {
+  if (!['clarification', 'products', 'mandate', 'refund'].includes(String(kind)) || typeof message !== 'string' || !message.trim()) {
     throw new BackendChatError('The agent returned an invalid response.', 'INVALID_AGENT_RESPONSE', 502);
   }
   if (kind === 'mandate' && !isRecord(value.data.mandate)) {
     throw new BackendChatError('The agent returned an invalid mandate proposal.', 'INVALID_AGENT_RESPONSE', 502);
   }
+  if (kind === 'refund') parseRefundIntent(value.data.refund);
   return { ok: true, data: { ...value.data, kind, message: message.trim() } as AgentEnvelope['data'] };
 }
 
@@ -45,6 +99,7 @@ export class BackendChatService {
     private readonly agentServiceUrl: string,
     private readonly agentServiceOutboundToken: string,
     private readonly request: typeof fetch = fetch,
+    private readonly refunds: AgentRefundService | null = null,
   ) {}
 
   async chat(userId: string, input: ChatInput): Promise<AgentEnvelope> {
@@ -96,7 +151,44 @@ export class BackendChatService {
       }
       throw new BackendChatError('The agent service rejected the request.', 'AGENT_UNAVAILABLE', 502);
     }
-    const envelope = parseAgentEnvelope(payload);
+    let envelope = parseAgentEnvelope(payload);
+    if (envelope.data.kind === 'refund') {
+      if (userId === 'anon') {
+        throw new BackendChatError(
+          'Sign in before asking the agent to refund a payment.',
+          'REFUND_AUTHENTICATION_REQUIRED',
+          401,
+        );
+      }
+      if (!this.refunds) {
+        throw new BackendChatError(
+          'Refund processing is temporarily unavailable.',
+          'REFUND_SERVICE_UNAVAILABLE',
+          503,
+        );
+      }
+      try {
+        const refund = await this.refunds.refund(userId, parseRefundIntent(envelope.data.refund));
+        envelope = {
+          ok: true,
+          data: {
+            ...envelope.data,
+            message: refundMessage(refund),
+            refund: publicRefund(refund),
+          },
+        };
+      } catch (error) {
+        if (error instanceof AgentRefundError) {
+          throw new BackendChatError(error.message, error.code, error.status);
+        }
+        console.error('Agent refund orchestration failed.', error instanceof Error ? error.message : String(error));
+        throw new BackendChatError(
+          'Refund processing is temporarily unavailable.',
+          'REFUND_SERVICE_UNAVAILABLE',
+          503,
+        );
+      }
+    }
     const assistantCreatedAt = new Date().toISOString();
 
     await this.conversations.appendMessage({
@@ -120,6 +212,15 @@ export class BackendChatService {
           ownerId: userId,
           type: 'mandate_proposed',
           payload: envelope.data.mandate,
+          createdAt: assistantCreatedAt,
+        });
+      }
+      if (envelope.data.kind === 'refund' && isRecord(envelope.data.refund)) {
+        await this.conversations.appendEvent({
+          conversationId: conversation.id,
+          ownerId: userId,
+          type: 'refund_processed',
+          payload: envelope.data.refund,
           createdAt: assistantCreatedAt,
         });
       }

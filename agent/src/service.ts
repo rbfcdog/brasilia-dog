@@ -1,6 +1,6 @@
 import type { AgentAdapters, CatalogProduct, ConversationContextAdapter, ConversationMessage, ProductCatalogAdapter } from './adapters.js';
 import type { AgentIdentityView, LocalAgentIdentity } from './identity.js';
-import type { AgentChatRequest, AgentChatResponse, ChatResponder } from './chat.js';
+import { detectRefundIntent, type AgentChatRequest, type AgentChatResponse, type ChatResponder } from './chat.js';
 import type {
   PublicRun,
   ResumeRunRequest,
@@ -124,6 +124,9 @@ export class AgentService {
   }
 
   async chat(request: AgentChatRequest): Promise<AgentChatResponse> {
+    const refundIntent = detectRefundIntent(request.message);
+    if (refundIntent) return refundIntent;
+
     if (!this.responder) {
       throw new AgentError('CHAT_UNAVAILABLE', 'Chat is not configured for this agent service.', 503);
     }

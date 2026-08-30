@@ -19,8 +19,8 @@ export interface RefundResult {
 export class RefundService {
   private readonly stripe: Stripe;
 
-  constructor(secretKey: string) {
-    this.stripe = new Stripe(secretKey);
+  constructor(secretKey: string, client?: Stripe) {
+    this.stripe = client ?? new Stripe(secretKey);
   }
 
   async refund({ paymentIntentId, amount, reason, idempotencyKey }: RefundRequest): Promise<RefundResult> {
@@ -28,8 +28,7 @@ export class RefundService {
       payment_intent: paymentIntentId,
       ...(amount ? { amount } : {}),
       ...(reason ? { reason } : {}),
-      ...(idempotencyKey ? { idempotency_key: idempotencyKey } : {}),
-    });
+    }, idempotencyKey ? { idempotencyKey } : undefined);
 
     return {
       id: refund.id,

@@ -34,4 +34,18 @@ describe("AI shopping state machine", () => {
     );
     expect(reset).toMatchObject({ status: "idle", messages: [], error: null, hydrated: true });
   });
+
+  it("shows a completed Stripe refund as a normal assistant result", () => {
+    const refunded = aiShoppingReducer(
+      { ...initialAIShoppingState, hydrated: true, status: "analyzing", messages: [userMessage] },
+      {
+        type: "REFUND_COMPLETED",
+        message: { ...userMessage, id: "assistant-refund", role: "assistant", content: "Your refund was completed." },
+      },
+    );
+
+    expect(refunded.status).toBe("clarification");
+    expect(refunded.messages.at(-1)?.content).toBe("Your refund was completed.");
+    expect(refunded.toast).toBe("Refund sent securely to Stripe.");
+  });
 });

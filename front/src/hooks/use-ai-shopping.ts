@@ -25,6 +25,7 @@ export type AIShoppingAction =
   | { type: "HYDRATE"; messages: ChatMessage[]; storage: ConversationStorage }
   | { type: "SUBMIT"; message: ChatMessage }
   | { type: "CLARIFICATION"; message: ChatMessage }
+  | { type: "REFUND_COMPLETED"; message: ChatMessage }
   | { type: "MANDATE_READY"; message: ChatMessage; mandate: Mandate }
   | { type: "PRODUCT_RESULTS"; message: ChatMessage; products: DiscoveredProduct[] }
   | { type: "UPDATE_MANDATE"; mandate: Mandate }
@@ -51,6 +52,7 @@ export function aiShoppingReducer(state: AIShoppingState, action: AIShoppingActi
     case "HYDRATE": return { ...initialAIShoppingState, messages: action.messages, hydrated: true, storage: action.storage };
     case "SUBMIT": return { ...state, status: "analyzing", messages: [...state.messages, action.message], mandate: null, run: null, error: null, toast: null };
     case "CLARIFICATION": return { ...state, status: "clarification", messages: [...state.messages, action.message] };
+    case "REFUND_COMPLETED": return { ...state, status: "clarification", messages: [...state.messages, action.message], toast: "Refund sent securely to Stripe." };
     case "PRODUCT_RESULTS": return { ...state, status: "clarification", messages: [...state.messages, action.message], discoveredProducts: action.products };
     case "MANDATE_READY": return { ...state, status: "mandate_ready", messages: [...state.messages, action.message], mandate: action.mandate };
     case "UPDATE_MANDATE": return state.status === "mandate_ready" ? { ...state, mandate: action.mandate } : state;
@@ -188,6 +190,7 @@ export function useAIShopping() {
       const assistant = createMessage("assistant", response.message);
       if (response.kind === "clarification") dispatch({ type: "CLARIFICATION", message: assistant });
       else if (response.kind === "products") dispatch({ type: "PRODUCT_RESULTS", message: assistant, products: response.products });
+      else if (response.kind === "refund") dispatch({ type: "REFUND_COMPLETED", message: assistant });
       else dispatch({ type: "MANDATE_READY", message: assistant, mandate: response.mandate });
     } catch (error) {
       dispatch({ type: "ERROR", message: error instanceof Error ? error.message : "The request could not be analyzed." });

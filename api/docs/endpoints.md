@@ -537,6 +537,23 @@ Returns recent payment attempts connected to mandates owned by the authenticated
 
 Returns a payment attempt only if it is connected to a mandate owned by the authenticated user. Unknown and foreign payment IDs both return `404`.
 
+### Agent-triggered refunds through `POST /v1/chat`
+
+An explicit refund request such as `I want the refund` produces a structured
+refund intent in the agent service. The API requires an authenticated owner,
+selects that owner's latest settled or already-refunded Stripe payment, and
+calls `POST /v1/refunds` with `agent-refund:{paymentAttemptId}` as the Stripe
+idempotency key. An explicit payment attempt ID is still resolved through the
+same owner-scoped repository; the model never supplies or selects a Stripe
+PaymentIntent ID.
+
+The response has `kind: "refund"` and includes the refund reference, owned
+payment attempt ID, amount, currency, scale, status, and reason. Provider
+PaymentIntent IDs and server credentials are not returned to the browser.
+
+Retries never advance silently to an older purchase: if the latest refundable
+payment is already refunded, the API returns `409 PAYMENT_ALREADY_REFUNDED`.
+
 ## Conversation endpoints
 
 Conversation history is owner-scoped. Browser routes use the authenticated owner session. Agent context reads use a separate agent-only route.

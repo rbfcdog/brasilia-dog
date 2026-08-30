@@ -101,6 +101,16 @@ export interface DiscoveredProduct {
   currency: "USD";
 }
 
+export interface AgentRefund {
+  id: string;
+  paymentAttemptId: string;
+  amount: number;
+  currency: string;
+  scale: number;
+  status: string;
+  reason: "duplicate" | "fraudulent" | "requested_by_customer" | null;
+}
+
 export type AgentActivity =
   | {
       type: "catalog_search";
@@ -135,6 +145,12 @@ export type AgentResponse =
       kind: "mandate";
       message: string;
       mandate: Mandate;
+      activity?: AgentActivity[];
+    }
+  | {
+      kind: "refund";
+      message: string;
+      refund: AgentRefund;
       activity?: AgentActivity[];
     };
 

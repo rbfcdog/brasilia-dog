@@ -15,9 +15,11 @@ Browser
      -> create or resolve conversation
      -> persist user message
      -> call agent service POST /v1/chat
+     -> resolve an owned payment and call Stripe (refund intents only)
      -> persist assistant message
      -> persist agent_response event
      -> persist mandate_proposed event (when applicable)
+     -> persist refund_processed event (when applicable)
      -> return committed response with conversationId
 ```
 
@@ -34,9 +36,12 @@ Browser
 
 The Node API remains the sole authority for identity, conversations, mandates,
 approvals, products, payment attempts, and Stripe MPP execution. The agent
-remains advisory. An agent response can request clarification or propose a
-mandate, but cannot create an authoritative mandate, approve one, or execute
-payment.
+remains advisory. An agent response can request clarification, propose a
+mandate, or classify an explicit refund intent. It cannot create an
+authoritative mandate, approve one, choose a provider payment ID, or call
+Stripe. For refunds, the Node API resolves the latest eligible payment through
+the authenticated owner scope and calls Stripe with a payment-specific
+idempotency key.
 
 The browser never receives the agent service token, OpenAI key, Supabase
 service-role key, payment credential, passkey private material, or biometric
@@ -70,8 +75,10 @@ agent token as a fallback for unauthenticated browsing.
    message.
 5. The Node API calls the agent service with server-only authentication.
 6. The agent returns a strict structured response.
-7. The Node API persists the assistant message and structured events.
-8. The BFF returns the authoritative result to the browser.
+7. For a refund intent, the Node API requires authentication, resolves an owned
+   settled payment, and calls Stripe server-side.
+8. The Node API persists the assistant message and structured events.
+9. The BFF returns the authoritative result to the browser.
 
 ## Why this architecture
 

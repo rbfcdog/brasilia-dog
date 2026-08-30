@@ -67,8 +67,9 @@ The live Buyer assistant presents these prompts:
 - `Buy an ultrawide monitor up to $300`
 - `Find me a monitor`
 - `Track a 34-inch ultrawide monitor under $220`
+- `I want the refund`
 
-The first prompt should produce a mandate proposal. The second should request missing constraints. The third should create a monitoring-oriented mandate when the configured backend and agent services are available.
+The first prompt should produce a mandate proposal. The second should request missing constraints. The third should create a monitoring-oriented mandate when the configured backend and agent services are available. The refund prompt requires an authenticated user with an owned settled Stripe sandbox payment; the agent classifies the intent and the Node API refunds the latest eligible payment server-side.
 
 These prompts are demonstrations of the product flow, not a guarantee that the deployed environment has every backend dependency configured. A successful local UI load proves only that the frontend deployment is serving; it does not prove that OpenAI, the agent service, Supabase migrations, or Stripe sandbox settlement are available.
 

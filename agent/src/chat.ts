@@ -58,6 +58,13 @@ function catalogResultMessage(products: DiscoveredProduct[]): string {
 
 const responseActivitySchema = z.array(catalogActivitySchema).max(10);
 
+const refundReasonSchema = z.enum(['duplicate', 'fraudulent', 'requested_by_customer']);
+const refundIntentSchema = z.strictObject({
+  selection: z.enum(['latest', 'payment']),
+  paymentAttemptId: z.string().trim().min(1).max(128).nullable(),
+  reason: refundReasonSchema,
+});
+
 const modelProposalSchema = z.strictObject({
   message: z.string().trim().min(1).max(1_500),
   scope: z.string().trim().min(1).max(300).nullable(),
@@ -102,6 +109,12 @@ const chatResponseSchema = z.discriminatedUnion('kind', [
     }),
     activity: responseActivitySchema,
   }),
+  z.strictObject({
+    kind: z.literal('refund'),
+    message: z.string().trim().min(1).max(500),
+    refund: refundIntentSchema,
+    activity: responseActivitySchema,
+  }),
 ]);
 
 export const chatRequestSchema = z.strictObject({
@@ -111,6 +124,41 @@ export const chatRequestSchema = z.strictObject({
 
 export type AgentChatRequest = z.infer<typeof chatRequestSchema>;
 export type AgentChatResponse = z.infer<typeof chatResponseSchema>;
+
+const REFUND_TERM = /\b(?:refund|refunt|reimburse(?:ment)?|money\s+back|reembols(?:o|ar|e|amento)|estorn(?:o|ar|e)|devolv(?:a|er)\s+(?:meu\s+)?dinheiro)\b/i;
+const REFUND_REQUEST = /\b(?:i\s+(?:want|need|request)|please|give\s+me|process|issue|send|quero|preciso|solicito|fa[cç]a|processe|me\s+(?:d[eê]|envie))\b/i;
+const REFUND_COMMAND = /\b(?:refund|refunt|reimburse|reembolsar|reembolse|estornar|estorne)\s+(?:my|the|this|meu|minha|o|a)\b/i;
+const REFUND_INFORMATION_ONLY = /\b(?:refund\s+policy|return\s+policy|pol[ií]tica\s+de\s+(?:reembolso|estorno)|how\s+(?:do|can)\s+i\s+(?:get|request)|como\s+(?:funciona|pedir|solicitar))\b/i;
+const UUID_REFERENCE = /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/i;
+const LABELED_PAYMENT_REFERENCE = /\b(?:payment|purchase|order|pagamento|compra|pedido)\s+(?:id\s*[:#]?|#)\s*([a-z0-9][a-z0-9_-]{2,127})\b/i;
+
+export function detectRefundIntent(message: string): AgentChatResponse | null {
+  if (!REFUND_TERM.test(message)) return null;
+  if (REFUND_INFORMATION_ONLY.test(message) && !REFUND_COMMAND.test(message)) {
+    return null;
+  }
+  if (!REFUND_REQUEST.test(message) && !REFUND_COMMAND.test(message)) return null;
+
+  const paymentAttemptId = message.match(UUID_REFERENCE)?.[0]
+    ?? message.match(LABELED_PAYMENT_REFERENCE)?.[1]
+    ?? null;
+  const reason = /\b(?:duplicate|duplicated|twice|duas\s+vezes|duplicad[oa])\b/i.test(message)
+    ? 'duplicate'
+    : /\b(?:fraud|fraudulent|stolen|unauthorized|not\s+mine|n[aã]o\s+reconhe[cç]o|fraude)\b/i.test(message)
+      ? 'fraudulent'
+      : 'requested_by_customer';
+
+  return chatResponseSchema.parse({
+    kind: 'refund',
+    message: 'Refund intent detected. I am sending it to the secure payment service.',
+    refund: {
+      selection: paymentAttemptId ? 'payment' : 'latest',
+      paymentAttemptId,
+      reason,
+    },
+    activity: [],
+  });
+}
 
 export interface ChatResponder {
   respond(input: {

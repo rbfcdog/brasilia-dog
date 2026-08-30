@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import type Stripe from 'stripe';
 
 import { createApp } from '../src/http/app.js';
 import type { MppHandler, PaymentAttemptRecord } from '../src/domain/types.js';
@@ -96,9 +97,33 @@ test('buyer refund uses the owned settled Stripe payment and records the refunde
 });
 
 test('refund service constructs a Stripe refund call', async () => {
-  // Unit test: verify the RefundService maps inputs correctly.
-  // We do not hit Stripe here; we verify the service interface contract.
-  const service = new RefundService('sk_test_dummy');
-  assert.ok(typeof service.refund === 'function');
-  assert.ok(typeof service.retrievePaymentIntent === 'function');
+  let createArguments: unknown[] = [];
+  const stripe = {
+    refunds: {
+      async create(...args: unknown[]) {
+        createArguments = args;
+        return {
+          id: 're_123',
+          amount: 9_500,
+          currency: 'usd',
+          status: 'succeeded',
+          reason: 'requested_by_customer',
+        };
+      },
+    },
+    paymentIntents: { async retrieve() { throw new Error('not used'); } },
+  } as unknown as Stripe;
+  const service = new RefundService('sk_test_dummy', stripe);
+
+  const result = await service.refund({
+    paymentIntentId: 'pi_123',
+    reason: 'requested_by_customer',
+    idempotencyKey: 'agent-refund:payment-1',
+  });
+
+  assert.deepEqual(createArguments, [
+    { payment_intent: 'pi_123', reason: 'requested_by_customer' },
+    { idempotencyKey: 'agent-refund:payment-1' },
+  ]);
+  assert.equal(result.id, 're_123');
 });
