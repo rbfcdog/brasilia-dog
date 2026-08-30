@@ -52,6 +52,22 @@ export interface ProductEndpoint {
   product: Product;
 }
 
+export interface ProductCatalogEntry extends Product {
+  status: 'draft' | 'published' | 'archived';
+  metadata: Record<string, unknown>;
+  offering: ProductOffering & { active: boolean };
+  endpoint: {
+    id: string;
+    method: ProductMethod;
+    path: string;
+    enabled: boolean;
+  };
+}
+
+export interface ProductCatalogRepository {
+  listCatalog(): Promise<ProductCatalogEntry[]>;
+}
+
 export interface PaymentReceiptSummary extends Record<string, unknown> {
   method: string;
   reference: string;

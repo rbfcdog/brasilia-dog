@@ -26,7 +26,8 @@ loadEnvironment();
 
 const config = loadConfig();
 const supabase = createSupabaseClient(config.supabase);
-const productCatalogService = supabase ? new ProductCatalogService(new ProductRepository(supabase)) : null;
+const productRepository = supabase ? new ProductRepository(supabase) : null;
+const productCatalogService = productRepository ? new ProductCatalogService(productRepository) : null;
 const paymentService = supabase ? new PaymentService({
   stripeProfileId: config.stripeProfileId,
   mppHandlerFactory: (options) => createMppHandler(config, options),
@@ -57,10 +58,10 @@ const crossCredentialAuth = (agentIdentityRepository && mandateRepository)
   ? new CrossCredentialAuth(sessionService, agentIdentityRepository, mandateRepository)
   : null;
 
-const purchaseService = (crossCredentialAuth && supabase)
+const purchaseService = (crossCredentialAuth && productRepository)
   ? new PurchaseService({
       crossCredentialAuth,
-      productRepository: new ProductRepository(supabase),
+      productRepository,
       recordProof: async (params) => {
         if (!supabase) { return ''; }
         const { data, error } = await supabase.rpc('record_agent_execution_proof', {
@@ -91,6 +92,7 @@ const app = createApp({
   passkeyService,
   refundService,
   productInfoRepository,
+  productRepository,
   agentIdentityRepository,
   mandateRepository,
   paymentHistoryRepository,

@@ -51,6 +51,10 @@ export function createApp({
     response.json({ ok: true, data: await service.chat(body) });
   });
 
+  app.get('/v1/products', async (_request, response) => {
+    response.json({ ok: true, data: { products: await service.listProducts() } });
+  });
+
   app.get('/v1/agent-runs/:runId', (request, response) => {
     const run = service.get(requirePathParameter(request.params.runId, 'runId'));
     response.json({ ok: true, data: run });

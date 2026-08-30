@@ -60,12 +60,43 @@ export interface ConversationContextAdapter {
   getConversationMessages(conversationId: string): Promise<ConversationMessage[]>;
 }
 
+export const catalogProductSchema = z.strictObject({
+  id: z.string().trim().min(1),
+  slug: z.string().trim().min(1),
+  name: z.string().trim().min(1),
+  description: z.string(),
+  status: z.enum(['draft', 'published', 'archived']),
+  metadata: z.record(z.string(), z.unknown()),
+  offering: z.strictObject({
+    id: z.string().trim().min(1),
+    rail: z.literal('stripe_mpp'),
+    amountMinor: z.number().int().positive(),
+    currency: z.literal('usd'),
+    scale: z.literal(2),
+    networkId: z.string().nullable(),
+    active: z.boolean(),
+  }),
+  endpoint: z.strictObject({
+    id: z.string().trim().min(1),
+    method: z.enum(['GET', 'POST']),
+    path: z.string().startsWith('/'),
+    enabled: z.boolean(),
+  }),
+});
+
+export type CatalogProduct = z.infer<typeof catalogProductSchema>;
+
+export interface ProductCatalogAdapter {
+  listProducts(): Promise<CatalogProduct[]>;
+}
+
 export interface AgentAdapters {
   mandates: MandateAdapter;
   catalog: FlightCatalogAdapter;
   signer: AgentSignerAdapter;
   purchases: PurchaseAdapter;
   conversations?: ConversationContextAdapter;
+  products?: ProductCatalogAdapter;
 }
 
 const successEnvelopeSchema = z.strictObject({
@@ -83,18 +114,24 @@ const conversationMessagesSchema = z.strictObject({
   })),
 });
 
+const productCatalogSchema = z.strictObject({
+  products: z.array(catalogProductSchema),
+});
+
 export class HttpBackendAdapter implements
   AgentAdapters,
   MandateAdapter,
   FlightCatalogAdapter,
   AgentSignerAdapter,
   PurchaseAdapter,
-  ConversationContextAdapter {
+  ConversationContextAdapter,
+  ProductCatalogAdapter {
   readonly mandates = this;
   readonly catalog = this;
   readonly signer = this;
   readonly purchases = this;
   readonly conversations = this;
+  readonly products = this;
   private readonly baseUrl: URL;
   private readonly token: string;
   private readonly timeoutMs: number;
@@ -163,6 +200,11 @@ export class HttpBackendAdapter implements
       { method: 'GET' },
     );
     return this.parseResponse(conversationMessagesSchema, body, 'conversation transcript').messages;
+  }
+
+  async listProducts(): Promise<CatalogProduct[]> {
+    const body = await this.requestRaw('v1/agent/products', { method: 'GET' });
+    return this.parseResponse(productCatalogSchema, body, 'product catalog').products;
   }
 
   private presentationHeaders(input: SignedPresentation): HeadersInit {

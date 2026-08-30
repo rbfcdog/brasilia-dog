@@ -1,12 +1,11 @@
 # Agent-to-backend REST contract
 
-The agent now reads persisted conversation history from the authoritative Node backend. The flight catalog, signing, purchase, and approval routes below remain a proposed `ADAPTER_MODE=http` contract; the current API does not implement those routes. Use `ADAPTER_MODE=demo` with backend context variables for the supported integration.
+The agent reads persisted conversation history and the complete Stripe MPP product catalog from the authoritative Node backend. The flight search, signing, purchase, and approval routes below remain a proposed `ADAPTER_MODE=http` contract; the current API does not implement those routes. Use `ADAPTER_MODE=demo` with backend context variables for the supported purchase integration.
 
 ## Common rules
 
 - Every request uses `Authorization: Bearer $AGENT_BACKEND_TOKEN`.
-- The implemented conversation route returns its documented `{ "messages": [...] }` body.
-- The proposed purchase routes return `{ "ok": true, "data": ... }` on success.
+- The implemented conversation and product-catalog routes return direct JSON bodies. Proposed purchase routes use `{ "ok": true, "data": ... }`.
 - A deterministic purchase decision is returned as successful protocol data. The agent reads only the `outcome` discriminant and never derives authorization from HTTP status.
 - Currency codes are lowercase ISO-style three-letter strings. Amounts are non-negative integers in minor units.
 - The backend revalidates agent identity, proof, nonce, mandate status/version/expiry/revocation, approval resolution, scope, and current offer price for every presentation.
@@ -35,6 +34,47 @@ Authorization: Bearer $AGENT_BACKEND_TOKEN
 ```
 
 The agent accepts an optional `conversationId` when creating a run, requests this endpoint before selection, limits the transcript to the newest 20 messages and 6,000 characters, and passes it to the model only as untrusted data. It does not receive a user passkey credential, passkey session token, or payment credential.
+
+## Implemented product catalog
+
+```http
+GET /v1/agent/products
+Authorization: Bearer $AGENT_BACKEND_TOKEN
+```
+
+The API returns every current catalog record, including draft and inactive records, so the agent harness can inspect provisioning state without treating it as purchasable:
+
+```json
+{
+  "products": [
+    {
+      "id": "product-id",
+      "slug": "ultrawide-monitor-buying-guide",
+      "name": "Ultrawide monitor buying guide",
+      "description": "Current comparison data.",
+      "status": "draft",
+      "metadata": { "category": "electronics" },
+      "offering": {
+        "id": "offering-id",
+        "rail": "stripe_mpp",
+        "amountMinor": 250,
+        "currency": "usd",
+        "scale": 2,
+        "networkId": "profile_test_example",
+        "active": false
+      },
+      "endpoint": {
+        "id": "endpoint-id",
+        "method": "GET",
+        "path": "/v1/products/ultrawide-monitor-buying-guide/mpp",
+        "enabled": false
+      }
+    }
+  ]
+}
+```
+
+Only entries with `status = published`, `offering.active = true`, and `endpoint.enabled = true` are purchasable. Catalog text and metadata remain untrusted. The backend re-resolves the endpoint and current offering before issuing a Stripe MPP challenge.
 
 ## 1. Safe mandate projection
 

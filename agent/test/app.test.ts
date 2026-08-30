@@ -3,6 +3,7 @@ import { createServer, type Server } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { createApp } from '../src/app.js';
+import type { AgentAdapters, CatalogProduct } from '../src/adapters.js';
 import {
   DEMO_APPROVE_ONCE_RESOLUTION_ID,
   DemoBackend,
@@ -14,7 +15,7 @@ import { FakeFlightSelector } from '../src/selector.js';
 
 const serviceToken = 'test-agent-service-token-12345';
 
-async function startAgentServer(backend = new DemoBackend()): Promise<{
+async function startAgentServer(backend: AgentAdapters = new DemoBackend()): Promise<{
   baseUrl: string;
   server: Server;
 }> {
@@ -81,6 +82,46 @@ test('health is public while all v1 routes require bearer authentication', async
     headers: { Authorization: 'Bearer wrong-token' },
   });
   assert.equal(wrong.status, 401);
+});
+
+test('authenticated product route exposes the backend catalog harness', async (t) => {
+  const demo = new DemoBackend();
+  const products: CatalogProduct[] = [{
+    id: 'product-1',
+    slug: 'ultrawide-monitor-buying-guide',
+    name: 'Ultrawide monitor buying guide',
+    description: 'Current comparison data.',
+    status: 'published',
+    metadata: { category: 'electronics' },
+    offering: {
+      id: 'offering-1',
+      rail: 'stripe_mpp',
+      amountMinor: 250,
+      currency: 'usd',
+      scale: 2,
+      networkId: 'profile_test_example',
+      active: true,
+    },
+    endpoint: {
+      id: 'endpoint-1',
+      method: 'GET',
+      path: '/v1/products/ultrawide-monitor-buying-guide/mpp',
+      enabled: true,
+    },
+  }];
+  const { baseUrl, server } = await startAgentServer({
+    mandates: demo,
+    catalog: demo,
+    signer: demo,
+    purchases: demo,
+    products: { listProducts: async () => products },
+  });
+  t.after(() => closeServer(server));
+
+  const response = await fetch(`${baseUrl}/v1/products`, { headers: authenticatedHeaders() });
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await readJson(response), { ok: true, data: { products } });
 });
 
 test('run creation, polling, and start idempotency follow the public contract', async (t) => {

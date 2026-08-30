@@ -1,4 +1,4 @@
-import type { AgentAdapters, ConversationContextAdapter, ConversationMessage } from './adapters.js';
+import type { AgentAdapters, CatalogProduct, ConversationContextAdapter, ConversationMessage, ProductCatalogAdapter } from './adapters.js';
 import type { AgentChatRequest, AgentChatResponse, ChatResponder } from './chat.js';
 import type {
   PublicRun,
@@ -48,6 +48,7 @@ export class AgentService {
   readonly store: RunStore;
   private readonly graph: AgentGraph;
   private readonly conversations?: ConversationContextAdapter;
+  private readonly products?: ProductCatalogAdapter;
   private readonly responder?: ChatResponder;
   private readonly schedule: Scheduler;
   constructor({
@@ -70,6 +71,7 @@ export class AgentService {
     this.store = store;
     this.responder = responder;
     this.conversations = adapters.conversations;
+    this.products = adapters.products;
     this.schedule = scheduler;
     this.graph = createAgentGraph({
       adapters,
@@ -112,10 +114,19 @@ export class AgentService {
     const conversationContext = request.conversationId
       ? await this.loadConversationContextForChat(request.conversationId)
       : undefined;
+    const products = this.products ? await this.products.listProducts() : undefined;
     return this.responder.respond({
       message: request.message,
       ...(conversationContext ? { conversationContext } : {}),
+      ...(products ? { products } : {}),
     });
+  }
+
+  async listProducts(): Promise<CatalogProduct[]> {
+    if (!this.products) {
+      throw new AgentError('PRODUCT_CATALOG_UNAVAILABLE', 'The backend product catalog is not configured.', 503);
+    }
+    return this.products.listProducts();
   }
 
   private async executeInitial(runId: string): Promise<void> {

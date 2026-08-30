@@ -44,6 +44,17 @@ export interface Mandate {
   mockOutcome: MockPurchaseOutcome;
 }
 
+export interface MarketplaceListing {
+  id: string;
+  merchant: string;
+  item: string;
+  price: number;
+  currency: "USD";
+  merchantVerified: boolean;
+  qualifies: boolean;
+  selected: boolean;
+}
+
 export interface PurchaseReceipt {
   id: string;
   mandateId: string;
@@ -72,10 +83,24 @@ export interface ScheduledPurchase {
   revokedAt?: string;
 }
 
+export interface DiscoveredProduct {
+  slug: string;
+  name: string;
+  description: string;
+  category: string;
+  price: number;
+  currency: "USD";
+}
+
 export type AgentResponse =
   | {
       kind: "clarification";
       message: string;
+    }
+  | {
+      kind: "products";
+      message: string;
+      products: DiscoveredProduct[];
     }
   | {
       kind: "mandate";
@@ -87,11 +112,13 @@ export type PurchaseResponse =
   | {
       kind: "purchased";
       message: string;
+      listings: MarketplaceListing[];
       receipt: PurchaseReceipt;
     }
   | {
       kind: "scheduled";
       message: string;
+      listings: MarketplaceListing[];
       scheduledPurchase: ScheduledPurchase;
     };
 

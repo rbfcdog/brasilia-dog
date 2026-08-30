@@ -14,6 +14,8 @@ import { AgentActivity } from "@/components/chat/agent-activity";
 import { BiometricDialog } from "@/components/chat/biometric-dialog";
 import { ChatComposer } from "@/components/chat/chat-composer";
 import { MandateCard } from "@/components/chat/mandate-card";
+import { MarketplaceListings } from "@/components/chat/marketplace-listings";
+import { ProductDiscovery } from "@/components/chat/product-discovery";
 import { ReceiptCard } from "@/components/chat/receipt-card";
 import { ScheduledResultCard } from "@/components/chat/scheduled-card";
 import { useAIShopping } from "@/hooks/use-ai-shopping";
@@ -147,6 +149,10 @@ export function ChatExperience() {
               {state.mandate ? (
                 <MandateCard mandate={state.mandate} status={state.status} onApprove={requestApproval} onUpdate={updateMandate} />
               ) : null}
+
+              {state.discoveredProducts.length > 0 ? <ProductDiscovery products={state.discoveredProducts} /> : null}
+
+              {state.listings.length > 0 ? <MarketplaceListings listings={state.listings} /> : null}
 
               {state.receipt ? <ReceiptCard receipt={state.receipt} /> : null}
               {state.scheduledPurchase ? <ScheduledResultCard purchase={state.scheduledPurchase} /> : null}

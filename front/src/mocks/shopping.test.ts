@@ -67,4 +67,36 @@ describe("mock shopping engine", () => {
       },
     });
   });
+
+  it("automatically selects a qualifying appliance only after the search mandate is approved", async () => {
+    vi.useFakeTimers();
+    const executionPromise = executeMockPurchase(
+      {
+        id: "mandate-appliances",
+        scope: "Household appliances around $100",
+        maximumAmount: 100,
+        currency: "USD",
+        validUntil: "2026-09-02T00:00:00Z",
+        validityHours: 72,
+        paymentMethodId: "payment-visa-4242",
+        status: "active",
+        mockOutcome: "immediate",
+      },
+      { id: "payment-visa-4242", brand: "Visa", label: "Personal Visa", last4: "4242", expiry: "08/29" },
+    );
+    await vi.advanceTimersByTimeAsync(1_150);
+
+    await expect(executionPromise).resolves.toMatchObject({
+      kind: "purchased",
+      receipt: {
+        item: "Temperature-control electric kettle",
+        total: 69,
+      },
+      listings: [
+        { item: "Temperature-control electric kettle", qualifies: true, selected: true },
+        { item: "Compact countertop blender", qualifies: true, selected: false },
+        { item: "Two-slice digital toaster", qualifies: false, selected: false },
+      ],
+    });
+  });
 });

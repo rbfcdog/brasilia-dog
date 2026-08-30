@@ -22,7 +22,7 @@ export function MandateCard({
       ? "Mandate active"
       : status === "biometric_confirmation"
         ? "Awaiting confirmation"
-        : "Approve mandate";
+        : "Approve search mandate";
 
   function updateValidity(validityHours: number) {
     onUpdate({
@@ -38,7 +38,7 @@ export function MandateCard({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-primary">
             <ShieldCheck className="size-4" aria-hidden="true" />
-            <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em]">Purchase mandate</p>
+            <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em]">Autonomous search mandate</p>
           </div>
           <span className="rounded-full border border-primary/15 bg-white px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.1em] text-primary">
             {mandateActive ? "Active" : "Awaiting approval"}
@@ -47,7 +47,7 @@ export function MandateCard({
       </div>
 
       <div className="p-5">
-        <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted">Approved scope</p>
+        <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted">Approved search scope</p>
         <h3 className="mt-2 text-xl font-semibold tracking-[-0.03em]">{mandate.scope}</h3>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-2">

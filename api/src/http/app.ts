@@ -6,6 +6,7 @@ import type {
   PasskeySession,
   ProductCatalog,
   ProductPaymentService,
+  ProductCatalogRepository,
 } from '../domain/types.js';
 
 import type { PasskeyService } from '../services/passkey-service.js';
@@ -309,6 +310,15 @@ const OPENAPI_DOCUMENT = Object.freeze({
         },
       },
     },
+    '/v1/agent/products': {
+      get: {
+        summary: 'List the complete Stripe MPP product catalog for the agent service',
+        responses: {
+          '200': { description: 'Current products, offerings, and MPP endpoint state' },
+          '401': { description: 'Agent service token is required' },
+        },
+      },
+    },
     '/v1/conversations/{id}/messages': {
       get: {
         summary: 'Read a conversation transcript (passkey session or agent service token)',
@@ -338,6 +348,7 @@ interface AppDeps {
   passkeyService?: PasskeyService | null;
   refundService?: RefundService | null;
   productInfoRepository?: ProductInfoRepository | null;
+  productRepository?: ProductCatalogRepository | null;
   agentIdentityRepository?: AgentIdentityRepository | null;
   mandateRepository?: MandateRepository | null;
   conversationRepository?: ConversationRepository | null;
@@ -357,6 +368,7 @@ export function createApp({
   passkeyService = null,
   refundService = null,
   productInfoRepository = null,
+  productRepository = null,
   agentIdentityRepository = null,
   mandateRepository = null,
   paymentHistoryRepository = null,
@@ -693,6 +705,19 @@ export function createApp({
       return json({ valid });
     }
 
+
+    if (productRepository && agentServiceToken && request.method === 'GET' && pathname === '/v1/agent/products') {
+      const authorization = request.headers.get('authorization');
+      const match = authorization?.match(/^Bearer (.+)$/);
+      if (!match || match[1] !== agentServiceToken) {
+        return json({ error: 'agent_authentication_required' }, 401);
+      }
+      try {
+        return json({ products: await productRepository.listCatalog() });
+      } catch {
+        return json({ error: 'product_catalog_unavailable' }, 500);
+      }
+    }
 
     // Agent-accessible conversation read route. Authenticated by AGENT_SERVICE_TOKEN bearer.
     // The agent reads conversation history to contextualize its reasoning without

@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   getPasskeySessionToken: vi.fn(),
@@ -40,7 +40,7 @@ vi.mock("@/lib/demo-storage", () => ({
   },
 }));
 vi.mock("@/components/providers/shopping-provider", () => ({
-  useShoppingStore: () => ({ addScheduledPurchase: mocks.addScheduledPurchase }),
+  useShoppingStore: () => ({ addScheduledPurchase: mocks.addScheduledPurchase, paymentMethods: [], preferredPaymentMethodId: "" }),
 }));
 vi.mock("@/services/biometric-provider", () => ({
   passkeyBiometricProvider: { approve: vi.fn() },
@@ -49,6 +49,11 @@ vi.mock("@/services/biometric-provider", () => ({
 import { useAIShopping } from "@/hooks/use-ai-shopping";
 
 describe("live agent chat", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.history.replaceState({}, "", "/");
+  });
+
   it("persists the user turn before invoking the agent with its backend conversation ID", async () => {
     let resolveUserPersistence: (() => void) | undefined;
     mocks.getPasskeySessionToken.mockReturnValue("passkey-session");
@@ -79,5 +84,35 @@ describe("live agent chat", () => {
     expect(mocks.analyze).toHaveBeenCalledWith("I need a monitor.", "conversation-123");
     expect(result.current.state.status).toBe("clarification");
     expect(result.current.state.messages.at(-1)?.content).toBe("What is your maximum budget?");
+  });
+
+  it("loads a conversation selected from the recent history controls", async () => {
+    mocks.getPasskeySessionToken.mockReturnValue("passkey-session");
+    mocks.listConversations.mockResolvedValue({
+      conversations: [
+        { id: "conversation-newest" },
+        { id: "conversation-selected" },
+      ],
+    });
+    mocks.conversationMessages.mockImplementation(async (conversationId: string) => ({
+      messages: [{
+        id: `message-${conversationId}`,
+        conversationId,
+        role: "user",
+        content: conversationId === "conversation-selected" ? "Selected history" : "Newest history",
+        createdAt: "2026-08-30T00:00:00Z",
+      }],
+    }));
+    const { result } = renderHook(() => useAIShopping());
+    await waitFor(() => expect(result.current.state.messages[0]?.content).toBe("Newest history"));
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent("nomad:open-conversation", {
+        detail: { conversationId: "conversation-selected" },
+      }));
+    });
+
+    await waitFor(() => expect(result.current.state.messages[0]?.content).toBe("Selected history"));
+    expect(mocks.conversationMessages).toHaveBeenLastCalledWith("conversation-selected");
   });
 });

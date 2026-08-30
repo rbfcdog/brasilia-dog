@@ -15,7 +15,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { demoStorage } from "@/lib/demo-storage";
+import { backendService, type BackendConversation } from "@/services/backend-service";
 import { useShoppingStore } from "@/components/providers/shopping-provider";
 
 const navigation = [
@@ -45,6 +47,21 @@ function SidebarContent({ closeMenu }: { closeMenu?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const { scheduledPurchases } = useShoppingStore();
+  const [recentConversations, setRecentConversations] = useState<Array<BackendConversation & { label: string }>>([]);
+
+  useEffect(() => {
+    void backendService.listConversations().then(async ({ conversations }) => {
+      const recent = await Promise.all(conversations.slice(0, 5).map(async (conversation) => {
+        const { messages } = await backendService.conversationMessages(conversation.id);
+        const firstRequest = messages.find((message) => message.role === "user");
+        return {
+          ...conversation,
+          label: firstRequest?.content || `Conversation ${new Date(conversation.createdAt).toLocaleDateString()}`,
+        };
+      }));
+      setRecentConversations(recent);
+    }).catch(() => setRecentConversations([]));
+  }, []);
 
   function newRequest() {
     demoStorage.clearMessages();
@@ -53,6 +70,12 @@ function SidebarContent({ closeMenu }: { closeMenu?: () => void }) {
     router.push("/");
   }
 
+
+  function openConversation(conversationId: string) {
+    closeMenu?.();
+    router.push(`/?conversation=${encodeURIComponent(conversationId)}`);
+    window.dispatchEvent(new CustomEvent("nomad:open-conversation", { detail: { conversationId } }));
+  }
   return (
     <div className="flex h-full flex-col">
       <Brand />
@@ -97,10 +120,14 @@ function SidebarContent({ closeMenu }: { closeMenu?: () => void }) {
       </div>
 
       <div className="mt-8">
-        <p className="px-2 font-mono text-[9px] uppercase tracking-[0.18em] text-muted">Recent</p>
+        <p className="px-2 font-mono text-[9px] uppercase tracking-[0.18em] text-muted">Recent conversations</p>
         <div className="mt-3 space-y-1 px-2 text-sm text-subtle">
-          <p className="truncate py-1.5">Ultrawide monitor search</p>
-          <p className="truncate py-1.5">Reorder office coffee</p>
+          {recentConversations.map((conversation) => (
+            <button key={conversation.id} type="button" onClick={() => openConversation(conversation.id)} className="block w-full truncate rounded-md px-1 py-1.5 text-left hover:bg-canvas hover:text-ink">
+              {conversation.label}
+            </button>
+          ))}
+          {recentConversations.length === 0 ? <p className="px-1 py-1.5 text-xs text-muted">No saved conversations</p> : null}
         </div>
       </div>
 

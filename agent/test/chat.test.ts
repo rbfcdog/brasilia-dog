@@ -50,7 +50,7 @@ test('chat reads persisted context and returns a non-executable purchase mandate
             minimumScreenSize: 34,
             validUntil: '2026-09-02T00:00:00.000Z',
             status: 'pending',
-            mockOutcome: 'scheduled',
+            mockOutcome: 'immediate',
           },
         };
       },
@@ -74,7 +74,7 @@ test('chat reads persisted context and returns a non-executable purchase mandate
       minimumScreenSize: 34,
       validUntil: '2026-09-02T00:00:00.000Z',
       status: 'pending',
-      mockOutcome: 'scheduled',
+      mockOutcome: 'immediate',
     },
   });
   assert.deepEqual(responderInputs, [{

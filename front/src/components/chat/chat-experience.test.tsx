@@ -41,6 +41,28 @@ vi.mock("@/services/shopping-service", () => ({
 const purchaseResult = {
   kind: "purchased" as const,
   message: "Purchase complete.",
+  listings: [
+    {
+      id: "offer-aster",
+      merchant: "Northstar Displays",
+      item: "Aster 34-inch UWQHD Monitor",
+      price: 292.43,
+      currency: "USD" as const,
+      merchantVerified: true,
+      qualifies: true,
+      selected: true,
+    },
+    {
+      id: "offer-over-limit",
+      merchant: "Orbit Electronics",
+      item: "Orbit 38-inch Monitor",
+      price: 349,
+      currency: "USD" as const,
+      merchantVerified: true,
+      qualifies: false,
+      selected: false,
+    },
+  ],
   receipt: {
     id: "RCT-DEMO1234",
     mandateId: mockData.mandate.id,
@@ -84,7 +106,7 @@ describe("chat purchase flow", () => {
     await user.click(await screen.findByRole("button", { name: /buy now/i }));
     expect(await screen.findByText("34-inch ultrawide monitor")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /approve mandate/i }));
+    await user.click(screen.getByRole("button", { name: /approve search mandate/i }));
     expect(await screen.findByRole("dialog")).toHaveTextContent("Confirm your identity");
 
     await user.click(screen.getByRole("button", { name: /confirm with passkey/i }));
@@ -92,9 +114,13 @@ describe("chat purchase flow", () => {
       ...mockData.mandate,
       paymentMethodId: "payment-visa-4242",
     });
-    expect(await screen.findByText("Aster 34-inch UWQHD Monitor")).toBeInTheDocument();
+    expect((await screen.findAllByText("Aster 34-inch UWQHD Monitor")).length).toBeGreaterThan(0);
     expect(screen.getAllByText("$292.43").length).toBeGreaterThan(0);
     expect(screen.getByRole("status")).toHaveTextContent("Purchase completed within your mandate");
+    expect(screen.getByRole("tab", { name: "Qualifying" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByText("Orbit 38-inch Monitor")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: "All offers" }));
+    expect(screen.getByText("Orbit 38-inch Monitor")).toBeInTheDocument();
   });
 
   it("does not execute when the native passkey approval is rejected", async () => {
@@ -107,7 +133,7 @@ describe("chat purchase flow", () => {
     renderChat();
 
     await user.click(await screen.findByRole("button", { name: /buy now/i }));
-    await user.click(screen.getByRole("button", { name: /approve mandate/i }));
+    await user.click(screen.getByRole("button", { name: /approve search mandate/i }));
     await user.click(await screen.findByRole("button", { name: /confirm with passkey/i }));
 
     expect(mockData.execute).not.toHaveBeenCalled();

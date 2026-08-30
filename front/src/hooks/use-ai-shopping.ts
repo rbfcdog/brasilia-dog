@@ -10,7 +10,9 @@ import { backendService } from "@/services/backend-service";
 import type {
   ChatFlowState,
   ChatMessage,
+  DiscoveredProduct,
   Mandate,
+  MarketplaceListing,
   PaymentChallenge,
   PurchaseReceipt,
   ScheduledPurchase,
@@ -22,6 +24,8 @@ export interface AIShoppingState {
   messages: ChatMessage[];
   mandate: Mandate | null;
   receipt: PurchaseReceipt | null;
+  listings: MarketplaceListing[];
+  discoveredProducts: DiscoveredProduct[];
   scheduledPurchase: ScheduledPurchase | null;
   paymentChallenge: PaymentChallenge | null;
   error: string | null;
@@ -34,12 +38,13 @@ export type AIShoppingAction =
   | { type: "SUBMIT"; message: ChatMessage }
   | { type: "CLARIFICATION"; message: ChatMessage }
   | { type: "MANDATE_READY"; message: ChatMessage; mandate: Mandate }
+  | { type: "PRODUCT_RESULTS"; message: ChatMessage; products: DiscoveredProduct[] }
   | { type: "UPDATE_MANDATE"; mandate: Mandate }
   | { type: "REQUEST_APPROVAL" }
   | { type: "CANCEL_APPROVAL" }
   | { type: "SEARCHING"; message: ChatMessage }
-  | { type: "PURCHASED"; message: ChatMessage; receipt: PurchaseReceipt }
-  | { type: "SCHEDULED"; message: ChatMessage; purchase: ScheduledPurchase }
+  | { type: "PURCHASED"; message: ChatMessage; receipt: PurchaseReceipt; listings: MarketplaceListing[] }
+  | { type: "SCHEDULED"; message: ChatMessage; purchase: ScheduledPurchase; listings: MarketplaceListing[] }
   | { type: "PAYMENT_CHALLENGE"; challenge: PaymentChallenge }
   | { type: "ERROR"; message: string }
   | { type: "DISMISS_TOAST" }
@@ -49,6 +54,8 @@ export const initialAIShoppingState: AIShoppingState = {
   status: "idle",
   messages: [],
   mandate: null,
+  listings: [],
+  discoveredProducts: [],
   receipt: null,
   scheduledPurchase: null,
   paymentChallenge: null,
@@ -63,7 +70,11 @@ export function aiShoppingReducer(
 ): AIShoppingState {
   switch (action.type) {
     case "HYDRATE":
-      return { ...state, messages: action.messages, hydrated: true };
+      return {
+        ...initialAIShoppingState,
+        messages: action.messages,
+        hydrated: true,
+      };
     case "SUBMIT":
       return {
         ...state,
@@ -71,6 +82,8 @@ export function aiShoppingReducer(
         messages: [...state.messages, action.message],
         mandate: null,
         receipt: null,
+        listings: [],
+        discoveredProducts: [],
         scheduledPurchase: null,
         paymentChallenge: null,
         error: null,
@@ -81,6 +94,13 @@ export function aiShoppingReducer(
         ...state,
         status: "clarification",
         messages: [...state.messages, action.message],
+      };
+    case "PRODUCT_RESULTS":
+      return {
+        ...state,
+        status: "clarification",
+        messages: [...state.messages, action.message],
+        discoveredProducts: action.products,
       };
     case "MANDATE_READY":
       return {
@@ -107,6 +127,7 @@ export function aiShoppingReducer(
         ...state,
         status: "purchased",
         messages: [...state.messages, action.message],
+        listings: action.listings,
         receipt: action.receipt,
         toast: "Purchase completed within your mandate.",
       };
@@ -115,6 +136,7 @@ export function aiShoppingReducer(
         ...state,
         status: "scheduled",
         messages: [...state.messages, action.message],
+        listings: action.listings,
         scheduledPurchase: action.purchase,
         toast: "Mandate activated. Monitoring has started.",
       };
@@ -174,45 +196,57 @@ export function useAIShopping() {
   } = useShoppingStore();
   const conversationIdRef = useRef<string | null>(null);
 
-  // On mount: hydrate from backend if a passkey session exists, else from demoStorage.
+  const loadConversation = useCallback(async (conversationId: string) => {
+    const { messages } = await backendService.conversationMessages(conversationId);
+    conversationIdRef.current = conversationId;
+    dispatch({
+      type: "HYDRATE",
+      messages: messages.map((message) => ({
+        id: message.id,
+        role: message.role,
+        content: message.content,
+        createdAt: message.createdAt,
+      })),
+    });
+  }, []);
+
+  // Hydrate the selected backend conversation, or the most recent one.
   useEffect(() => {
     const sessionToken = getPasskeySessionToken();
-
-    if (sessionToken) {
-      // Try to load the most recent conversation from the backend.
-      void backendService
-        .listConversations()
-        .then(async ({ conversations }) => {
-          if (conversations.length > 0) {
-            // Use the most recent conversation.
-            const latest = conversations[0];
-            conversationIdRef.current = latest.id;
-            const { messages } = await backendService.conversationMessages(latest.id);
-            dispatch({
-              type: "HYDRATE",
-              messages: messages.map((m) => ({
-                id: m.id,
-                role: m.role,
-                content: m.content,
-                createdAt: m.createdAt,
-              })),
-            });
-          } else {
-            // No existing conversation; create one.
-            const { conversation } = await backendService.createConversation();
-            conversationIdRef.current = conversation.id;
-            dispatch({ type: "HYDRATE", messages: [] });
-          }
-        })
-        .catch(() => {
-          // Backend unavailable; fall back to demoStorage.
-          dispatch({ type: "HYDRATE", messages: demoStorage.readMessages() });
-        });
-    } else {
-      // No passkey session; use local demoStorage.
+    if (!sessionToken) {
       dispatch({ type: "HYDRATE", messages: demoStorage.readMessages() });
+      return;
     }
-  }, []);
+
+    const selectedConversationId = new URLSearchParams(window.location.search).get("conversation");
+    void backendService
+      .listConversations()
+      .then(async ({ conversations }) => {
+        const selected = selectedConversationId
+          ? conversations.find((conversation) => conversation.id === selectedConversationId)
+          : conversations[0];
+        if (selected) {
+          await loadConversation(selected.id);
+          return;
+        }
+        const { conversation } = await backendService.createConversation();
+        conversationIdRef.current = conversation.id;
+        dispatch({ type: "HYDRATE", messages: [] });
+      })
+      .catch(() => dispatch({ type: "HYDRATE", messages: demoStorage.readMessages() }));
+  }, [loadConversation]);
+
+  useEffect(() => {
+    function openConversation(event: Event) {
+      const conversationId = (event as CustomEvent<{ conversationId?: string }>).detail?.conversationId;
+      if (!conversationId) return;
+      void loadConversation(conversationId).catch(() => {
+        dispatch({ type: "ERROR", message: "The selected conversation could not be loaded." });
+      });
+    }
+    window.addEventListener("nomad:open-conversation", openConversation);
+    return () => window.removeEventListener("nomad:open-conversation", openConversation);
+  }, [loadConversation]);
 
   // When using demoStorage (no backend conversation), keep it in sync.
   useEffect(() => {
@@ -255,6 +289,11 @@ export function useAIShopping() {
           void persistMessage(conversationIdRef, assistantMessage);
           return;
         }
+        if (response.kind === "products") {
+          dispatch({ type: "PRODUCT_RESULTS", message: assistantMessage, products: response.products });
+          void persistMessage(conversationIdRef, assistantMessage);
+          return;
+        }
 
         dispatch({
           type: "MANDATE_READY",
@@ -289,10 +328,9 @@ export function useAIShopping() {
         throw new Error("Native passkey verification is required before this mandate can be executed.");
       }
 
-
       const searchingMessage = createMessage(
         "assistant",
-        "Mandate approved. I am searching verified merchants for the best qualifying offer.",
+        "Search mandate approved. I am now comparing verified merchants and will automatically buy the best qualifying offer.",
       );
       dispatch({ type: "SEARCHING", message: searchingMessage });
       void persistMessage(conversationIdRef, searchingMessage);
@@ -303,13 +341,19 @@ export function useAIShopping() {
       const assistantMessage = createMessage("assistant", result.message);
 
       if (result.kind === "purchased") {
-        dispatch({ type: "PURCHASED", message: assistantMessage, receipt: result.receipt });
+        dispatch({
+          type: "PURCHASED",
+          message: assistantMessage,
+          receipt: result.receipt,
+          listings: result.listings,
+        });
       } else {
         schedulePurchase(result.scheduledPurchase);
         dispatch({
           type: "SCHEDULED",
           message: assistantMessage,
           purchase: result.scheduledPurchase,
+          listings: result.listings,
         });
       }
       void persistMessage(conversationIdRef, assistantMessage);
