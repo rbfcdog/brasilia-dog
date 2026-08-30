@@ -2,21 +2,32 @@
 
 **Agentic commerce for buyers and sellers.** A fixed-price commerce operating system where people set the rules and AI agents execute with proof.
 
-> Buyers define the mandate. Merchants publish exact product data and one fixed price. Nomad turns that agreement into a verifiable purchase.
+> Buyers define the mandate. Merchants publish exact product data and one fixed price. Vero turns that agreement into a verifiable purchase.
 
 NextWave Hackathon 2026 · Yuno × Nauta · **Track 01 — The Buyer Who Isn't Human**
+
+
+## Live deployment
+
+The current frontend deployment is:
+
+<https://vero-kappa-umber.vercel.app>
+
+The public landing page exposes Buyer and Merchant workspace selection, sign in, account creation, and links into protected workspaces. `/assistant` redirects unauthenticated users back to the landing page with the requested destination preserved. `/merchant/login` is the merchant entry point.
+
+The deployment URL proves that the Next.js frontend is serving. It does not, by itself, prove that the Node API, Railway agent, Supabase migrations, OpenAI, or Stripe sandbox are healthy. Use `front/README.md` and the transfer log for the exact demo flow and verification boundaries.
 
 ---
 
 ## For the judge: the 60-second version
 
-Payment systems assume the person pressing "pay" is the buyer. Nomad replaces that assumption with a **mandate**: a signed, versioned, revocable authorization that says what an agent may buy, up to how much, until when, and from whom.
+Payment systems assume the person pressing "pay" is the buyer. Vero replaces that assumption with a **mandate**: a signed, versioned, revocable authorization that says what an agent may buy, up to how much, until when, and from whom.
 
 The one sentence that describes the whole system:
 
 > **The agent never holds spending power. It holds a signature, and the signature is evidence — not permission.**
 
-Every purchase is authorized by the *backend*, at the moment of decision, against the *current* mandate state in Postgres. The agent cannot widen its own scope, cannot skip a check, cannot replay a proof, and cannot see a card number. If you revoke a mandate mid-run, the next poll — three seconds later — rejects the purchase, because revocation is enforced inside the same database transaction that records the proof.
+Every purchase is authorized by the *backend*, at the moment of decision, against the *current* mandate state in Postgres. The agent cannot widen its own scope, cannot skip a check, cannot replay a proof, and cannot see a card number. If you revoke a mandate mid-run, the next poll rejects the purchase because revocation is enforced in the backend authorization path and, where configured, the proof-recording transaction.
 
 **Where to look first:**
 
@@ -27,7 +38,7 @@ Every purchase is authorized by the *backend*, at the moment of decision, agains
 | Revocation enforced atomically, in SQL | [`api/supabase/migrations/20260829201500_agent_identity_proofs.sql`](api/supabase/migrations/20260829201500_agent_identity_proofs.sql) → `record_agent_execution_proof` |
 | The signed proof format | [`api/src/services/agent-proof.ts`](api/src/services/agent-proof.ts) → `canonicalAgentProofPayload` |
 | Prompt injection containment | [`agent/src/marketplace-selector.ts`](agent/src/marketplace-selector.ts) |
-| Runs that survive a process restart | [`agent/src/durable-run-repository.ts`](agent/src/durable-run-repository.ts) |
+| Run persistence and restart limits | [`agent/src/run-store.ts`](../agent/src/run-store.ts) |
 
 ---
 
@@ -90,7 +101,7 @@ The brief says judges will change something live and watch. Here is what happens
 
 | Judge does this | System response | Enforced at |
 | --- | --- | --- |
-| **Revokes the mandate mid-run** | Next poll (≤3s) sees `status = 'revoked'`, appends a `mandate_revoked` event, terminates the run as `rejected`. If the revocation lands *between* the check and the payment, the security-definer RPC refuses to record the proof and the payment never executes | [`marketplace-service.ts`](agent/src/marketplace-service.ts) + `record_agent_execution_proof` |
+| **Revokes the mandate mid-run** | The next poll reads the current mandate state and rejects a revoked mandate. The exact timing depends on the deployed polling interval and backend availability | [`marketplace-policy.ts`](../api/src/services/marketplace-policy.ts) |
 | **Lowers the spending limit below the product price** | `productIsAuthorized` fails on `offering.amountMinor <= mandate.maxAmountMinor`. The candidate disappears from the authorized set. The agent is never offered it, so it cannot select it | [`marketplace-policy.ts`](api/src/services/marketplace-policy.ts) |
 | **Lets the mandate expire** | The run parks in `waiting_for_extension` and stops. Resuming requires a **fresh passkey assertion** and produces mandate **version 2** — the old version can no longer be used, because proofs are bound to `mandateVersion` | `extend_mandate_for_run` |
 | **Replays a captured purchase request** | `nonce text not null unique` on `agent_execution_proofs`. The second insert violates the constraint at the database level. Not a cache, not application logic — a constraint | [`20260829201500_agent_identity_proofs.sql`](api/supabase/migrations/20260829201500_agent_identity_proofs.sql) |
@@ -98,7 +109,7 @@ The brief says judges will change something live and watch. Here is what happens
 | **Points the proof at a different product** | The signature covers the exact `path`, which contains the product slug. Changing the product invalidates the signature | `canonicalAgentProofPayload` |
 | **Uses another user's mandate** | `mandate.ownerId !== agent.ownerId` → rejected. Ownership is checked on both the agent identity and the mandate, independently | [`cross-credential-auth.ts`](api/src/services/cross-credential-auth.ts) |
 | **Injects instructions into a product description** | Candidate content reaches the model only as JSON data, with a standing instruction that it is untrusted. The model's only output is a `selectedSlug` that must match one of the pre-authorized candidates. A slug outside the set is rejected and retried once, then fails closed | [`marketplace-selector.ts`](agent/src/marketplace-selector.ts) |
-| **Kills the agent process mid-run** | Run state is in Postgres, not memory. On restart the worker re-claims the lease and continues from the last recorded state | [`durable-run-repository.ts`](agent/src/durable-run-repository.ts) |
+| **Kills the agent process mid-run** | The current `RunStore` is file-backed when configured and is not a shared Postgres checkpoint store. A restart or replica change can lose or isolate run state unless a durable shared path is provisioned | [`agent/src/run-store.ts`](../agent/src/run-store.ts) |
 | **Asks for a product category that does not exist** | The catalog search returns zero rows, the run stays in `monitoring`, and no purchase is invented. Free-text scope is normalized against the real catalog categories before it is used as a filter | [`chat.ts`](agent/src/chat.ts) → `marketplaceCategory` |
 
 ---
@@ -253,7 +264,7 @@ If any of that fails, the insert raises and no payment is recorded. **Revocation
 
 ## Prompt injection defense
 
-Product descriptions, names, and metadata are attacker-controlled in any real marketplace. Nomad treats them as hostile:
+Product descriptions, names, and metadata are attacker-controlled in any real marketplace. Vero treats them as hostile:
 
 1. **Structural containment.** The model's entire output surface for a purchase is `{ selectedSlug, rationale }` under a strict JSON schema. There is no tool the model can call that moves money.
 2. **Pre-authorized candidate set.** The model chooses *from* a list the API already authorized. A `selectedSlug` outside that set is rejected in code, retried once with the error as a correction, then fails closed with `MODEL_OUTPUT_INVALID`.
@@ -266,6 +277,8 @@ The strongest property is the one that needs no defense: **even a fully compromi
 ---
 
 ## Challenge requirements → implementation
+
+The matrix below describes repository implementation and contract coverage. It is not a claim that the public Vercel deployment has a healthy end-to-end backend or live payment settlement.
 
 Every requirement in [Challenge 01](docs/challenge-01-buyer-who-isnt-human.md), mapped to code you can open.
 
@@ -338,24 +351,25 @@ The pattern throughout: **invariants live in the schema.** Status/timestamp agre
 
 ```
 brasilia-dog/
-├── api/                    Authority. Node 22 · Express 5 · Stripe · WebAuthn
+├── api/                    Authority. Node 22, Express 5, Stripe, WebAuthn
 │   ├── src/services/       Mandate policy, cross-credential auth, proofs, payments, merchant
 │   ├── src/repositories/   Supabase access, service-role only
 │   ├── src/payments/       Stripe MPP handler
-│   ├── supabase/migrations/  24 migrations — the real schema
-│   └── test/               122 test cases
-├── agent/                  Untrusted executor. Node 22 · OpenAI · LangGraph
-│   ├── src/chat.ts             Grounded conversation + mandate proposal
-│   ├── src/marketplace-*.ts    Durable run worker, authority client, selector
-│   ├── src/durable-run-repository.ts   Postgres-backed run state
-│   └── test/               49 test cases
-├── front/                  Next.js 16 · React 19 · Tailwind 4
+│   ├── supabase/migrations/  Database schema, policies, RPCs, and seed data
+│   └── test/               127 passing test cases
+├── agent/                  Untrusted executor. Node 22, OpenAI, LangGraph
+│   ├── src/chat.ts         Grounded conversation and mandate proposal
+│   ├── src/graph.ts        Agent run state machine
+│   ├── src/adapters.ts     HTTP backend and payment adapter contracts
+│   ├── src/run-store.ts    File-backed run state for the configured process
+│   └── test/               52 passing tests and 1 opt-in live test
+├── front/                  Next.js 16, React 19, Tailwind 4
 │   ├── src/app/(buyer)/    Assistant, history, scheduled, profile, support
 │   ├── src/app/merchant/   Dashboard, orders, catalog, finance
-│   ├── src/app/api/        BFF — every secret stays server-side
-│   └── e2e/                Playwright end-to-end
-├── docs/                   Challenge briefs, decision log, local dev, merchant platform
-└── scripts/verify-local.mjs   Readiness gate for all five hops
+│   ├── src/app/api/        BFF, with secrets kept server-side
+│   └── e2e/                Playwright end-to-end tests
+├── docs/                   Product, architecture, decision, and handoff documentation
+└── scripts/verify-local.mjs   Local readiness gate
 ```
 
 ---
@@ -382,13 +396,13 @@ We are calling that out rather than burying it, because *how* it changed is the 
 **Cost:** agent-key compromise now requires revoking the agent identity rather than rotating a KMS reference. `agent_identities.status` and the one-active-key index make that a single operation.
 **Revisit when:** a hardware-backed workload identity can sign locally with non-exportability and audit evidence equivalent to KMS custody.
 
-### Durable Postgres runs, replacing in-memory checkpoints
+### File-backed agent runs and the durability boundary
 
-The MVP used LangGraph `MemorySaver` and an in-process store, with the limitation documented at the time. **We closed it**: `agent_runs` + `agent_run_events` + lease-based claiming now survive restarts, and the event log is append-only with monotonic sequencing. This is the decision log working as intended — a recorded MVP constraint, revisited when its stated condition was met.
+The current agent `RunStore` persists run state to its configured file path. It is not a shared Postgres checkpoint repository and does not provide multi-replica coordination by itself. A durable shared store, lease ownership, and restart tests are required before scaling the agent horizontally.
 
-### Fixed prices and a mocked catalog, real payments and real crypto
+### Fixed prices, sandbox payment, and real verification
 
-The catalog is seeded across 10 categories. The **money is real** (Stripe MPP in test mode with actual Shared Payment Tokens), the **cryptography is real** (Ed25519, WebAuthn), and the **database constraints are real**. We mocked the part the brief explicitly permits mocking, and refused to mock the parts that carry the security argument.
+The catalog is seeded across multiple categories. Product discovery and payment execution remain bounded by backend policy. Ed25519 verification, WebAuthn, database constraints, and the sandbox payment path are real where configured. Stripe live settlement and an external marketplace checkout are not claimed by this repository.
 
 ---
 
@@ -398,12 +412,12 @@ Stated plainly, because a system whose limits you cannot name is a system you do
 
 | Limit | Consequence | Status |
 | --- | --- | --- |
-| The agent runs as **one replica** | Two workers could re-claim a run whose 20s lease expired during a longer purchase, risking a duplicate settlement. The single-tick serialization in `MarketplaceRunService` prevents this today | Documented; needs a lease heartbeat + compare-and-set before scaling out |
-| One Ed25519 identity per agent **process** | The first owner to call `/v1/agents/ensure` binds the fingerprint; a second owner is rejected | Correct for a single-tenant demo; multi-tenant needs per-owner keys |
-| The agent key is **agent-managed**, not KMS-held | Agent compromise means key compromise, so recovery is identity revocation rather than key rotation | Honestly labeled in the schema; see the trade-off above |
-| Transient failures during a run are **terminal** | A network blip marks a run `failed` rather than retrying with backoff | Retryable-error classification is the right fix |
-| `DemoBackend` exists | Test-only. `ADAPTER_MODE=http` is required for real runs and the runtime never silently falls back | Intentional |
-| Catalog is seeded, not a live marketplace | Prices are fixed, which is the model the product argues for | Intentional |
+| The agent run store is file-backed | A restart, ephemeral filesystem, or second replica can lose or isolate run state | Configure durable shared storage or move run state to Postgres before scaling |
+| One Ed25519 identity per agent process | The first owner to call `/v1/agents/ensure` binds the fingerprint; a second owner is rejected | Correct for a single-tenant demo; multi-tenant needs per-owner keys |
+| The agent key is agent-managed, not KMS-held | Agent compromise means key compromise, so recovery is identity revocation rather than key rotation | Honestly labeled in the schema; see the trade-off above |
+| Transient failures during a run can be terminal | A network blip may mark a run `failed` rather than retrying with backoff | Retryable-error classification is the right fix |
+| `DemoBackend` exists | It is for tests and demo-only execution; HTTP mode is required for the deployed agent path | Intentional and explicitly labelled |
+| Catalog is seeded, not a live marketplace | Prices and availability are controlled by the configured catalog | Intentional; live marketplace discovery is not claimed |
 
 None of these affect the security properties. They are availability and scale limits, and each has a known fix.
 
@@ -422,11 +436,11 @@ None of these affect the security properties. They are availability and scale li
 
 ## Further reading
 
-- [Challenge 01 brief](docs/challenge-01-buyer-who-isnt-human.md) — the problem we chose
-- [Decision log](docs/decision-log.md) — trade-offs with alternatives and revisit conditions
-- [Transfer log](docs/transfer-log.md) - handoff operacional detalhado, decisões, evidências, riscos e próximos passos
-- [Merchant platform](docs/merchant-platform.md) — projections, commands, security boundary
-- [Local development](docs/local-dev.md) — dev container, configuration flow, service topology
+- [Decision log](decision-log.md) - architecture trade-offs and revisit conditions
+- [Transfer log](transfer-log.md) - detailed handoff, evidence, risks, and next steps
+- [Frontend live deployment](../front/README.md) - Vercel URL and demo flow
+- [Backend contract](../agent/docs/backend-contract.md) - agent to backend HTTP contract
+- [Stripe MPP runbook](../api/docs/stripe-mpp-production-runbook.md) - sandbox and live-money gates
 
 ---
 
@@ -479,23 +493,23 @@ One `.env` at the repository root; all three services inherit it. Because it is 
 
 ## Tests
 
-**228 test cases across 59 files.** No mocked authorization — the security tests exercise the real verifier.
+**244 passing tests and 1 skipped opt-in live test were observed in the current workspace.** The suites exercise authorization, proofs, policy, payments, merchant flows, agent runs, catalog tools, BFF boundaries, hooks, and components.
 
 ```bash
-npm --prefix api   test    # 122 cases — authority, proofs, policy, payments, merchant
-npm --prefix agent test    #  49 cases — graph, contracts, catalog, proof, runs
-npm --prefix front test    #  57 cases — BFF boundary, hooks, components
-npm --prefix front run test:e2e   # Playwright end-to-end
+npm --prefix api   test    # 127 passing
+npm --prefix agent test    # 52 passing, 1 skipped live OpenAI test
+npm --prefix front test    # 65 passing
+npm --prefix front run test:e2e   # Playwright end-to-end, requires the full configured stack
 ```
 
-The end-to-end suite ([`front/e2e/agent-run.spec.ts`](front/e2e/agent-run.spec.ts)) drives the whole vertical in a real browser: a buyer approves a mandate with a passkey, the run settles, and the **same** transaction is asserted on both the buyer and merchant projections. A second case covers mandate expiry resuming at version two before settlement.
+The optional live OpenAI test is not evidence when skipped. The deployed Vercel URL proves frontend serving only; full-stack behavior also requires the Node API, Railway agent, Supabase migrations, and configured sandbox dependencies.
 
-The tests worth reading, because they are the security argument in executable form — [`agent/test/proof.test.ts`](agent/test/proof.test.ts):
+The tests worth reading, because they are the security argument in executable form, include [`agent/test/proof.test.ts`](../agent/test/proof.test.ts):
 
 - a tampered signature is rejected
 - a proof from the wrong agent identity is rejected
-- reusing a valid nonce is rejected **even with a new idempotency key**
+- reusing a valid nonce is rejected even with a new idempotency key
 - an expired proof is rejected
-- changing the signed UTF-8 body is detected by its SHA-256 binding
+- changing the signed request body is detected by its SHA-256 binding
 
-Plus [`api/test/cross-credential.test.ts`](api/test/cross-credential.test.ts), [`api/test/marketplace-policy.test.ts`](api/test/marketplace-policy.test.ts), and [`front/src/app/api/agent-runs/route.test.ts`](front/src/app/api/agent-runs/route.test.ts) (the BFF authority boundary: ownership isolation, freshness gating, idempotency).
+Plus [`api/test/cross-credential.test.ts`](../api/test/cross-credential.test.ts), [`api/test/marketplace-policy.test.ts`](../api/test/marketplace-policy.test.ts), and [`front/src/app/api/agent-runs/route.test.ts`](../front/src/app/api/agent-runs/route.test.ts), which cover the authority boundary, freshness gating, ownership isolation, and idempotency.
