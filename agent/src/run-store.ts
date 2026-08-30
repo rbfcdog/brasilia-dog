@@ -181,13 +181,21 @@ export class RunStore {
 
   private save(): void {
     if (!this.persistencePath) return;
-    mkdirSync(dirname(this.persistencePath), { recursive: true });
-    writeFileSync(this.persistencePath, JSON.stringify({
-      runs: [...this.runs.values()],
-      startIdempotency: [...this.startIdempotency.entries()],
-      resumeIdempotency: [...this.resumeIdempotency.entries()],
-    }), 'utf8');
+    try {
+      mkdirSync(dirname(this.persistencePath), { recursive: true });
+      writeFileSync(this.persistencePath, JSON.stringify({
+        runs: [...this.runs.values()],
+        startIdempotency: [...this.startIdempotency.entries()],
+        resumeIdempotency: [...this.resumeIdempotency.entries()],
+      }), 'utf8');
+    } catch (error) {
+      console.error('Agent run persistence unavailable.', {
+        path: this.persistencePath,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
+
   private bodyHash(value: unknown): string {
     return sha256Utf8(JSON.stringify(value));
   }

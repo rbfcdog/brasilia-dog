@@ -56,7 +56,7 @@ export class AgentService {
   constructor({
     adapters,
     selector,
-    store = new RunStore(undefined, process.env.RUN_STORE_PATH ?? '.data/agent-runs.json'),
+    store = new RunStore(undefined, process.env.RUN_STORE_PATH ?? '/tmp/agent-runs.json'),
     logger = consoleStepLogger,
     responder,
     identity,
