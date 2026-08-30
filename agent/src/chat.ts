@@ -432,14 +432,38 @@ export class OpenAIShoppingResponder implements ChatResponder {
           throw new AgentError('PRODUCT_CATALOG_UNAVAILABLE', 'Marketplace search is not configured.', 503);
         }
         const toolExecutions = await Promise.all(functionCalls.map(async (call) => {
-          const execution = await executeCatalogTool(call.name, call.arguments, input.catalog!);
-          return {
-            type: 'function_call_output' as const,
-            call_id: call.call_id,
-            output: execution.output,
-            activity: execution.activity,
-            products: execution.products,
-          };
+          try {
+            const execution = await executeCatalogTool(call.name, call.arguments, input.catalog!);
+            return {
+              type: 'function_call_output' as const,
+              call_id: call.call_id,
+              output: execution.output,
+              activity: execution.activity,
+              products: execution.products,
+            };
+          } catch (error) {
+            if (!(error instanceof AgentError) || error.code !== 'BACKEND_RESPONSE_INVALID') throw error;
+            const activity: CatalogActivity = call.name === 'search_products'
+              ? {
+                type: 'catalog_search',
+                category: null,
+                query: null,
+                maximumAmount: null,
+                resultSlugs: [],
+              }
+              : {
+                type: 'product_comparison',
+                requestedSlugs: [],
+                resultSlugs: [],
+              };
+            return {
+              type: 'function_call_output' as const,
+              call_id: call.call_id,
+              output: JSON.stringify({ products: [], unavailable: true }),
+              activity,
+              products: [],
+            };
+          }
         }));
         activity = [...activity, ...toolExecutions.map((execution) => execution.activity)];
         catalogProducts = uniqueProducts([
