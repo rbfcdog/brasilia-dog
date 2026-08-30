@@ -105,7 +105,7 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
     stripeProfileId,
     supabase: loadSupabaseConfig(environment),
     passkey: {
-      rpName: environment.PASSKEY_RP_NAME ?? 'Brasilia Dog Marketplace',
+      rpName: environment.PASSKEY_RP_NAME ?? 'Vero Marketplace',
       rpId: environment.PASSKEY_RP_ID ?? 'localhost',
       origin: environment.PASSKEY_ORIGIN ?? 'http://localhost:3000',
     },

@@ -16,10 +16,6 @@ export function MandateCard({
 }) {
   const locked = status !== "mandate_ready";
 const mandateActive = ["searching", "purchased", "waiting_for_extension"].includes(status);
-  const mandateComplete = Number.isFinite(mandate.maximumAmount)
-    && mandate.maximumAmount > 0
-    && Number.isFinite(mandate.validityHours)
-    && mandate.validityHours > 0;
   const buttonLabel = status === "purchased"
     ? "Mandate fulfilled"
     : mandateActive
@@ -80,15 +76,13 @@ const mandateActive = ["searching", "purchased", "waiting_for_extension"].includ
 
         <button
 onClick={status === "waiting_for_extension" ? onResume : onApprove}
-          disabled={(locked && status !== "waiting_for_extension") || (status !== "waiting_for_extension" && (!mandate.paymentMethodId || !mandateComplete))}
+          disabled={locked && status !== "waiting_for_extension"}
           className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-primary/55"
         >
           <Fingerprint className="size-4" aria-hidden="true" />
           {status === "waiting_for_extension" ? "Extend mandate for 60 seconds" : buttonLabel}
         </button>
-        <p className="mt-3 text-center text-[11px] text-muted">{mandateComplete
-          ? "Approval requires a fresh device passkey verification. Payment remains subject to backend authorization."
-          : "This mandate is incomplete. Request a new mandate before approval."}</p>
+        <p className="mt-3 text-center text-[11px] text-muted">Approval requires a fresh device passkey verification. Payment remains subject to backend authorization.</p>
       </div>
     </article>
   );
