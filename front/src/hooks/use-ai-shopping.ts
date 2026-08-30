@@ -8,6 +8,7 @@ import { passkeyBiometricProvider } from "@/services/biometric-provider";
 import { shoppingService } from "@/services/shopping-service";
 import { backendService, type ConversationEventInput } from "@/services/backend-service";
 import type {
+  AgentActivity,
   ChatFlowState,
   ChatMessage,
   DiscoveredProduct,
@@ -28,6 +29,7 @@ export interface AIShoppingState {
   receipt: PurchaseReceipt | null;
   listings: MarketplaceListing[];
   discoveredProducts: DiscoveredProduct[];
+  catalogActivity: AgentActivity[];
   scheduledPurchase: ScheduledPurchase | null;
   paymentChallenge: PaymentChallenge | null;
   error: string | null;
@@ -41,7 +43,7 @@ export type AIShoppingAction =
   | { type: "SUBMIT"; message: ChatMessage }
   | { type: "CLARIFICATION"; message: ChatMessage }
   | { type: "MANDATE_READY"; message: ChatMessage; mandate: Mandate }
-  | { type: "PRODUCT_RESULTS"; message: ChatMessage; products: DiscoveredProduct[] }
+  | { type: "PRODUCT_RESULTS"; message: ChatMessage; products: DiscoveredProduct[]; activity: AgentActivity[] }
   | { type: "UPDATE_MANDATE"; mandate: Mandate }
   | { type: "REQUEST_APPROVAL" }
   | { type: "CANCEL_APPROVAL" }
@@ -60,6 +62,7 @@ export const initialAIShoppingState: AIShoppingState = {
   mandate: null,
   listings: [],
   discoveredProducts: [],
+  catalogActivity: [],
   receipt: null,
   scheduledPurchase: null,
   paymentChallenge: null,
@@ -90,6 +93,7 @@ export function aiShoppingReducer(
         receipt: null,
         listings: [],
         discoveredProducts: [],
+        catalogActivity: [],
         scheduledPurchase: null,
         paymentChallenge: null,
         error: null,
@@ -107,6 +111,7 @@ export function aiShoppingReducer(
         status: "clarification",
         messages: [...state.messages, action.message],
         discoveredProducts: action.products,
+        catalogActivity: action.activity,
       };
     case "MANDATE_READY":
       return {
@@ -359,6 +364,28 @@ export function useAIShopping() {
         const response = await shoppingService.analyze(trimmed, conversationIdRef.current ?? undefined);
         const assistantMessage = createMessage("assistant", response.message);
 
+        if (userPersisted) {
+          const assistantPersisted = await persistMessage(conversationIdRef, assistantMessage);
+          const responseEventPersisted = await persistEvent(conversationIdRef, {
+            type: "agent_response",
+            payload: response,
+            createdAt: assistantMessage.createdAt,
+          });
+          if (!assistantPersisted || !responseEventPersisted) {
+            throw new ConversationPersistenceError(new Error("Agent response could not be saved."));
+          }
+          if (response.kind === "mandate") {
+            const mandateEventPersisted = await persistEvent(conversationIdRef, {
+              type: "mandate_proposed",
+              payload: { ...response.mandate },
+              createdAt: assistantMessage.createdAt,
+            });
+            if (!mandateEventPersisted) {
+              throw new ConversationPersistenceError(new Error("Mandate proposal could not be saved."));
+            }
+          }
+        }
+
         if (!userPersisted) {
           pendingMessagesRef.current.push(assistantMessage);
           pendingEventsRef.current.push({
@@ -366,6 +393,13 @@ export function useAIShopping() {
             payload: response,
             createdAt: assistantMessage.createdAt,
           });
+          if (response.kind === "mandate") {
+            pendingEventsRef.current.push({
+              type: "mandate_proposed",
+              payload: { ...response.mandate },
+              createdAt: assistantMessage.createdAt,
+            });
+          }
         }
 
         if (response.kind === "clarification") {
@@ -373,7 +407,12 @@ export function useAIShopping() {
           return;
         }
         if (response.kind === "products") {
-          dispatch({ type: "PRODUCT_RESULTS", message: assistantMessage, products: response.products });
+          dispatch({
+            type: "PRODUCT_RESULTS",
+            message: assistantMessage,
+            products: response.products,
+            activity: response.activity ?? [],
+          });
           return;
         }
 

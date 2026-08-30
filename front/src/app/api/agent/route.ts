@@ -51,6 +51,10 @@ function agentReply(payload: unknown): { content: string; evidence: Record<strin
   return { content: payload.data.message.trim(), evidence: payload.data };
 }
 
+function mandateProposal(evidence: Record<string, unknown>): Record<string, unknown> | null {
+  return evidence.kind === "mandate" && isRecord(evidence.mandate) ? evidence.mandate : null;
+}
+
 async function persistConversationResource(
   request: Request,
   conversationId: string,
@@ -93,9 +97,19 @@ async function persistAssistantReply(
   });
   if (!messageSaved) return false;
 
-  return persistConversationResource(request, conversationId, "events", {
+  const agentResponseSaved = await persistConversationResource(request, conversationId, "events", {
     type: "agent_response",
     payload: evidence,
+    createdAt,
+  });
+  if (!agentResponseSaved) return false;
+
+  const mandate = mandateProposal(evidence);
+  if (!mandate) return true;
+
+  return persistConversationResource(request, conversationId, "events", {
+    type: "mandate_proposed",
+    payload: mandate,
     createdAt,
   });
 }

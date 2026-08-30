@@ -117,6 +117,50 @@ describe("agent chat BFF", () => {
     expect(response.status).toBe(200);
   });
 
+  it("records a mandate proposal after saving its agent response", async () => {
+    process.env.AGENT_SERVICE_URL = "https://agent.example.test";
+    process.env.AGENT_SERVICE_TOKEN = "agent-service-token-12345";
+    process.env.BACKEND_API_URL = "https://api.example.test";
+    const upstream = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        data: {
+          kind: "mandate",
+          message: "Review this limit before approval.",
+          mandate: { id: "mandate-1", scope: "ultrawide monitor", maximumAmount: 300 },
+          activity: [],
+        },
+      }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ message: { id: "message-1" } }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ event: { id: "event-1" } }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ event: { id: "event-2" } }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      }));
+    vi.stubGlobal("fetch", upstream);
+
+    const response = await POST(new Request("http://localhost/api/agent", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer passkey-session",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ message: "Buy a monitor.", conversationId: "conversation-123" }),
+    }));
+
+    expect(JSON.parse(String(upstream.mock.calls[3]?.[1]?.body))).toMatchObject({
+      type: "mandate_proposed",
+      payload: { id: "mandate-1", scope: "ultrawide monitor", maximumAmount: 300 },
+    });
+    expect(response.status).toBe(200);
+  });
+
   it("does not return an authenticated agent reply when backend persistence fails", async () => {
     process.env.AGENT_SERVICE_URL = "https://agent.example.test";
     process.env.AGENT_SERVICE_TOKEN = "agent-service-token-12345";

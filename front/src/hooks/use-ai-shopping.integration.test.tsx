@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   conversationMessages: vi.fn(),
   createConversation: vi.fn(),
   appendConversationMessage: vi.fn(),
+  appendConversationEvent: vi.fn(),
   analyze: vi.fn(),
   execute: vi.fn(),
   addScheduledPurchase: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock("@/services/backend-service", () => ({
     conversationMessages: mocks.conversationMessages,
     createConversation: mocks.createConversation,
     appendConversationMessage: mocks.appendConversationMessage,
+    appendConversationEvent: mocks.appendConversationEvent,
   },
 }));
 vi.mock("@/services/shopping-service", () => ({
@@ -53,6 +55,7 @@ describe("live agent chat", () => {
     vi.clearAllMocks();
     window.history.replaceState({}, "", "/");
     mocks.appendConversationMessage.mockResolvedValue({});
+    mocks.appendConversationEvent.mockResolvedValue({});
     mocks.createConversation.mockResolvedValue({ conversation: { id: "conversation-created" } });
   });
 
@@ -86,7 +89,16 @@ describe("live agent chat", () => {
     expect(mocks.analyze).toHaveBeenCalledWith("I need a monitor.", "conversation-123");
     expect(result.current.state.status).toBe("clarification");
     expect(result.current.state.messages.at(-1)?.content).toBe("What is your maximum budget?");
-    expect(mocks.appendConversationMessage).toHaveBeenCalledOnce();
+    expect(mocks.appendConversationMessage).toHaveBeenCalledTimes(2);
+    expect(mocks.appendConversationMessage).toHaveBeenNthCalledWith(
+      2,
+      "conversation-123",
+      expect.objectContaining({ role: "assistant", content: "What is your maximum budget?" }),
+    );
+    expect(mocks.appendConversationEvent).toHaveBeenCalledWith(
+      "conversation-123",
+      expect.objectContaining({ type: "agent_response" }),
+    );
   });
 
   it("loads a conversation selected from the recent history controls", async () => {

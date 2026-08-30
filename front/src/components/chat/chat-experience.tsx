@@ -156,7 +156,7 @@ export function ChatExperience() {
                 <MandateCard mandate={state.mandate} status={state.status} onApprove={requestApproval} onUpdate={updateMandate} />
               ) : null}
 
-              {state.discoveredProducts.length > 0 ? <ProductDiscovery products={state.discoveredProducts} /> : null}
+              {state.discoveredProducts.length > 0 ? <ProductDiscovery products={state.discoveredProducts} activity={state.catalogActivity} /> : null}
 
               {state.listings.length > 0 ? <MarketplaceListings listings={state.listings} /> : null}
 

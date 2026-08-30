@@ -1086,7 +1086,8 @@ export function createApp({
       try {
         const conversation = await conversationRepository.createConversation(session.userId);
         return json({ conversation }, 201);
-      } catch {
+      } catch (error) {
+        console.error('Conversation creation failed.', error instanceof Error ? error.message : 'Unknown error');
         return json({ error: 'conversation_creation_failed' }, 500);
       }
     }
@@ -1131,7 +1132,8 @@ export function createApp({
           ...input,
         });
         return json({ event }, 201);
-      } catch {
+      } catch (error) {
+        console.error('Conversation event persistence failed.', error instanceof Error ? error.message : 'Unknown error');
         return json({ error: 'conversation_event_persistence_failed' }, 500);
       }
     }
@@ -1184,7 +1186,8 @@ export function createApp({
           createdAt: body.createdAt,
         });
         return json({ message }, 201);
-      } catch {
+      } catch (error) {
+        console.error('Conversation message persistence failed.', error instanceof Error ? error.message : 'Unknown error');
         return json({ error: 'conversation_message_persistence_failed' }, 500);
       }
     }

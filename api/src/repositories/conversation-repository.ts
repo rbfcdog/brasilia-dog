@@ -71,7 +71,7 @@ export class ConversationRepository {
       .single();
 
     if (error || !data) {
-      throw new Error('Could not create conversation.');
+      throw new Error(`Could not create conversation${error?.message ? `: ${error.message}` : '.'}`);
     }
 
     return mapConversation(data as ConversationRow);
@@ -130,7 +130,7 @@ export class ConversationRepository {
     });
 
     if (error || !data) {
-      throw new Error('Could not append conversation message.');
+      throw new Error(`Could not append conversation message${error?.message ? `: ${error.message}` : '.'}`);
     }
 
     return mapMessage(data as ConversationMessageRow);
@@ -146,7 +146,7 @@ export class ConversationRepository {
     });
 
     if (error || !data) {
-      throw new Error('Could not append conversation event.');
+      throw new Error(`Could not append conversation event${error?.message ? `: ${error.message}` : '.'}`);
     }
 
     return mapEvent(data as ConversationEventRow);

@@ -18,6 +18,7 @@ const mockData = vi.hoisted(() => ({
     mockOutcome: "immediate" as const,
   },
   approve: vi.fn(),
+  analyze: vi.fn(),
   execute: vi.fn(),
   sessionToken: "passkey-session" as string | null,
   backend: {
@@ -40,11 +41,7 @@ vi.mock("@/services/backend-service", () => ({
 }));
 vi.mock("@/services/shopping-service", () => ({
   shoppingService: {
-    analyze: vi.fn().mockResolvedValue({
-      kind: "mandate",
-      message: "Review the scope before approval.",
-      mandate: mockData.mandate,
-    }),
+    analyze: mockData.analyze,
     execute: mockData.execute,
   },
 }));
@@ -105,6 +102,7 @@ describe("chat purchase flow", () => {
     window.localStorage.clear();
     mockData.approve.mockReset();
     mockData.execute.mockReset();
+    mockData.analyze.mockReset();
     mockData.backend.createConversation.mockClear();
     mockData.backend.appendConversationMessage.mockClear();
     mockData.backend.appendConversationEvent.mockClear();
@@ -113,6 +111,11 @@ describe("chat purchase flow", () => {
       approved: true,
       method: "passkey",
       approvedAt: "2026-08-29T00:00:00Z",
+    });
+    mockData.analyze.mockResolvedValue({
+      kind: "mandate",
+      message: "Review the scope before approval.",
+      mandate: mockData.mandate,
     });
     mockData.execute.mockResolvedValue(purchaseResult);
   });
@@ -130,6 +133,35 @@ describe("chat purchase flow", () => {
 
     await user.click(screen.getByRole("button", { name: /approve search mandate/i }));
     expect(await screen.findByRole("dialog")).toHaveTextContent("Confirm your identity");
+  });
+
+  it("shows the agent's catalog-search evidence beside prompt-led product results", async () => {
+    mockData.analyze.mockResolvedValue({
+      kind: "products",
+      message: "These are the catalog matches.",
+      products: [{
+        slug: "air-purifier-room-index",
+        name: "Air purifier room index",
+        description: "Current clean-air delivery and filter comparison.",
+        category: "home",
+        price: 95,
+        currency: "USD" as const,
+      }],
+      activity: [{
+        type: "catalog_search",
+        category: "home",
+        query: "air purifier",
+        maximumAmount: 100,
+        resultSlugs: ["air-purifier-room-index"],
+      }],
+    });
+    const user = userEvent.setup();
+    renderChat();
+
+    await user.click(await screen.findByRole("button", { name: /buy now/i }));
+
+    expect(await screen.findByRole("article", { name: "Air purifier room index" })).toBeInTheDocument();
+    expect(screen.getByText(/air purifier · up to \$100\.00/i)).toBeInTheDocument();
   });
 
   it("executes a mandate only after a verified native passkey approval", async () => {
@@ -180,6 +212,13 @@ describe("chat purchase flow", () => {
     expect(mockData.backend.appendConversationEvent).toHaveBeenCalledWith(
       "conversation-1",
       expect.objectContaining({ type: "agent_response" }),
+    );
+    expect(mockData.backend.appendConversationEvent).toHaveBeenCalledWith(
+      "conversation-1",
+      expect.objectContaining({
+        type: "mandate_proposed",
+        payload: expect.objectContaining({ id: "mandate-demo-1234" }),
+      }),
     );
     expect(mockData.backend.appendConversationEvent).toHaveBeenCalledWith(
       "conversation-1",
