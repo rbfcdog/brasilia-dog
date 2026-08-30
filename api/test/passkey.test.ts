@@ -90,6 +90,23 @@ test('in-memory store round-trips a credential', async () => {
   assert.equal(updated?.counter, 5);
 });
 
+test('registration status is derived from credentials stored for the account', async () => {
+  const { service, store } = createService();
+  assert.deepEqual(await service.registrationStatus('user-1'), { registered: false, credentialCount: 0 });
+
+  await store.saveCredential('user-1', {
+    id: 'phone-credential',
+    credentialId: 'phone-credential',
+    publicKey: Buffer.from([0x04, 0x01]),
+    counter: 0,
+    transports: ['hybrid'],
+    backedUp: true,
+  });
+
+  assert.deepEqual(await service.registrationStatus('user-1'), { registered: true, credentialCount: 1 });
+  assert.deepEqual(await service.registrationStatus('user-2'), { registered: false, credentialCount: 0 });
+});
+
 test('in-memory store challenges are isolated per user', async () => {
   const store = new InMemoryPasskeyStore();
 

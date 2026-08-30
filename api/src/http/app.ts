@@ -587,6 +587,22 @@ export function createApp({
         : json({ error: 'enrollment_invalid_or_expired' }, 401);
     }
 
+    if (
+      passkeyService &&
+      authenticateSupabaseUser &&
+      request.method === 'GET' &&
+      pathname === '/v1/passkeys/status'
+    ) {
+      const accessToken = request.headers.get('authorization')?.match(/^Bearer (.+)$/)?.[1];
+      const user = accessToken ? await authenticateSupabaseUser(accessToken) : null;
+      if (!user) return json({ error: 'authentication_required' }, 401);
+      try {
+        return json(await passkeyService.registrationStatus(user.id));
+      } catch (err) {
+        return json({ error: 'passkey_status_unavailable', detail: (err as Error).message }, 503);
+      }
+    }
+
     // Passkey routes
     if (
       passkeyService &&

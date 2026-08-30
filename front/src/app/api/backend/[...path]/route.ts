@@ -28,6 +28,7 @@ function isAllowedPath(pathname: string): boolean {
     pathname === "/openapi.json" ||
     /^\/passkey\/(?:register|auth)\/(?:options|verify)$/.test(pathname) ||
     /^\/passkey\/session\/(?:verify|revoke)$/.test(pathname) ||
+    pathname === "/v1/passkeys/status" ||
     /^\/v1\/products\/[^/]+\/(?:info|purchase)$/.test(pathname) ||
     pathname === "/v1/agents" ||
     /^\/v1\/agents\/[^/]+(?:\/(?:status|activity))?$/.test(pathname) ||

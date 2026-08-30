@@ -48,6 +48,11 @@ export interface PasskeyVerificationResult {
   sessionExpiresAt?: number;
 }
 
+export interface PasskeyRegistrationStatus {
+  registered: boolean;
+  credentialCount: number;
+}
+
 export interface BackendConversation {
   id: string;
   ownerId: string;
@@ -86,6 +91,10 @@ export interface ConversationEventInput {
 export const backendService = {
   health(): Promise<BackendHealth> {
     return apiFetch<BackendHealth>(backendPath("/health"));
+  },
+
+  passkeyStatus(): Promise<PasskeyRegistrationStatus> {
+    return apiFetch<PasskeyRegistrationStatus>(backendPath("/v1/passkeys/status"));
   },
 
   passkeyRegisterOptions(): Promise<PasskeyRegistrationOptions> {

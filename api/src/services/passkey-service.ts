@@ -61,6 +61,11 @@ export class PasskeyService {
     this.sessionService = sessionService;
   }
 
+  async registrationStatus(userId: string): Promise<{ registered: boolean; credentialCount: number }> {
+    const credentials = await this.store.listCredentials(userId);
+    return { registered: credentials.length > 0, credentialCount: credentials.length };
+  }
+
   async generateRegistration(userId: string, username: string) {
     const credentials = await this.store.listCredentials(userId);
 

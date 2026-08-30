@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   session: vi.fn(),
   health: vi.fn(),
+  passkeyStatus: vi.fn(),
   fetch: vi.fn(),
   register: vi.fn(),
   authenticate: vi.fn(),
@@ -26,7 +27,7 @@ vi.mock("@/lib/passkey-session", () => ({
   clearPasskeySessionToken: vi.fn(),
 }));
 vi.mock("@/services/backend-service", () => ({
-  backendService: { health: mocks.health },
+  backendService: { health: mocks.health, passkeyStatus: mocks.passkeyStatus },
 }));
 vi.mock("@/services/auth-service", () => ({
   authService: {
@@ -45,6 +46,7 @@ describe("account-bound passkey enrollment QR", () => {
     vi.clearAllMocks();
     mocks.health.mockResolvedValue({ ok: true });
     mocks.session.mockResolvedValue({ user: { id: "buyer-1", email: "buyer@example.com" } });
+    mocks.passkeyStatus.mockResolvedValue({ registered: true, credentialCount: 1 });
     vi.stubGlobal("fetch", mocks.fetch);
   });
 
@@ -78,6 +80,7 @@ describe("account-bound passkey enrollment QR", () => {
     render(<ProfileSettings />);
 
     await userEvent.click(await screen.findByRole("button", { name: "Authenticate with passkey" }));
+    expect(await screen.findByText("Registered")).toBeInTheDocument();
 
     expect(mocks.authenticate).toHaveBeenCalledWith("buyer-1");
     expect(mocks.register).not.toHaveBeenCalled();

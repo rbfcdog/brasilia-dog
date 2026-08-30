@@ -34,11 +34,13 @@ export function ProfileSettings() {
   const [qrLoading, setQrLoading] = useState(false);
   const [qrError, setQrError] = useState<string | null>(null);
   const [qrRequest, setQrRequest] = useState(0);
+  const [passkeyRegistered, setPasskeyRegistered] = useState<boolean | null>(null);
 
   function setSignedInAccount(user: { id: string; email?: string | null }) {
     setQrCode(null);
     setQrError(null);
     setQrLoading(true);
+    setPasskeyRegistered(null);
     setAccountUser({ id: user.id, email: user.email ?? user.id });
   }
 
@@ -79,6 +81,15 @@ export function ProfileSettings() {
       .then(({ user }) => setSignedInAccount(user))
       .catch(() => setAccountUser(null));
   }, []);
+
+  useEffect(() => {
+    if (!accountUser) return;
+    let cancelled = false;
+    void backendService.passkeyStatus()
+      .then((status) => { if (!cancelled) setPasskeyRegistered(status.registered); })
+      .catch(() => { if (!cancelled) setPasskeyRegistered(null); });
+    return () => { cancelled = true; };
+  }, [accountUser]);
 
   useEffect(() => {
     if (!accountUser) return;
@@ -181,7 +192,7 @@ export function ProfileSettings() {
           {accountUser ? (
             <div className="mt-5">
               <p className="text-sm text-subtle">Signed in as <strong className="text-ink">{accountUser.email}</strong></p>
-              <button type="button" onClick={() => void authService.signOut().then(() => { setAccountUser(null); setQrCode(null); setQrError(null); setQrLoading(false); })} className="mt-3 rounded-lg border border-line px-3 py-1.5 text-xs">Sign out</button>
+              <button type="button" onClick={() => void authService.signOut().then(() => { setAccountUser(null); setPasskeyRegistered(null); setQrCode(null); setQrError(null); setQrLoading(false); })} className="mt-3 rounded-lg border border-line px-3 py-1.5 text-xs">Sign out</button>
             </div>
           ) : (
             <div className="mt-5 space-y-3">
@@ -226,10 +237,10 @@ export function ProfileSettings() {
                 <div>
                   <p className="text-sm font-medium">Native WebAuthn biometrics</p>
                   <p className="mt-1 text-xs leading-5 text-subtle">
-                    {!accountUser ? "Sign in first. Passkeys are associated with that account." : supported ? "Authenticate with any passkey already registered to this account, including one on your phone. Register this device only when you want an additional passkey here." : "WebAuthn is not supported in this browser."}
+                    {!accountUser ? "Sign in first. Passkeys are associated with that account." : passkeyRegistered ? "This account has a registered passkey. Authenticate with it, including from your phone through the browser's cross-device flow. Register this device only to add another credential." : passkeyRegistered === false ? "No passkey is registered for this account yet. Register this device or use the enrollment QR." : "Checking this account for registered passkeys…"}
                   </p>
                 </div>
-                <span className={`rounded-full px-2.5 py-1 font-mono text-[9px] uppercase ${authenticated ? "bg-success/40 text-success-ink" : "bg-canvas text-subtle"}`}>{authenticated ? "Active" : supported ? "Ready" : "N/A"}</span>
+                <span className={`rounded-full px-2.5 py-1 font-mono text-[9px] uppercase ${authenticated ? "bg-success/40 text-success-ink" : passkeyRegistered ? "bg-primary-soft text-primary" : "bg-canvas text-subtle"}`}>{authenticated ? "Active" : passkeyRegistered ? "Registered" : passkeyRegistered === false ? "Not registered" : "Checking"}</span>
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <button type="button" onClick={() => passkeyUserId ? void authenticate(passkeyUserId) : undefined} disabled={!supported || !passkeyUserId || passkeyState.status === "loading"} className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-3 py-1.5 text-xs font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-50">
