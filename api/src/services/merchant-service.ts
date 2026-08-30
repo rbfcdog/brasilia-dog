@@ -1,4 +1,4 @@
-import type { SupabaseClient, User } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 
 type MetadataValue = string | number | boolean;
 
@@ -36,7 +36,11 @@ function isMetadata(value: unknown): value is Record<string, MetadataValue> {
 }
 
 export class MerchantService {
-  constructor(private readonly client: SupabaseClient, private readonly stripeProfileId: string) {}
+  constructor(
+    private readonly client: SupabaseClient,
+    private readonly stripeProfileId: string,
+    private readonly userClientConfig?: { url: string; key: string },
+  ) {}
 
   async authenticate(accessToken: string): Promise<User> {
     const { data, error } = await this.client.auth.getUser(accessToken);
@@ -51,6 +55,60 @@ export class MerchantService {
       throw new MerchantCommandError('An active Merchant profile is required.', 403, 'merchant_profile_inactive');
     }
     return data.user;
+  }
+
+  async session(accessToken: string): Promise<{ user: { id: string; email: string | null }; profile: unknown }> {
+    const user = await this.authenticate(accessToken);
+    const scoped = this.userClient(accessToken);
+    const { data: profile, error } = await scoped.from('merchant_profiles')
+      .select('user_id,business_name,status,created_at').eq('user_id', user.id).single();
+    if (error) throw new MerchantCommandError('Merchant profile is unavailable.', 500, 'merchant_profile_unavailable');
+    return { user: { id: user.id, email: user.email ?? null }, profile };
+  }
+
+  async dashboard(accessToken: string): Promise<unknown> {
+    await this.authenticate(accessToken);
+    const scoped = this.userClient(accessToken);
+    const [summary, dailySales, recentOrders] = await Promise.all([
+      scoped.from('merchant_dashboard_projection').select('*').maybeSingle(),
+      scoped.from('merchant_daily_sales_projection').select('*').order('sale_date', { ascending: true }),
+      scoped.from('merchant_orders_projection').select('*').order('created_at', { ascending: false }).limit(5),
+    ]);
+    const error = summary.error ?? dailySales.error ?? recentOrders.error;
+    if (error) throw new MerchantCommandError('Merchant dashboard is unavailable.', 500);
+    return { summary: summary.data, dailySales: dailySales.data ?? [], recentOrders: recentOrders.data ?? [] };
+  }
+
+  async projection(accessToken: string, name: 'orders' | 'catalog' | 'finance', orderId?: string): Promise<unknown> {
+    await this.authenticate(accessToken);
+    const scoped = this.userClient(accessToken);
+    if (name === 'orders') {
+      const orders = await scoped.from('merchant_orders_projection').select('*').order('created_at', { ascending: false });
+      if (orders.error) throw new MerchantCommandError('Merchant orders are unavailable.', 500);
+      if (!orderId) return orders.data ?? [];
+      const audit = await scoped.from('merchant_order_audit_projection').select('*').eq('order_id', orderId).order('occurred_at', { ascending: true });
+      if (audit.error) throw new MerchantCommandError('Order audit is unavailable.', 500);
+      return audit.data ?? [];
+    }
+    if (name === 'catalog') {
+      const result = await scoped.from('merchant_catalog_projection').select('*');
+      if (result.error) throw new MerchantCommandError('Merchant catalog is unavailable.', 500);
+      return result.data ?? [];
+    }
+    const [receipts, refundCases] = await Promise.all([
+      scoped.from('merchant_finance_projection').select('*'),
+      scoped.from('merchant_refund_cases_projection').select('*'),
+    ]);
+    if (receipts.error || refundCases.error) throw new MerchantCommandError('Merchant finance is unavailable.', 500);
+    return { receipts: receipts.data ?? [], refundCases: refundCases.data ?? [] };
+  }
+
+  private userClient(accessToken: string): SupabaseClient {
+    if (!this.userClientConfig) throw new MerchantCommandError('User-scoped storage is not configured.', 503);
+    return createClient(this.userClientConfig.url, this.userClientConfig.key, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+      global: { headers: { Authorization: `Bearer ${accessToken}` } },
+    });
   }
 
   async createProduct(ownerId: string, input: MerchantProductInput): Promise<{ id: string; status: 'draft' }> {

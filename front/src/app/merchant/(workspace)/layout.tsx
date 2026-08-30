@@ -1,5 +1,5 @@
 import { MerchantShell } from "@/components/merchant/merchant-shell";
-import { requireMerchant } from "@/lib/supabase/session";
+import { requireMerchant } from "@/lib/merchant-session"
 
 export const dynamic = "force-dynamic";
 

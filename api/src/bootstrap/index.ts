@@ -23,6 +23,7 @@ import { PurchaseService } from '../services/purchase-service.js';
 import { SellerAgentVerificationService } from '../services/seller-agent-verification.js';
 import { createSupabaseClient } from '../integrations/supabase.js';
 import { MerchantService } from '../services/merchant-service.js';
+import { UserAuthService } from '../services/user-auth-service.js';
 
 loadEnvironment();
 
@@ -41,7 +42,10 @@ const mandateRepository = supabase ? new MandateRepository(supabase) : null;
 const paymentHistoryRepository = supabase ? new PaymentHistoryRepository(supabase) : null;
 const sellerQuoteRepository = supabase ? new SellerQuoteRepository(supabase) : null;
 const conversationRepository = supabase ? new ConversationRepository(supabase) : null;
-const merchantService = supabase ? new MerchantService(supabase, config.stripeProfileId) : null;
+const merchantService = supabase && config.supabase
+  ? new MerchantService(supabase, config.stripeProfileId, config.supabase)
+  : null;
+const userAuthService = supabase ? new UserAuthService(supabase) : null;
 
 const sessionStore = supabase ? new SupabaseSessionStore(supabase) : new InMemorySessionStore();
 const sessionService = new SessionService({ secret: config.sessionSecret, store: sessionStore, ttlSeconds: 86_400 });
@@ -114,6 +118,7 @@ const app = createApp({
         return { id: data.user.id, ...(data.user.email ? { email: data.user.email } : {}) };
       }
     : null,
+  userAuthService,
 });
 const server = createExpressApp(app).listen(config.port, '0.0.0.0', () => {
   console.log(`Stripe MPP ${config.mode} service listening on http://0.0.0.0:${config.port}`);

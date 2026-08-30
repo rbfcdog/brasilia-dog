@@ -1,5 +1,4 @@
 import { MerchantLogin } from "@/components/merchant/merchant-login";
-import { isMerchantMockMode } from "@/lib/supabase/config";
 
 function safeNext(value: string | string[] | undefined): string {
   const candidate = Array.isArray(value) ? value[0] : value;
@@ -19,7 +18,6 @@ export default async function MerchantLoginPage({
     <MerchantLogin
       initialError={error}
       nextPath={safeNext(params.next)}
-      mockMode={isMerchantMockMode()}
     />
   );
 }

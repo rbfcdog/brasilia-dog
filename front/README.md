@@ -2,7 +2,7 @@
 
 Nomad is a unified Buyer and Merchant frontend for governed, fixed-price agentic commerce. Buyers define purchasing mandates; Merchants publish structured products and audit the proof behind agent-originated orders.
 
-The Buyer browser communicates through the Next.js backend proxy. The Merchant workspace authenticates with Supabase and reads only RLS-scoped projections; product, publish, and refund-case commands are allowlisted calls to the Node API. No browser receives a service-role or Stripe secret.
+The browser communicates only with same-origin Next.js BFF routes. Authentication, database access, merchant projections, passkeys, conversations, and payment commands are handled by the Node API. The frontend contains no Supabase SDK, project URL, publishable key, service-role key, or direct database access.
 
 ## Run locally
 
@@ -13,11 +13,7 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-Merchant demo authentication and populated in-memory projections are enabled automatically during `npm run dev`, so the complete workspace can be explored without Supabase credentials. Use the **Explore demo workspace** button on `/merchant/login`, or open a Merchant route directly. Demo catalog and refund-case changes reset when the development server restarts.
-
-For the deployed hackathon demo, set `NEXT_PUBLIC_MERCHANT_MOCK_AUTH=true` in the frontend service and redeploy. This exposes the same **Explore demo workspace** button without requiring registration. Keep the variable unset or `false` in any environment connected to real Merchant data.
-
-To exercise the real authentication flow locally, copy `.env.example` to `.env.local`, set `NEXT_PUBLIC_MERCHANT_MOCK_AUTH=false`, and configure `BACKEND_API_URL`, `NEXT_PUBLIC_SUPABASE_URL`, and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. The backend URL remains server-only. The Supabase publishable key is intentionally public and relies on RLS; never expose the Supabase secret key.
+Configure `BACKEND_API_URL` in the Next.js server environment. The browser signs in through `/api/auth/*`; the BFF stores API-issued credentials in secure HttpOnly cookies and forwards them only to the Node API.
 
 Routes:
 

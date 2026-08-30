@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -36,6 +37,12 @@ function isAllowedPath(pathname: string): boolean {
     /^\/v1\/payments\/[^/]+$/.test(pathname) ||
     pathname === "/v1/conversations" ||
     /^\/v1\/conversations\/[^/]+\/messages$/.test(pathname) ||
+    pathname === "/v1/merchant/session" ||
+    pathname === "/v1/merchant/dashboard" ||
+    pathname === "/v1/merchant/orders" ||
+    /^\/v1\/merchant\/orders\/[^/]+\/audit$/.test(pathname) ||
+    pathname === "/v1/merchant/catalog" ||
+    pathname === "/v1/merchant/finance" ||
     pathname === "/v1/merchant/products" ||
     /^\/v1\/merchant\/products\/[^/]+\/publish$/.test(pathname) ||
     pathname === "/v1/merchant/refund-cases"
@@ -57,14 +64,17 @@ function backendUrl(pathname: string, search: string): URL | null {
   return baseUrl;
 }
 
-function requestHeaders(request: Request): Headers {
+async function requestHeaders(request: Request, pathname: string): Promise<Headers> {
   const headers = new Headers();
-
   for (const name of FORWARDED_REQUEST_HEADERS) {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }
-
+  const accountAuthRequired = /^\/passkey\/(?:register|auth)\//.test(pathname);
+  if (!headers.has("authorization") || accountAuthRequired) {
+    const accessToken = (await cookies()).get("nomad-auth-access")?.value;
+    if (accessToken) headers.set("authorization", `Bearer ${accessToken}`);
+  }
   return headers;
 }
 
@@ -105,7 +115,7 @@ async function proxy(request: Request, context: RouteContext): Promise<Response>
     const hasBody = request.method !== "GET" && request.method !== "HEAD";
     const upstream = await fetch(target, {
       method: request.method,
-      headers: requestHeaders(request),
+      headers: await requestHeaders(request, pathname),
       ...(hasBody ? { body: await request.arrayBuffer() } : {}),
       cache: "no-store",
     });

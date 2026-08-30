@@ -40,7 +40,7 @@ describe("authenticatePasskey", () => {
     });
     Object.defineProperty(navigator, "credentials", { configurable: true, value: { get } });
 
-    await authenticatePasskey("user-1");
+    await authenticatePasskey();
 
     expect(get).toHaveBeenCalledWith(expect.objectContaining({
       publicKey: expect.objectContaining({
@@ -48,7 +48,7 @@ describe("authenticatePasskey", () => {
         userVerification: "required",
       }),
     }));
-    expect(mocks.passkeyAuthVerify).toHaveBeenCalledWith("user-1", expect.objectContaining({
+    expect(mocks.passkeyAuthVerify).toHaveBeenCalledWith(expect.objectContaining({
       id: "credential-1",
       type: "public-key",
     }));

@@ -6,13 +6,10 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
 
-vi.mock("@/lib/supabase/client", () => ({
-  createMerchantBrowserClient: () => ({
-    auth: {
-      getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
-      onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
-    },
-  }),
+vi.mock("@/services/auth-service", () => ({
+  authService: {
+    session: vi.fn().mockRejectedValue(new Error("signed out")),
+  },
 }));
 
 describe("unified landing page", () => {

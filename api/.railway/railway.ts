@@ -14,6 +14,11 @@ export default defineRailway(() => {
       MPP_SECRET_KEY: preserve(),
       SESSION_SECRET: preserve(),
       AGENT_SERVICE_TOKEN: preserve(),
+      SUPABASE_URL: preserve(),
+      SUPABASE_SERVICE_ROLE_KEY: preserve(),
+      PASSKEY_RP_NAME: preserve(),
+      PASSKEY_RP_ID: preserve(),
+      PASSKEY_ORIGIN: preserve(),
     },
   });
 

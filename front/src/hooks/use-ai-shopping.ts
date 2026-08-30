@@ -301,7 +301,7 @@ export function useAIShopping() {
       if (!getPasskeySessionToken()) {
         dispatch({
           type: "ERROR",
-          message: "Sign into Supabase and verify a passkey in Profile before using chat.",
+          message: "Sign in and verify a passkey in Profile before using chat.",
         });
         return;
       }

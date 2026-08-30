@@ -44,7 +44,7 @@ describe("passkey biometric provider", () => {
     });
 
     expect(verifyPasskeySession).toHaveBeenCalledWith("existing-session");
-    expect(authenticatePasskey).toHaveBeenCalledWith("user-1");
+    expect(authenticatePasskey).toHaveBeenCalledWith();
     expect(storePasskeySessionToken).toHaveBeenCalledWith("fresh-session");
     expect(approval).toMatchObject({ approved: true, method: "passkey" });
   });

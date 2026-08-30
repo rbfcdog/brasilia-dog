@@ -16,8 +16,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { isMerchantMockMode } from "@/lib/supabase/config";
-import { createMerchantBrowserClient } from "@/lib/supabase/client";
+import { authService } from "@/services/auth-service";
 
 const navigation = [
   { href: "/merchant/dashboard", label: "Dashboard", icon: BarChart3 },
@@ -61,9 +60,7 @@ function MerchantSidebar({
   const router = useRouter();
 
   async function signOut() {
-    if (!isMerchantMockMode()) {
-      await createMerchantBrowserClient().auth.signOut();
-    }
+    await authService.signOut();
     close?.();
     router.replace("/merchant/login");
     router.refresh();

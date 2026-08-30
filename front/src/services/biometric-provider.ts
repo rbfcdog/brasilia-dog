@@ -19,8 +19,8 @@ export const passkeyBiometricProvider: BiometricApprovalProvider = {
     }
 
     try {
-      const session = await backendService.verifyPasskeySession(sessionToken);
-      const result = await authenticatePasskey(session.userId);
+      await backendService.verifyPasskeySession(sessionToken);
+      const result = await authenticatePasskey();
       if (!result.verified || !result.sessionToken) {
         return { approved: false, method: "passkey", approvedAt };
       }

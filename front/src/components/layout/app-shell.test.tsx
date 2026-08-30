@@ -21,17 +21,12 @@ vi.mock("@/services/backend-service", () => ({
     conversationMessages: mocks.conversationMessages,
   },
 }));
-vi.mock("@/lib/supabase/client", () => ({
-  createMerchantBrowserClient: () => ({
-    auth: {
-      getSession: vi.fn().mockResolvedValue({
-        data: { session: { user: { email: "buyer@example.com" } } },
-      }),
-      onAuthStateChange: vi.fn(() => ({
-        data: { subscription: { unsubscribe: vi.fn() } },
-      })),
-    },
-  }),
+vi.mock("@/services/auth-service", () => ({
+  authService: {
+    session: vi.fn().mockResolvedValue({
+      user: { id: "buyer-1", email: "buyer@example.com" },
+    }),
+  },
 }));
 
 import { AppShell } from "@/components/layout/app-shell";

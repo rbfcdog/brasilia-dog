@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   Eye,
   EyeOff,
-  FlaskConical,
   Loader2,
   LockKeyhole,
   ShieldCheck,
@@ -16,24 +15,22 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
-import { createMerchantBrowserClient } from "@/lib/supabase/client";
+import { authService } from "@/services/auth-service";
 
 export function MerchantLogin({
   initialError,
   nextPath,
-  mockMode = false,
 }: {
   initialError?: string;
   nextPath: string;
-  mockMode?: boolean;
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [showPassword, setShowPassword] = useState(false);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState(
-    !mockMode && initialError === "not_configured"
-      ? "Merchant authentication is not configured. Add the public Supabase environment values to continue."
+    initialError === "not_configured"
+      ? "Authentication is not configured on the API."
       : "",
   );
   const [confirmation, setConfirmation] = useState(false);
@@ -54,25 +51,20 @@ export function MerchantLogin({
     }
 
     try {
-      const supabase = createMerchantBrowserClient();
       if (mode === "signin") {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (error) throw error;
+        await authService.signIn(email, password);
         router.replace(nextPath);
         router.refresh();
       } else {
         if (businessName.length < 2)
           throw new Error("Enter your business name.");
-        const { data, error } = await supabase.auth.signUp({
+        const data = await authService.signUp({
           email,
           password,
-          options: { data: { business_name: businessName } },
+          role: "merchant",
+          businessName,
         });
-        if (error) throw error;
-        if (data.session) {
+        if (!data.confirmationRequired) {
           router.replace("/merchant/dashboard");
           router.refresh();
         } else {
@@ -194,30 +186,8 @@ export function MerchantLogin({
               <p className="mt-2 text-sm leading-6 text-subtle">
                 {mode === "signin"
                   ? "Sign in to operate your agent-ready catalog."
-                  : "Start with a Merchant identity protected by Supabase RLS."}
+                  : "Start with a Merchant identity protected by API-enforced ownership."}
               </p>
-              {mockMode ? (
-                <div className="mt-6 rounded-xl border border-primary/15 bg-primary-soft p-4">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-primary">
-                    <FlaskConical className="size-4" /> Local demo mode
-                  </div>
-                  <p className="mt-2 text-xs leading-5 text-subtle">
-                    Open a populated Merchant workspace without creating an
-                    account. Demo changes stay in memory until the development
-                    server restarts.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      router.replace(nextPath);
-                      router.refresh();
-                    }}
-                    className="mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-medium text-white shadow-soft transition hover:bg-primary-hover"
-                  >
-                    Explore demo workspace <ArrowRight className="size-4" />
-                  </button>
-                </div>
-              ) : null}
               <div
                 className="mt-6 grid grid-cols-2 rounded-xl bg-canvas p-1"
                 role="tablist"

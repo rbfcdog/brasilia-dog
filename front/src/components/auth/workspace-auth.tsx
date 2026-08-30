@@ -4,7 +4,7 @@ import { ArrowRight, Bot, Loader2, Store } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useState } from "react";
 
-import { createMerchantBrowserClient } from "@/lib/supabase/client";
+import { authService } from "@/services/auth-service";
 
 type Role = "buyer" | "merchant";
 type Mode = "signin" | "signup";
@@ -26,20 +26,9 @@ export function WorkspaceAuth() {
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    let supabase;
-    try {
-      supabase = createMerchantBrowserClient();
-    } catch (error) {
-      queueMicrotask(() => setMessage(error instanceof Error ? error.message : "Supabase authentication is unavailable."));
-      return;
-    }
-    void supabase.auth.getSession().then(({ data }) => {
-      setAuthenticatedEmail(data.session?.user.email ?? null);
-    });
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      setAuthenticatedEmail(session?.user.email ?? null);
-    });
-    return () => data.subscription.unsubscribe();
+    void authService.session()
+      .then(({ user }) => setAuthenticatedEmail(user.email))
+      .catch(() => setAuthenticatedEmail(null));
   }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -47,10 +36,9 @@ export function WorkspaceAuth() {
     setPending(true);
     setMessage(null);
     try {
-      const supabase = createMerchantBrowserClient();
       if (mode === "signin") {
-        const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-        if (error) throw error;
+        const { user } = await authService.signIn(email.trim(), password);
+        setAuthenticatedEmail(user.email);
         router.push(destinations[role]);
         router.refresh();
         return;
@@ -59,22 +47,18 @@ export function WorkspaceAuth() {
       if (role === "merchant" && businessName.trim().length < 2) {
         throw new Error("Enter your business name.");
       }
-      const { data, error } = await supabase.auth.signUp({
+      const data = await authService.signUp({
         email: email.trim(),
         password,
-        options: {
-          data: {
-            account_type: role,
-            ...(role === "merchant" ? { business_name: businessName.trim() } : {}),
-          },
-        },
+        role,
+        ...(role === "merchant" ? { businessName: businessName.trim() } : {}),
       });
-      if (error) throw error;
-      if (!data.session) {
+      if (data.confirmationRequired) {
         setMessage("Check your email to confirm the account, then sign in here.");
         setMode("signin");
         return;
       }
+      setAuthenticatedEmail(data.user?.email ?? email.trim());
       router.push(destinations[role]);
       router.refresh();
     } catch (error) {

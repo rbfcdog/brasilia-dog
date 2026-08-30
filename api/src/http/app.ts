@@ -24,6 +24,7 @@ import type { SellerAgentVerificationService } from '../services/seller-agent-ve
 import type { SellerQuoteRepository } from '../repositories/seller-quote-repository.js';
 import type { ConversationRepository } from '../repositories/conversation-repository.js';
 import { MerchantCommandError, type MerchantService } from '../services/merchant-service.js';
+import type { UserAuthService } from '../services/user-auth-service.js';
 
 
 function json(value: unknown, status = 200): Response {
@@ -427,6 +428,7 @@ interface AppDeps {
   agentServiceToken?: string | null;
   merchantService?: MerchantService | null;
   authenticateSupabaseUser?: ((accessToken: string) => Promise<{ id: string; email?: string } | null>) | null;
+  userAuthService?: UserAuthService | null;
 }
 
 export function createApp({
@@ -449,6 +451,7 @@ export function createApp({
   agentServiceToken = null,
   merchantService = null,
   authenticateSupabaseUser = null,
+  userAuthService = null,
 }: AppDeps): AppHandler {
   return async function app(request: Request): Promise<Response> {
     const { pathname } = new URL(request.url);
@@ -463,6 +466,60 @@ export function createApp({
 
     if (request.method === 'GET' && pathname === '/paid') {
       return paidHandler(request);
+    }
+
+    if (userAuthService && request.method === 'POST' && pathname === '/v1/auth/sign-in') {
+      const body = await request.json().catch(() => null);
+      if (!isRecord(body) || typeof body.email !== 'string' || typeof body.password !== 'string') {
+        return json({ error: 'email_and_password_required' }, 400);
+      }
+      try {
+        return json({ session: await userAuthService.signIn(body.email.trim(), body.password) });
+      } catch (error) {
+        return json({ error: 'authentication_failed', detail: (error as Error).message }, 401);
+      }
+    }
+
+    if (userAuthService && request.method === 'POST' && pathname === '/v1/auth/sign-up') {
+      const body = await request.json().catch(() => null);
+      if (
+        !isRecord(body) ||
+        typeof body.email !== 'string' ||
+        typeof body.password !== 'string' ||
+        (body.role !== 'buyer' && body.role !== 'merchant')
+      ) {
+        return json({ error: 'email_password_and_role_required' }, 400);
+      }
+      const businessName = typeof body.businessName === 'string' ? body.businessName.trim() : '';
+      if (body.role === 'merchant' && businessName.length < 2) {
+        return json({ error: 'business_name_required' }, 400);
+      }
+      try {
+        return json(await userAuthService.signUp(body.email.trim(), body.password, {
+          account_type: body.role,
+          ...(body.role === 'merchant' ? { business_name: businessName } : {}),
+        }), 201);
+      } catch (error) {
+        return json({ error: 'signup_failed', detail: (error as Error).message }, 400);
+      }
+    }
+
+    if (userAuthService && request.method === 'POST' && pathname === '/v1/auth/refresh') {
+      const body = await request.json().catch(() => null);
+      if (!isRecord(body) || typeof body.refreshToken !== 'string') {
+        return json({ error: 'refresh_token_required' }, 400);
+      }
+      try {
+        return json({ session: await userAuthService.refresh(body.refreshToken) });
+      } catch (error) {
+        return json({ error: 'session_expired', detail: (error as Error).message }, 401);
+      }
+    }
+
+    if (userAuthService && request.method === 'GET' && pathname === '/v1/auth/session') {
+      const token = request.headers.get('authorization')?.match(/^Bearer (.+)$/)?.[1];
+      const user = token ? await userAuthService.getUser(token) : null;
+      return user ? json({ user }) : json({ error: 'authentication_required' }, 401);
     }
 
     // Passkey routes
@@ -520,6 +577,23 @@ export function createApp({
       }
       await sessionService.revokeSession(body.sessionToken);
       return json({ revoked: true });
+    }
+
+    if (merchantService && request.method === 'GET' && pathname.startsWith('/v1/merchant/')) {
+      try {
+        const token = request.headers.get('authorization')?.match(/^Bearer (.+)$/)?.[1];
+        if (!token) throw new MerchantCommandError('Merchant authentication is required.', 401, 'merchant_authentication_required');
+        if (pathname === '/v1/merchant/session') return json(await merchantService.session(token));
+        if (pathname === '/v1/merchant/dashboard') return json(await merchantService.dashboard(token));
+        if (pathname === '/v1/merchant/orders') return json({ orders: await merchantService.projection(token, 'orders') });
+        if (pathname === '/v1/merchant/catalog') return json({ products: await merchantService.projection(token, 'catalog') });
+        if (pathname === '/v1/merchant/finance') return json(await merchantService.projection(token, 'finance'));
+        const auditMatch = pathname.match(/^\/v1\/merchant\/orders\/([^/]+)\/audit$/);
+        if (auditMatch) return json({ events: await merchantService.projection(token, 'orders', auditMatch[1]) });
+      } catch (error) {
+        const commandError = error instanceof MerchantCommandError ? error : new MerchantCommandError('Merchant data is unavailable.', 500);
+        return json({ error: commandError.code, detail: commandError.message }, commandError.status);
+      }
     }
 
     // Merchant commands accept a short-lived Supabase user JWT. The service
