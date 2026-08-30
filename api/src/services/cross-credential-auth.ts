@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto';
 
 import { verifyAgentProof } from './agent-proof.js';
 import type { SessionService } from './session-service.js';
-import type { AgentIdentityRepository } from '../repositories/agent-identity-repository.js';
-import type { MandateRepository } from '../repositories/mandate-repository.js';
+import type { AgentIdentityStore } from '../repositories/agent-identity-repository.js';
+import type { MandateStore } from '../repositories/mandate-repository.js';
 import type {
   AgentIdentity,
   AgentSigningKey,
@@ -45,8 +45,8 @@ export interface CrossCredentialInput {
 export class CrossCredentialAuth {
   constructor(
     private readonly sessionService: SessionService,
-    private readonly agentIdentityRepo: AgentIdentityRepository,
-    private readonly mandateRepo: MandateRepository,
+    private readonly agentIdentityRepo: AgentIdentityStore,
+    private readonly mandateRepo: MandateStore,
   ) {}
 
   async authorize(input: CrossCredentialInput): Promise<CrossCredentialResult> {

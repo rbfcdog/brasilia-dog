@@ -155,3 +155,54 @@ export function parseProposal(value: unknown): MarketplaceProposal {
     maximumAmount: proposal.maximumAmount, currency: "usd",
   };
 }
+
+const SANDBOX_PRODUCT = {
+  id: "demo-product-1",
+  slug: "ultrawide-monitor-buying-guide",
+  name: "Ultrawide monitor buying guide",
+  description: "Current comparison data for ultrawide monitors, panels, ports, and ergonomics.",
+  metadata: { category: "electronics", source: "sandbox" },
+  merchant: { id: "vero-sandbox-merchant", businessName: "Vero Sandbox Merchant", status: "active" },
+  offering: { id: "demo-offering-1", amountMinor: 250, currency: "usd", scale: 2, active: true },
+};
+
+export function normalizeAgentRun(run: Record<string, unknown>): Record<string, unknown> {
+  const sandbox = typeof run.mandateId === "string" && run.mandateId.startsWith("sandbox-mandate-");
+  const result = run.result && typeof run.result === "object"
+    ? run.result as Record<string, unknown>
+    : null;
+  const receipt = result?.receipt && typeof result.receipt === "object"
+    ? result.receipt as Record<string, unknown>
+    : null;
+  const completed = sandbox && run.status === "completed" && result?.outcome === "allowed";
+
+  return {
+    ...run,
+    candidates: Array.isArray(run.candidates) ? run.candidates : sandbox ? [SANDBOX_PRODUCT] : [],
+    authorityChecks: Array.isArray(run.authorityChecks) ? run.authorityChecks : sandbox ? [{
+      name: "Sandbox mandate and fixed price verified",
+      passed: true,
+      checkedAt: typeof run.updatedAt === "string" ? run.updatedAt : new Date().toISOString(),
+    }] : [],
+    ...(sandbox ? { selectedProduct: SANDBOX_PRODUCT } : {}),
+    ...(completed ? {
+      proofId: `sandbox-proof-${run.runId}`,
+      paymentAttempt: {
+        id: result?.attemptId,
+        status: "settled",
+        amountMinor: receipt?.amountMinor,
+        currency: receipt?.currency,
+        scale: 2,
+        providerPaymentId: `sandbox-payment-${run.runId}`,
+        agentExecutionProofId: `sandbox-proof-${run.runId}`,
+        receipt,
+      },
+      receipt: {
+        method: "stripe_mpp_sandbox",
+        reference: receipt?.reference,
+        status: "success",
+        timestamp: typeof run.updatedAt === "string" ? run.updatedAt : new Date().toISOString(),
+      },
+    } : {}),
+  };
+}

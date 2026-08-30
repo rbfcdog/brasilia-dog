@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type { AgentIdentity, AgentSigningKey } from '../domain/types.js';
@@ -44,7 +45,28 @@ function mapKey(row: SigningKeyRow): AgentSigningKey {
   };
 }
 
-export class AgentIdentityRepository {
+export interface AgentIdentityStore {
+  createIdentity(ownerId: string, displayName: string): Promise<AgentIdentity>;
+  ensureIdentity(params: {
+    ownerId: string;
+    displayName: string;
+    publicKeyJwk: JsonWebKey;
+    fingerprint: string;
+  }): Promise<{ identity: AgentIdentity; signingKey: AgentSigningKey }>;
+  getIdentity(identityId: string): Promise<AgentIdentity | null>;
+  listIdentities(ownerId: string): Promise<AgentIdentity[]>;
+  updateStatus(identityId: string, status: AgentIdentity['status']): Promise<void>;
+  addSigningKey(
+    agentIdentityId: string,
+    publicKeyJwk: JsonWebKey,
+    fingerprint: string,
+    keyReference: string,
+  ): Promise<AgentSigningKey>;
+  getActiveSigningKey(agentIdentityId: string): Promise<AgentSigningKey | null>;
+  getKeyByFingerprint(fingerprint: string): Promise<AgentSigningKey | null>;
+}
+
+export class AgentIdentityRepository implements AgentIdentityStore {
   constructor(private readonly client: SupabaseClient) {}
 
   async createIdentity(ownerId: string, displayName: string): Promise<AgentIdentity> {
@@ -186,5 +208,97 @@ export class AgentIdentityRepository {
     }
 
     return data ? mapKey(data as SigningKeyRow) : null;
+  }
+}
+
+/** Process-local agent authority used only by the public sandbox. */
+export class InMemoryAgentIdentityRepository implements AgentIdentityStore {
+  private readonly identities = new Map<string, AgentIdentity>();
+  private readonly keys = new Map<string, AgentSigningKey>();
+
+  async createIdentity(ownerId: string, displayName: string): Promise<AgentIdentity> {
+    const identity: AgentIdentity = {
+      id: randomUUID(),
+      ownerId,
+      displayName,
+      status: 'active',
+      createdAt: new Date().toISOString(),
+    };
+    this.identities.set(identity.id, identity);
+    return structuredClone(identity);
+  }
+
+  async ensureIdentity(params: {
+    ownerId: string;
+    displayName: string;
+    publicKeyJwk: JsonWebKey;
+    fingerprint: string;
+  }): Promise<{ identity: AgentIdentity; signingKey: AgentSigningKey }> {
+    const existingKey = [...this.keys.values()].find((key) => {
+      const identity = this.identities.get(key.agentIdentityId);
+      return identity?.ownerId === params.ownerId && key.publicKeyFingerprint === params.fingerprint;
+    });
+    if (existingKey) {
+      const identity = this.identities.get(existingKey.agentIdentityId)!;
+      return { identity: structuredClone(identity), signingKey: structuredClone(existingKey) };
+    }
+
+    const identity = await this.createIdentity(params.ownerId, params.displayName);
+    const signingKey = await this.addSigningKey(
+      identity.id,
+      params.publicKeyJwk,
+      params.fingerprint,
+      `sandbox:${params.fingerprint}`,
+    );
+    return { identity, signingKey };
+  }
+
+  async getIdentity(identityId: string): Promise<AgentIdentity | null> {
+    const identity = this.identities.get(identityId);
+    return identity ? structuredClone(identity) : null;
+  }
+
+  async listIdentities(ownerId: string): Promise<AgentIdentity[]> {
+    return [...this.identities.values()]
+      .filter((identity) => identity.ownerId === ownerId)
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+      .map((identity) => structuredClone(identity));
+  }
+
+  async updateStatus(identityId: string, status: AgentIdentity['status']): Promise<void> {
+    const identity = this.identities.get(identityId);
+    if (identity) identity.status = status;
+  }
+
+  async addSigningKey(
+    agentIdentityId: string,
+    publicKeyJwk: JsonWebKey,
+    fingerprint: string,
+    _keyReference: string,
+  ): Promise<AgentSigningKey> {
+    const key: AgentSigningKey = {
+      id: randomUUID(),
+      agentIdentityId,
+      algorithm: 'Ed25519',
+      publicKeyJwk: structuredClone(publicKeyJwk),
+      publicKeyFingerprint: fingerprint,
+      status: 'active',
+      notBefore: new Date().toISOString(),
+      notAfter: null,
+    };
+    this.keys.set(key.id, key);
+    return structuredClone(key);
+  }
+
+  async getActiveSigningKey(agentIdentityId: string): Promise<AgentSigningKey | null> {
+    const key = [...this.keys.values()].find((candidate) =>
+      candidate.agentIdentityId === agentIdentityId && candidate.status === 'active');
+    return key ? structuredClone(key) : null;
+  }
+
+  async getKeyByFingerprint(fingerprint: string): Promise<AgentSigningKey | null> {
+    const key = [...this.keys.values()].find((candidate) =>
+      candidate.publicKeyFingerprint === fingerprint && candidate.status === 'active');
+    return key ? structuredClone(key) : null;
   }
 }

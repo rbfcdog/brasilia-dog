@@ -4,9 +4,10 @@ import { loadEnvironment } from '../config/environment.js';
 import { createMppHandler, createPaidHandler } from '../payments/mpp.js';
 import { PaymentAttemptRepository } from '../repositories/payment-attempt-repository.js';
 import { ProductRepository } from '../repositories/product-repository.js';
+import { SandboxProductRepository } from '../repositories/sandbox-product-repository.js';
 import { ProductInfoRepository } from '../repositories/product-info-repository.js';
-import { AgentIdentityRepository } from '../repositories/agent-identity-repository.js';
-import { MandateRepository } from '../repositories/mandate-repository.js';
+import { AgentIdentityRepository, InMemoryAgentIdentityRepository } from '../repositories/agent-identity-repository.js';
+import { InMemoryMandateRepository, MandateRepository } from '../repositories/mandate-repository.js';
 import { PaymentHistoryRepository } from '../repositories/payment-history-repository.js';
 import { SellerQuoteRepository } from '../repositories/seller-quote-repository.js';
 import { ConversationRepository, InMemoryConversationRepository } from '../repositories/conversation-repository.js';
@@ -32,16 +33,27 @@ loadEnvironment();
 
 const config = loadConfig();
 const supabase = createSupabaseClient(config.supabase);
-const productRepository = supabase ? new ProductRepository(supabase) : null;
-const productCatalogService = productRepository ? new ProductCatalogService(productRepository) : null;
+const durableProductRepository = supabase ? new ProductRepository(supabase) : null;
+const productRepository = config.mode === 'sandbox'
+  ? new SandboxProductRepository(config.stripeProfileId)
+  : durableProductRepository;
+const productCatalogService = durableProductRepository ? new ProductCatalogService(durableProductRepository) : null;
 const paymentService = supabase ? new PaymentService({
   stripeProfileId: config.stripeProfileId,
   mppHandlerFactory: (options) => createMppHandler(config, options),
   paymentAttemptRepository: new PaymentAttemptRepository(supabase),
 }) : null;
 const productInfoRepository = supabase ? new ProductInfoRepository(supabase) : null;
-const agentIdentityRepository = supabase ? new AgentIdentityRepository(supabase) : null;
-const mandateRepository = supabase ? new MandateRepository(supabase) : null;
+const agentIdentityRepository = config.mode === 'sandbox'
+  ? new InMemoryAgentIdentityRepository()
+  : supabase
+    ? new AgentIdentityRepository(supabase)
+    : null;
+const mandateRepository = config.mode === 'sandbox'
+  ? new InMemoryMandateRepository()
+  : supabase
+    ? new MandateRepository(supabase)
+    : null;
 const paymentHistoryRepository = supabase ? new PaymentHistoryRepository(supabase) : null;
 const sellerQuoteRepository = supabase ? new SellerQuoteRepository(supabase) : null;
 const conversationRepository = config.mode === 'sandbox'
@@ -93,10 +105,10 @@ const crossCredentialAuth = (agentIdentityRepository && mandateRepository)
   ? new CrossCredentialAuth(sessionService, agentIdentityRepository, mandateRepository)
   : null;
 
-const purchaseService = (crossCredentialAuth && productRepository)
+const purchaseService = (crossCredentialAuth && durableProductRepository)
   ? new PurchaseService({
       crossCredentialAuth,
-      productRepository,
+      productRepository: durableProductRepository,
       recordProof: async (params) => {
         if (!supabase) { return ''; }
         const { data, error } = await supabase.rpc('record_agent_execution_proof', {

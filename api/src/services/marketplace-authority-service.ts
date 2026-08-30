@@ -1,12 +1,12 @@
 import type { Mandate, ProductCatalogEntry } from '../domain/types.js';
-import type { MandateRepository } from '../repositories/mandate-repository.js';
-import type { ProductRepository } from '../repositories/product-repository.js';
+import type { MandateStore } from '../repositories/mandate-repository.js';
+import type { ProductCatalogRepository } from '../domain/types.js';
 import { parseMarketplaceScope, productIsAuthorized } from './marketplace-policy.js';
 
 export class MarketplaceAuthorityService {
   constructor(
-    private readonly mandates: MandateRepository,
-    private readonly products: ProductRepository,
+    private readonly mandates: MandateStore,
+    private readonly products: ProductCatalogRepository,
   ) {}
 
   async candidates(mandateId: string): Promise<{ mandate: Mandate; candidates: ProductCatalogEntry[] }> {

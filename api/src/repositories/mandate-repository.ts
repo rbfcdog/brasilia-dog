@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type { Mandate, MandateScope, MandateUsage } from '../domain/types.js';
@@ -30,19 +31,38 @@ function mapMandate(row: MandateRow): Mandate {
   };
 }
 
-export class MandateRepository {
+export interface CreateMandateInput {
+  ownerId: string;
+  agentIdentityId: string;
+  scope: MandateScope;
+  maxAmountMinor: number;
+  currency: string;
+  expiresAt: string;
+  idempotencyKey?: string;
+  bodySha256?: string;
+}
+
+export interface MandateExtension {
+  extensionId: string;
+  mandateId: string;
+  version: number;
+  expiresAt: string;
+}
+
+export interface MandateStore {
+  create(params: CreateMandateInput): Promise<Mandate>;
+  extendForRun(ownerId: string, runId: string, idempotencyKey: string): Promise<MandateExtension>;
+  getMandate(mandateId: string): Promise<Mandate | null>;
+  getActiveMandate(agentIdentityId: string): Promise<Mandate | null>;
+  listMandates(ownerId: string): Promise<Mandate[]>;
+  revoke(mandateId: string): Promise<void>;
+  getUsage(mandateId: string): Promise<MandateUsage>;
+}
+
+export class MandateRepository implements MandateStore {
   constructor(private readonly client: SupabaseClient) {}
 
-  async create(params: {
-    ownerId: string;
-    agentIdentityId: string;
-    scope: MandateScope;
-    maxAmountMinor: number;
-    currency: string;
-    expiresAt: string;
-    idempotencyKey?: string;
-    bodySha256?: string;
-  }): Promise<Mandate> {
+  async create(params: CreateMandateInput): Promise<Mandate> {
     if (params.idempotencyKey) {
       const { data, error } = await this.client
         .from('mandates')
@@ -182,5 +202,100 @@ export class MandateRepository {
       totalSpentMinor: settled.reduce((sum, r) => sum + Number(r.amount_minor), 0),
       purchaseCount: settled.length,
     };
+  }
+}
+
+interface InMemoryIdempotencyRecord {
+  mandateId: string;
+  bodySha256?: string;
+}
+
+/** Process-local mandate authority used only by the public sandbox. */
+export class InMemoryMandateRepository implements MandateStore {
+  private readonly mandates = new Map<string, Mandate>();
+  private readonly idempotency = new Map<string, InMemoryIdempotencyRecord>();
+  private readonly extensions = new Map<string, MandateExtension>();
+
+  async create(params: CreateMandateInput): Promise<Mandate> {
+    const idempotencyScope = params.idempotencyKey
+      ? `${params.ownerId}:${params.idempotencyKey}`
+      : null;
+    const existing = idempotencyScope ? this.idempotency.get(idempotencyScope) : null;
+    if (existing) {
+      if (!params.bodySha256 || existing.bodySha256 !== params.bodySha256) {
+        throw new Error('The idempotency key was used with a different mandate.');
+      }
+      return structuredClone(this.mandates.get(existing.mandateId)!);
+    }
+
+    const mandate: Mandate = {
+      id: `sandbox-mandate-${randomUUID()}`,
+      ownerId: params.ownerId,
+      agentIdentityId: params.agentIdentityId,
+      version: 1,
+      status: 'active',
+      scope: structuredClone(params.scope),
+      maxAmountMinor: params.maxAmountMinor,
+      currency: params.currency,
+      expiresAt: params.expiresAt,
+      createdAt: new Date().toISOString(),
+    };
+    this.mandates.set(mandate.id, mandate);
+    if (idempotencyScope) {
+      this.idempotency.set(idempotencyScope, {
+        mandateId: mandate.id,
+        ...(params.bodySha256 ? { bodySha256: params.bodySha256 } : {}),
+      });
+    }
+    return structuredClone(mandate);
+  }
+
+  async extendForRun(ownerId: string, runId: string, idempotencyKey: string): Promise<MandateExtension> {
+    const scope = `${ownerId}:${runId}:${idempotencyKey}`;
+    const existing = this.extensions.get(scope);
+    if (existing) return structuredClone(existing);
+    const mandate = [...this.mandates.values()]
+      .filter((candidate) => candidate.ownerId === ownerId && candidate.status === 'active')
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
+    if (!mandate) throw new Error('Mandate not found.');
+    mandate.version += 1;
+    mandate.expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1_000).toISOString();
+    const extension: MandateExtension = {
+      extensionId: randomUUID(),
+      mandateId: mandate.id,
+      version: mandate.version,
+      expiresAt: mandate.expiresAt,
+    };
+    this.extensions.set(scope, extension);
+    return structuredClone(extension);
+  }
+
+  async getMandate(mandateId: string): Promise<Mandate | null> {
+    const mandate = this.mandates.get(mandateId);
+    return mandate ? structuredClone(mandate) : null;
+  }
+
+  async getActiveMandate(agentIdentityId: string): Promise<Mandate | null> {
+    const mandate = [...this.mandates.values()]
+      .filter((candidate) => candidate.agentIdentityId === agentIdentityId
+        && candidate.status === 'active' && Date.parse(candidate.expiresAt) > Date.now())
+      .sort((left, right) => right.version - left.version)[0];
+    return mandate ? structuredClone(mandate) : null;
+  }
+
+  async listMandates(ownerId: string): Promise<Mandate[]> {
+    return [...this.mandates.values()]
+      .filter((mandate) => mandate.ownerId === ownerId)
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+      .map((mandate) => structuredClone(mandate));
+  }
+
+  async revoke(mandateId: string): Promise<void> {
+    const mandate = this.mandates.get(mandateId);
+    if (mandate) mandate.status = 'revoked';
+  }
+
+  async getUsage(_mandateId: string): Promise<MandateUsage> {
+    return { totalSpentMinor: 0, purchaseCount: 0 };
   }
 }

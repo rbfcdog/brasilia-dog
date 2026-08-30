@@ -14,8 +14,8 @@ import type {
 import type { PasskeyService } from '../services/passkey-service.js';
 import type { RefundService } from '../services/refund-service.js';
 import type { ProductInfoRepository } from '../repositories/product-info-repository.js';
-import type { AgentIdentityRepository } from '../repositories/agent-identity-repository.js';
-import type { MandateRepository } from '../repositories/mandate-repository.js';
+import type { AgentIdentityStore } from '../repositories/agent-identity-repository.js';
+import type { MandateStore } from '../repositories/mandate-repository.js';
 import type { PaymentHistoryRepository } from '../repositories/payment-history-repository.js';
 import type { PurchaseRequest, PurchaseService } from '../services/purchase-service.js';
 import type { SessionService } from '../services/session-service.js';
@@ -522,8 +522,8 @@ interface AppDeps {
   refundService?: RefundService | null;
   productInfoRepository?: ProductInfoRepository | null;
   productRepository?: ProductCatalogRepository | null;
-  agentIdentityRepository?: AgentIdentityRepository | null;
-  mandateRepository?: MandateRepository | null;
+  agentIdentityRepository?: AgentIdentityStore | null;
+  mandateRepository?: MandateStore | null;
   conversationRepository?: ConversationStore | null;
   backendChatService?: BackendChatService | null;
   paymentHistoryRepository?: PaymentHistoryRepository | null;

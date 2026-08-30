@@ -181,6 +181,17 @@ describe("agent-run BFF authority boundary", () => {
     expect(String(upstream.mock.calls[1]![0])).toContain(`ownerId=${ownerId}`);
   });
 
+  it("treats a stale passive run-list session as an empty demo state", async () => {
+    const upstream = vi.fn();
+    vi.stubGlobal("fetch", upstream);
+
+    const response = await getRuns(new Request("http://localhost/api/agent-runs"));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true, data: { runs: [] } });
+    expect(upstream).not.toHaveBeenCalled();
+  });
+
   it("requires a fresh passkey assertion before resume", async () => {
     const upstream = vi.fn().mockResolvedValue(session(Date.now() - 121_000));
     vi.stubGlobal("fetch", upstream);

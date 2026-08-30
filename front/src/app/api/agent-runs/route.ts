@@ -1,5 +1,5 @@
 import {
-  MANDATE_VALIDITY_MS, agent, backend, bffError, parseProposal, requireIdempotencyKey, verifyOwnerSession,
+  BffError, MANDATE_VALIDITY_MS, agent, backend, bffError, normalizeAgentRun, parseProposal, requireIdempotencyKey, verifyOwnerSession,
 } from "./_shared";
 
 export const dynamic = "force-dynamic";
@@ -56,8 +56,14 @@ export async function GET(request: Request): Promise<Response> {
   try {
     const session = await verifyOwnerSession(request);
     const data = await agent<{ runs: Record<string, unknown>[] }>(`/v1/agent-runs?ownerId=${encodeURIComponent(session.userId)}`);
-    return Response.json({ ok: true, data });
+    return Response.json({ ok: true, data: { runs: data.runs.map(normalizeAgentRun) } });
   } catch (error) {
+    // A sandbox backend restart invalidates legacy process-local sessions. The
+    // passive navigation badge should degrade to an empty list; a fresh demo
+    // assertion is still required before POSTing an executable run.
+    if (error instanceof BffError && error.status === 401) {
+      return Response.json({ ok: true, data: { runs: [] } });
+    }
     return bffError(error);
   }
 }

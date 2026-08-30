@@ -91,7 +91,11 @@ export class AgentService {
     const created = this.store.createOrGet(idempotencyKey, request);
     if (created.created) {
       this.schedule(async () => {
-        await this.executeInitial(created.run.runId);
+        if (created.run.mandateId.startsWith('sandbox-mandate-')) {
+          await this.executeSandboxDemo(created.run.runId);
+        } else {
+          await this.executeInitial(created.run.runId);
+        }
       });
     }
     return created.run;
@@ -145,6 +149,40 @@ export class AgentService {
       throw new AgentError('IDENTITY_UNAVAILABLE', 'Identity is not configured for this agent service.', 404);
     }
     return this.identityProvider.identity();
+  }
+
+  private async executeSandboxDemo(runId: string): Promise<void> {
+    try {
+      const run = this.store.require(runId);
+      const attemptId = `sandbox-attempt-${runId}`;
+      this.store.setStatus(runId, 'running');
+      this.store.appendEvent(runId, 'run_started', { mode: 'sandbox' });
+      this.store.appendEvent(runId, 'mandate_loaded', { mandateId: run.mandateId, version: 1 });
+      this.store.appendEvent(runId, 'offers_discovered', { count: 3, source: 'sandbox_catalog' });
+      this.store.appendEvent(runId, 'offer_selected', {
+        offerId: 'ultrawide-monitor-buying-guide',
+        amountMinor: 250,
+        currency: 'usd',
+      });
+      this.store.appendEvent(runId, 'purchase_presented', { attemptId });
+      this.store.appendEvent(runId, 'purchase_completed', {
+        attemptId,
+        receiptReference: `sandbox-receipt-${runId}`,
+      });
+      this.store.finish(runId, 'completed', {
+        outcome: 'allowed',
+        attemptId,
+        receipt: {
+          reference: `sandbox-receipt-${runId}`,
+          merchantId: 'vero-sandbox-merchant',
+          offerId: 'ultrawide-monitor-buying-guide',
+          amountMinor: 250,
+          currency: 'usd',
+        },
+      });
+    } catch (error) {
+      this.fail(runId, error);
+    }
   }
 
   private async executeInitial(runId: string): Promise<void> {

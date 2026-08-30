@@ -203,6 +203,34 @@ test('run creation, polling, and start idempotency follow the public contract', 
   assert.equal((await readJson(conflict)).error.code, 'IDEMPOTENCY_CONFLICT');
 });
 
+test('sandbox marketplace mandate completes as a demonstrable run', async (t) => {
+  const { baseUrl, server } = await startAgentServer();
+  t.after(() => closeServer(server));
+  const response = await fetch(`${baseUrl}/v1/agent-runs`, {
+    method: 'POST',
+    headers: authenticatedHeaders(randomUUID()),
+    body: JSON.stringify({
+      goal: 'Buy a monitor for the public demo',
+      mandateId: `sandbox-mandate-${randomUUID()}`,
+      ownerId: randomUUID(),
+    }),
+  });
+  assert.equal(response.status, 202);
+  const runId = (await readJson(response)).data.runId as string;
+
+  const completed = await pollRun(baseUrl, runId, 'completed');
+
+  assert.equal(completed.result.outcome, 'allowed');
+  assert.deepEqual(completed.events.map((event: { type: string }) => event.type), [
+    'run_started',
+    'mandate_loaded',
+    'offers_discovered',
+    'offer_selected',
+    'purchase_presented',
+    'purchase_completed',
+  ]);
+});
+
 test('resume requires a UUID, is idempotent, and only accepts waiting runs', async (t) => {
   const backend = new DemoBackend({ offers: [createDemoOffers()[1]!] });
   const { baseUrl, server } = await startAgentServer(backend);

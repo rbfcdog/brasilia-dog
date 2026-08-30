@@ -1,4 +1,4 @@
-import { agent, bffError, verifyOwnerSession } from "../_shared";
+import { agent, bffError, normalizeAgentRun, verifyOwnerSession } from "../_shared";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -13,7 +13,7 @@ export async function GET(request: Request, context: Context): Promise<Response>
     if (run.ownerId !== session.userId) {
       return Response.json({ ok: false, error: { code: "RUN_NOT_FOUND", message: "Run not found." } }, { status: 404 });
     }
-    return Response.json({ ok: true, data: run });
+    return Response.json({ ok: true, data: normalizeAgentRun(run) });
   } catch (error) {
     return bffError(error);
   }
