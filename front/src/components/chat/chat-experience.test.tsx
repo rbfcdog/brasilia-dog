@@ -19,6 +19,7 @@ const mockData = vi.hoisted(() => ({
   },
   approve: vi.fn(),
   analyze: vi.fn(),
+  analyzeLocal: vi.fn(),
   execute: vi.fn(),
   sessionToken: "passkey-session" as string | null,
   backend: {
@@ -43,6 +44,7 @@ vi.mock("@/services/backend-service", () => ({
 vi.mock("@/services/shopping-service", () => ({
   shoppingService: {
     analyze: mockData.analyze,
+    analyzeLocal: mockData.analyzeLocal,
     execute: mockData.execute,
   },
 }));
@@ -104,6 +106,7 @@ describe("chat purchase flow", () => {
     mockData.approve.mockReset();
     mockData.execute.mockReset();
     mockData.analyze.mockReset();
+    mockData.analyzeLocal.mockReset();
     mockData.backend.createConversation.mockClear();
     mockData.backend.appendConversationMessage.mockClear();
     mockData.backend.appendConversationEvent.mockClear();
@@ -117,8 +120,14 @@ describe("chat purchase flow", () => {
       kind: "mandate",
       message: "Review the scope before approval.",
       mandate: mockData.mandate,
+      conversationId: "conversation-1",
     });
     mockData.execute.mockResolvedValue(purchaseResult);
+    mockData.analyzeLocal.mockResolvedValue({
+      kind: "mandate",
+      message: "Review the scope before approval.",
+      mandate: mockData.mandate,
+    });
   });
 
   it("accepts a shopping prompt before asking for passkey confirmation", async () => {

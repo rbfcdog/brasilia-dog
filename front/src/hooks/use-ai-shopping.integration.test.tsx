@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   appendConversationMessage: vi.fn(),
   appendConversationEvent: vi.fn(),
   analyze: vi.fn(),
+  analyzeLocal: vi.fn(),
   execute: vi.fn(),
   addScheduledPurchase: vi.fn(),
   readMessages: vi.fn(),
@@ -32,6 +33,7 @@ vi.mock("@/services/backend-service", () => ({
 vi.mock("@/services/shopping-service", () => ({
   shoppingService: {
     analyze: mocks.analyze,
+    analyzeLocal: mocks.analyzeLocal,
     execute: mocks.execute,
   },
 }));
@@ -57,49 +59,52 @@ describe("live agent chat", () => {
     window.history.replaceState({}, "", "/");
     mocks.appendConversationMessage.mockResolvedValue({});
     mocks.appendConversationEvent.mockResolvedValue({});
+    mocks.analyzeLocal.mockResolvedValue({ kind: "clarification", message: "Local fallback response." });
     mocks.createConversation.mockResolvedValue({ conversation: { id: "conversation-created" } });
   });
 
-  it("persists the user turn before invoking the agent with its backend conversation ID", async () => {
-    let resolveUserPersistence: (() => void) | undefined;
+  it("routes authenticated chat through the backend gateway and adopts its conversation ID", async () => {
     mocks.getPasskeySessionToken.mockReturnValue("passkey-session");
     mocks.listConversations.mockResolvedValue({ conversations: [{ id: "conversation-123" }] });
     mocks.conversationMessages.mockResolvedValue({ messages: [] });
-    mocks.appendConversationMessage
-      .mockImplementationOnce(() => new Promise<void>((resolve) => { resolveUserPersistence = resolve; }))
-      .mockResolvedValue({});
     mocks.analyze.mockResolvedValue({
       kind: "clarification",
       message: "What is your maximum budget?",
+      conversationId: "conversation-backend",
     });
 
     const { result } = renderHook(() => useAIShopping());
     await waitFor(() => expect(result.current.state.hydrated).toBe(true));
 
-    let send: Promise<void> | undefined;
-    act(() => {
-      send = result.current.sendMessage("I need a monitor.");
+    await act(async () => {
+      await result.current.sendMessage("I need a monitor.");
     });
 
-    await waitFor(() => expect(mocks.appendConversationMessage).toHaveBeenCalledOnce());
-    expect(mocks.analyze).not.toHaveBeenCalled();
-
-    resolveUserPersistence?.();
-    await act(async () => { await send; });
-
     expect(mocks.analyze).toHaveBeenCalledWith("I need a monitor.", "conversation-123");
+    expect(mocks.analyzeLocal).not.toHaveBeenCalled();
     expect(result.current.state.status).toBe("clarification");
     expect(result.current.state.messages.at(-1)?.content).toBe("What is your maximum budget?");
-    expect(mocks.appendConversationMessage).toHaveBeenCalledTimes(2);
-    expect(mocks.appendConversationMessage).toHaveBeenNthCalledWith(
-      2,
-      "conversation-123",
-      expect.objectContaining({ role: "assistant", content: "What is your maximum budget?" }),
-    );
-    expect(mocks.appendConversationEvent).toHaveBeenCalledWith(
-      "conversation-123",
-      expect.objectContaining({ type: "agent_response" }),
-    );
+    expect(result.current.state.storage).toBe("backend");
+  });
+
+  it("routes anonymous chat through the local agent without backend persistence", async () => {
+    mocks.getPasskeySessionToken.mockReturnValue(null);
+    mocks.readMessages.mockReturnValue([]);
+    mocks.analyzeLocal.mockResolvedValue({
+      kind: "clarification",
+      message: "Tell me your budget.",
+    });
+
+    const { result } = renderHook(() => useAIShopping());
+    await waitFor(() => expect(result.current.state.hydrated).toBe(true));
+
+    await act(async () => {
+      await result.current.sendMessage("Find appliances");
+    });
+
+    expect(mocks.analyzeLocal).toHaveBeenCalledWith("Find appliances");
+    expect(mocks.analyze).not.toHaveBeenCalled();
+    expect(result.current.state.storage).toBe("local");
   });
 
   it("loads a conversation selected from the recent history controls", async () => {
@@ -132,11 +137,15 @@ describe("live agent chat", () => {
     expect(mocks.conversationMessages).toHaveBeenLastCalledWith("conversation-selected");
   });
 
-  it("creates a new backend conversation before persisting after reset", async () => {
+  it("creates a new backend conversation through the gateway after reset", async () => {
     mocks.getPasskeySessionToken.mockReturnValue("passkey-session");
     mocks.listConversations.mockResolvedValue({ conversations: [{ id: "conversation-old" }] });
     mocks.conversationMessages.mockResolvedValue({ messages: [] });
-    mocks.analyze.mockResolvedValue({ kind: "clarification", message: "What budget?" });
+    mocks.analyze.mockResolvedValue({
+      kind: "clarification",
+      message: "What budget?",
+      conversationId: "conversation-reset",
+    });
     const { result } = renderHook(() => useAIShopping());
     await waitFor(() => expect(result.current.state.hydrated).toBe(true));
 
@@ -145,21 +154,15 @@ describe("live agent chat", () => {
       await result.current.sendMessage("Find appliances");
     });
 
-    expect(mocks.createConversation).toHaveBeenCalledOnce();
-    expect(mocks.appendConversationMessage).toHaveBeenNthCalledWith(
-      1,
-      "conversation-created",
-      expect.objectContaining({ role: "user", content: "Find appliances" }),
-    );
-    expect(mocks.analyze).toHaveBeenCalledWith("Find appliances", "conversation-created");
+    expect(mocks.analyze).toHaveBeenCalledWith("Find appliances", undefined);
     expect(result.current.state.storage).toBe("backend");
   });
 
-  it("surfaces authenticated backend persistence failures instead of silently continuing", async () => {
+  it("surfaces backend gateway failures to the user", async () => {
     mocks.getPasskeySessionToken.mockReturnValue("passkey-session");
     mocks.listConversations.mockResolvedValue({ conversations: [{ id: "conversation-123" }] });
     mocks.conversationMessages.mockResolvedValue({ messages: [] });
-    mocks.appendConversationMessage.mockRejectedValue(new Error("database unavailable"));
+    mocks.analyze.mockRejectedValue(new Error("The chat turn could not be committed."));
     const { result } = renderHook(() => useAIShopping());
     await waitFor(() => expect(result.current.state.hydrated).toBe(true));
 
@@ -167,8 +170,8 @@ describe("live agent chat", () => {
       await result.current.sendMessage("Find appliances");
     });
 
-    expect(mocks.analyze).not.toHaveBeenCalled();
-    expect(result.current.state.storage).toBe("unavailable");
-    expect(result.current.state.error).toBe("This conversation could not be saved to the backend.");
+    expect(mocks.analyzeLocal).not.toHaveBeenCalled();
+    expect(result.current.state.error).toBe("The chat turn could not be committed.");
   });
+
 });

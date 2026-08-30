@@ -10,7 +10,7 @@ describe("agent chat BFF", () => {
     delete process.env.BACKEND_API_URL;
   });
 
-  it("forwards a chat request to the agent with the server-only service token", async () => {
+  it("forwards an anonymous chat request to the agent with the server-only service token", async () => {
     process.env.AGENT_SERVICE_URL = "https://agent.example.test";
     process.env.AGENT_SERVICE_TOKEN = "agent-service-token-12345";
     const upstream = vi.fn().mockResolvedValue(new Response(JSON.stringify({

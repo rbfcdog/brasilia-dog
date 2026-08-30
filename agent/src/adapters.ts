@@ -268,6 +268,29 @@ export class HttpBackendAdapter implements
     }
 
     if (!response.ok) {
+      if (path.startsWith('v1/agent/products')) {
+        if (response.status === 404 || response.status === 402) {
+          throw new AgentError(
+            'PRODUCT_CATALOG_UNAVAILABLE',
+            'The configured backend cannot serve the agent product catalog.',
+            503,
+          );
+        }
+        if (response.status === 401 || response.status === 403) {
+          throw new AgentError(
+            'PRODUCT_CATALOG_UNAVAILABLE',
+            'The agent backend catalog credentials were rejected.',
+            503,
+          );
+        }
+        if (response.status >= 500) {
+          throw new AgentError(
+            'PRODUCT_CATALOG_UNAVAILABLE',
+            'The backend product catalog is temporarily unavailable.',
+            503,
+          );
+        }
+      }
       throw new AgentError('BACKEND_REQUEST_FAILED', `The backend returned HTTP ${response.status}.`, 502);
     }
 

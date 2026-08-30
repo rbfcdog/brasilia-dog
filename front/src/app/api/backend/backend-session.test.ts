@@ -63,4 +63,28 @@ describe("passkey BFF session continuity", () => {
     const init = mocks.fetch.mock.calls[0]?.[1] as RequestInit;
     expect((init.headers as Headers).get("authorization")).toBe("Bearer cookie-session");
   });
+
+  it("proxies buyer chat through the API with the passkey session", async () => {
+    process.env.BACKEND_API_URL = "https://api.example.test";
+    mocks.cookies.set("nomad-passkey-session", "cookie-session");
+    mocks.fetch.mockResolvedValue(new Response(JSON.stringify({
+      ok: true,
+      data: { kind: "clarification", message: "What is your budget?" },
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    vi.stubGlobal("fetch", mocks.fetch);
+
+    const response = await POST(new Request("https://shop.example.test/api/backend/v1/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "Show me monitors" }),
+    }), { params: Promise.resolve({ path: ["v1", "chat"] }) });
+
+    expect(response.status).toBe(200);
+    expect(mocks.fetch).toHaveBeenCalledWith(
+      new URL("https://api.example.test/v1/chat"),
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    );
+    const init = mocks.fetch.mock.calls[0]?.[1] as RequestInit;
+    expect((init.headers as Headers).get("authorization")).toBe("Bearer cookie-session");
+  });
 });

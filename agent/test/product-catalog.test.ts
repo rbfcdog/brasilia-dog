@@ -51,6 +51,32 @@ test('HTTP backend adapter fetches and validates all current products', async (t
   assert.deepEqual(await adapter.listProducts(), products);
 });
 
+test('HTTP backend adapter turns a missing catalog route into a retryable catalog-unavailable error', async (t) => {
+  const server = createServer((_request, response) => {
+    response.writeHead(404, { 'content-type': 'application/json' });
+    response.end(JSON.stringify({ error: 'not_found' }));
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise<void>((resolve) => server.close(() => resolve())));
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('Server did not bind.');
+  const adapter = new HttpBackendAdapter({
+    baseUrl: `http://127.0.0.1:${address.port}`,
+    token: backendToken,
+  });
+
+  await assert.rejects(
+    adapter.listProducts(),
+    (error: unknown) => (
+      error instanceof Error
+      && "code" in error
+      && error.code === "PRODUCT_CATALOG_UNAVAILABLE"
+      && "httpStatus" in error
+      && error.httpStatus === 503
+    ),
+  );
+});
+
 test('HTTP backend adapter delegates bounded marketplace search to the API', async (t) => {
   const requests: string[] = [];
   const server = createServer(async (request, response) => {

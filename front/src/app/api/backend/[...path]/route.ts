@@ -29,6 +29,7 @@ function isAllowedPath(pathname: string): boolean {
     /^\/passkey\/(?:register|auth)\/(?:options|verify)$/.test(pathname) ||
     /^\/passkey\/session\/(?:verify|revoke)$/.test(pathname) ||
     pathname === "/v1/passkeys/status" ||
+    pathname === "/v1/chat" ||
     /^\/v1\/products\/[^/]+\/(?:info|purchase)$/.test(pathname) ||
     pathname === "/v1/agents" ||
     /^\/v1\/agents\/[^/]+(?:\/(?:status|activity))?$/.test(pathname) ||

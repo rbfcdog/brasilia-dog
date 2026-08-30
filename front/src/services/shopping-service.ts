@@ -7,13 +7,20 @@ import type {
 } from "@/types/shopping";
 
 export const shoppingService = {
-  analyze(message: string, conversationId?: string) {
-    return apiFetch<AgentResponse>("/api/agent", {
+  analyze(message: string, conversationId?: string): Promise<AgentResponse & { conversationId: string }> {
+    return apiFetch<AgentResponse & { conversationId: string }>("/api/backend/v1/chat", {
       method: "POST",
       body: JSON.stringify({
         message,
         ...(conversationId ? { conversationId } : {}),
       }),
+    });
+  },
+
+  analyzeLocal(message: string): Promise<AgentResponse> {
+    return apiFetch<AgentResponse>("/api/agent", {
+      method: "POST",
+      body: JSON.stringify({ message }),
     });
   },
 

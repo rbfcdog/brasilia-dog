@@ -355,38 +355,35 @@ export function useAIShopping() {
       dispatch({ type: "SUBMIT", message: userMessage });
 
       try {
-        const userPersisted = await persistMessage(conversationIdRef, userMessage);
-        if (!userPersisted) {
-          pendingMessagesRef.current.push(userMessage);
-        }
-        dispatch({ type: "SET_STORAGE", storage: userPersisted ? "backend" : "local" });
-        const response = await shoppingService.analyze(trimmed, conversationIdRef.current ?? undefined);
-        const assistantMessage = createMessage("assistant", response.message);
+        if (hasPasskeySession()) {
+          const response = await shoppingService.analyze(trimmed, conversationIdRef.current ?? undefined);
+          conversationIdRef.current = response.conversationId;
+          dispatch({ type: "SET_STORAGE", storage: "backend" });
 
-        if (userPersisted) {
-          const assistantPersisted = await persistMessage(conversationIdRef, assistantMessage);
-          const responseEventPersisted = await persistEvent(conversationIdRef, {
-            type: "agent_response",
-            payload: response,
-            createdAt: assistantMessage.createdAt,
-          });
-          if (!assistantPersisted || !responseEventPersisted) {
-            throw new ConversationPersistenceError(new Error("Agent response could not be saved."));
+          const assistantMessage = createMessage("assistant", response.message);
+          if (response.kind === "clarification") {
+            dispatch({ type: "CLARIFICATION", message: assistantMessage });
+            return;
           }
-          if (response.kind === "mandate") {
-            const mandateEventPersisted = await persistEvent(conversationIdRef, {
-              type: "mandate_proposed",
-              payload: { ...response.mandate },
-              createdAt: assistantMessage.createdAt,
+          if (response.kind === "products") {
+            dispatch({
+              type: "PRODUCT_RESULTS",
+              message: assistantMessage,
+              products: response.products,
+              activity: response.activity ?? [],
             });
-            if (!mandateEventPersisted) {
-              throw new ConversationPersistenceError(new Error("Mandate proposal could not be saved."));
-            }
+            return;
           }
-        }
-
-        if (!userPersisted) {
-          pendingMessagesRef.current.push(assistantMessage);
+          dispatch({
+            type: "MANDATE_READY",
+            message: assistantMessage,
+            mandate: { ...response.mandate, paymentMethodId: preferredPaymentMethodId },
+          });
+        } else {
+          const response = await shoppingService.analyzeLocal(trimmed);
+          dispatch({ type: "SET_STORAGE", storage: "local" });
+          const assistantMessage = createMessage("assistant", response.message);
+          pendingMessagesRef.current.push(userMessage, assistantMessage);
           pendingEventsRef.current.push({
             type: "agent_response",
             payload: response,
@@ -399,27 +396,25 @@ export function useAIShopping() {
               createdAt: assistantMessage.createdAt,
             });
           }
-        }
-
-        if (response.kind === "clarification") {
-          dispatch({ type: "CLARIFICATION", message: assistantMessage });
-          return;
-        }
-        if (response.kind === "products") {
+          if (response.kind === "clarification") {
+            dispatch({ type: "CLARIFICATION", message: assistantMessage });
+            return;
+          }
+          if (response.kind === "products") {
+            dispatch({
+              type: "PRODUCT_RESULTS",
+              message: assistantMessage,
+              products: response.products,
+              activity: response.activity ?? [],
+            });
+            return;
+          }
           dispatch({
-            type: "PRODUCT_RESULTS",
+            type: "MANDATE_READY",
             message: assistantMessage,
-            products: response.products,
-            activity: response.activity ?? [],
+            mandate: { ...response.mandate, paymentMethodId: preferredPaymentMethodId },
           });
-          return;
         }
-
-        dispatch({
-          type: "MANDATE_READY",
-          message: assistantMessage,
-          mandate: { ...response.mandate, paymentMethodId: preferredPaymentMethodId },
-        });
       } catch (error) {
         if (error instanceof ConversationPersistenceError) {
           dispatch({ type: "SET_STORAGE", storage: "unavailable" });

@@ -125,6 +125,77 @@ test('shopping responder executes a ranked backend category search and returns e
   });
 });
 
+test('shopping responder follows a model-led search with an exact product comparison before answering', async () => {
+  const catalog = {
+    listProducts: async () => [product],
+    searchProducts: async () => [product],
+  };
+  const responses = [
+    {
+      output_text: '',
+      output: [{
+        type: 'function_call',
+        name: 'search_products',
+        call_id: 'call-search',
+        arguments: JSON.stringify({ category: 'home', query: 'air purifier', maximumAmount: 100 }),
+      }],
+    },
+    {
+      output_text: '',
+      output: [{
+        type: 'function_call',
+        name: 'compare_products',
+        call_id: 'call-compare',
+        arguments: JSON.stringify({ slugs: [product.slug] }),
+      }],
+    },
+    {
+      output_text: JSON.stringify({
+        message: 'The catalog comparison confirms this model is within your budget.',
+        scope: null,
+        maximumAmount: null,
+        minimumScreenSize: null,
+        products: [{
+          slug: product.slug,
+          name: product.name,
+          description: product.description,
+          category: 'home',
+          price: 95,
+          currency: 'USD',
+        }],
+      }),
+      output: [],
+    },
+  ];
+  const client = {
+    responses: {
+      create: async () => {
+        const response = responses.shift();
+        if (!response) throw new Error('Unexpected OpenAI request.');
+        return response;
+      },
+    },
+  } as unknown as OpenAI;
+  const responder = new OpenAIShoppingResponder({ apiKey: 'test-key', model: 'test-model', client });
+
+  const result = await responder.respond({ message: 'Compare an air purifier under $100.', catalog });
+
+  assert.deepEqual(result.activity, [
+    {
+      type: 'catalog_search',
+      category: 'home',
+      query: 'air purifier',
+      maximumAmount: 100,
+      resultSlugs: [product.slug],
+    },
+    {
+      type: 'product_comparison',
+      requestedSlugs: [product.slug],
+      resultSlugs: [product.slug],
+    },
+  ]);
+});
+
 test('shopping responder preserves backend catalog failures', async () => {
   const backendFailure = new AgentError(
     'BACKEND_REQUEST_FAILED',

@@ -108,6 +108,17 @@ export class PaymentHistoryRepository {
     return data ? mapAttempt(data as PaymentAttemptRow) : null;
   }
 
+  async markRefunded(ownerId: string, paymentId: string, refundId: string): Promise<boolean> {
+    const { data, error } = await this.client
+      .from('payment_attempts')
+      .update({ status: 'refunded', refund_id: refundId })
+      .eq('id', paymentId)
+      .eq('agent_execution_proofs.mandates.owner_id', ownerId)
+      .select('id')
+      .maybeSingle();
+    if (error) throw new Error('Could not mark payment as refunded.');
+    return Boolean(data);
+  }
   async listAgentActivity(agentIdentityId: string, limit = 50): Promise<AgentActivityRecord[]> {
     const { data, error } = await this.client
       .from('agent_execution_proofs')

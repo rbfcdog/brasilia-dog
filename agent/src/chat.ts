@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import OpenAI from 'openai';
+import type { Response as OpenAIResponse } from 'openai/resources/responses/responses';
 import { z } from 'zod';
 
 import { AgentError } from './errors.js';
@@ -8,6 +9,7 @@ import type { CatalogProduct, ProductCatalogAdapter } from './adapters.js';
 
 const MAXIMUM_AMOUNT = 100_000;
 const MANDATE_VALIDITY_MS = 72 * 60 * 60 * 1_000;
+const MAX_CATALOG_TOOL_ROUNDS = 3;
 
 const discoveredProductSchema = z.strictObject({
   slug: z.string().trim().min(1),
@@ -280,7 +282,7 @@ export class OpenAIShoppingResponder implements ChatResponder {
     conversationContext?: string;
     catalog?: ProductCatalogAdapter;
   }): Promise<AgentChatResponse> {
-    let outputText: string;
+    let outputText = '';
     let activity: CatalogActivity[] = [];
     try {
       const instructions = [
@@ -295,59 +297,18 @@ export class OpenAIShoppingResponder implements ChatResponder {
         'For product discovery, put exact tool-returned products in products and leave scope and maximumAmount null.',
         'For a mandate proposal, leave products empty and provide a category-level scope and maximumAmount.',
       ].join(' ');
-      const firstResponse = await this.client.responses.create({
-        model: this.model,
-        store: false,
-        max_output_tokens: 700,
-        instructions,
-        input: JSON.stringify({
-          userMessage: input.message,
-          conversationContext: input.conversationContext ?? null,
-        }),
-        tools: catalogToolDefinitions as never,
-        text: {
-          format: {
-            type: 'json_schema',
-            name: 'shopping_agent_response',
-            strict: true,
-            schema: structuredOutputSchema,
-          },
-        },
+      let modelInput: string | unknown[] = JSON.stringify({
+        userMessage: input.message,
+        conversationContext: input.conversationContext ?? null,
       });
-      const functionCalls = firstResponse.output.filter((item): item is typeof item & {
-        type: 'function_call';
-        name: string;
-        arguments: string;
-        call_id: string;
-      } => item.type === 'function_call');
-      if (functionCalls.length === 0) {
-        outputText = firstResponse.output_text;
-      } else {
-        if (!input.catalog) {
-          throw new AgentError('PRODUCT_CATALOG_UNAVAILABLE', 'Marketplace search is not configured.', 503);
-        }
-        const catalog = input.catalog;
-        const toolExecutions = await Promise.all(functionCalls.map(async (call) => {
-          const execution = await executeCatalogTool(call.name, call.arguments, catalog);
-          return {
-            type: 'function_call_output' as const,
-            call_id: call.call_id,
-            output: execution.output,
-            activity: execution.activity,
-          };
-        }));
-        activity = toolExecutions.map((execution) => execution.activity);
-        const toolOutputs = toolExecutions.map(({ call_id, output }) => ({
-          type: 'function_call_output' as const,
-          call_id,
-          output,
-        }));
-        const finalResponse = await this.client.responses.create({
+
+      for (let round = 0; round <= MAX_CATALOG_TOOL_ROUNDS; round += 1) {
+        const response: OpenAIResponse = await this.client.responses.create({
           model: this.model,
           store: false,
           max_output_tokens: 700,
           instructions,
-          input: [...firstResponse.output, ...toolOutputs] as never,
+          input: modelInput as never,
           tools: catalogToolDefinitions as never,
           text: {
             format: {
@@ -358,7 +319,44 @@ export class OpenAIShoppingResponder implements ChatResponder {
             },
           },
         });
-        outputText = finalResponse.output_text;
+        const functionCalls = response.output.filter((item): item is typeof item & {
+          type: 'function_call';
+          name: string;
+          arguments: string;
+          call_id: string;
+        } => item.type === 'function_call');
+        if (functionCalls.length === 0) {
+          outputText = response.output_text;
+          break;
+        }
+        if (round === MAX_CATALOG_TOOL_ROUNDS) {
+          throw new AgentError('MODEL_OUTPUT_INVALID', 'The agent exceeded the catalog tool-call limit.', 502);
+        }
+        if (!input.catalog) {
+          throw new AgentError('PRODUCT_CATALOG_UNAVAILABLE', 'Marketplace search is not configured.', 503);
+        }
+        const toolExecutions = await Promise.all(functionCalls.map(async (call) => {
+          const execution = await executeCatalogTool(call.name, call.arguments, input.catalog!);
+          return {
+            type: 'function_call_output' as const,
+            call_id: call.call_id,
+            output: execution.output,
+            activity: execution.activity,
+          };
+        }));
+        activity = [...activity, ...toolExecutions.map((execution) => execution.activity)];
+        modelInput = [
+          ...(typeof modelInput === 'string' ? [] : modelInput),
+          ...response.output,
+          ...toolExecutions.map(({ call_id, output }) => ({
+            type: 'function_call_output' as const,
+            call_id,
+            output,
+          })),
+        ];
+      }
+      if (!outputText) {
+        throw new AgentError('MODEL_OUTPUT_INVALID', 'The agent did not return a structured response.', 502);
       }
     } catch (error) {
       if (error instanceof AgentError) {

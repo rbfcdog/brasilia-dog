@@ -13,6 +13,7 @@ export function ProductDiscovery({
   activity?: AgentActivity[];
 }) {
   const catalogSearch = activity.find((entry) => entry.type === "catalog_search");
+  const comparison = activity.find((entry) => entry.type === "product_comparison");
 
   return (
     <section className="max-w-2xl overflow-hidden rounded-2xl border border-line bg-white shadow-sm sm:ml-10" aria-label="Catalog products">
@@ -26,13 +27,20 @@ export function ProductDiscovery({
           <span className="rounded-full bg-primary-soft px-2.5 py-1 font-mono text-[9px] uppercase text-primary">Tool results</span>
         </div>
       </div>
-      {catalogSearch ? (
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-line bg-primary-soft/35 px-5 py-3 text-xs text-subtle">
-          <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-primary">Catalog search</span>
-          <span aria-hidden="true">·</span>
-          <span>
-            {catalogSearch.query ?? catalogSearch.category ?? "catalog"}{catalogSearch.maximumAmount !== null ? ` · up to $${catalogSearch.maximumAmount.toFixed(2)}` : ""}
-          </span>
+      {catalogSearch || comparison ? (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line bg-primary-soft/35 px-5 py-3 text-xs text-subtle">
+          {catalogSearch ? (
+            <span className="inline-flex items-center gap-x-2">
+              <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-primary">Catalog search</span>
+              <span aria-hidden="true">·</span>
+              <span>{catalogSearch.query ?? catalogSearch.category ?? "catalog"}{catalogSearch.maximumAmount !== null ? ` · up to $${catalogSearch.maximumAmount.toFixed(2)}` : ""}</span>
+            </span>
+          ) : null}
+          {comparison ? (
+            <span className="rounded-full border border-primary/15 bg-white px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.08em] text-primary">
+              Compared {comparison.resultSlugs.length} catalog {comparison.resultSlugs.length === 1 ? "product" : "products"}
+            </span>
+          ) : null}
         </div>
       ) : null}
       <div className="grid gap-px bg-line sm:grid-cols-2">

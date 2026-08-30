@@ -26,6 +26,7 @@ import type { ConversationRepository } from '../repositories/conversation-reposi
 import { MerchantCommandError, type MerchantService } from '../services/merchant-service.js';
 import type { UserAuthService } from '../services/user-auth-service.js';
 import type { PasskeyEnrollmentService } from '../services/passkey-enrollment-service.js';
+import { BackendChatError, type BackendChatService } from '../services/backend-chat-service.js';
 
 
 function json(value: unknown, status = 200): Response {
@@ -453,6 +454,7 @@ interface AppDeps {
   agentIdentityRepository?: AgentIdentityRepository | null;
   mandateRepository?: MandateRepository | null;
   conversationRepository?: ConversationRepository | null;
+  backendChatService?: BackendChatService | null;
   paymentHistoryRepository?: PaymentHistoryRepository | null;
   purchaseService?: PurchaseService | null;
   crossCredentialAuth?: CrossCredentialAuth | null;
@@ -478,6 +480,7 @@ export function createApp({
   mandateRepository = null,
   paymentHistoryRepository = null,
   conversationRepository = null,
+  backendChatService = null,
   purchaseService = null,
   crossCredentialAuth = null,
   sellerAgentVerificationService = null,
@@ -986,7 +989,43 @@ export function createApp({
     }
 
 
-    if (productRepository && agentServiceToken && request.method === 'POST' && pathname === '/v1/agent/products/search') {
+    if (request.method === 'POST' && pathname === '/v1/chat') {
+      const session = await authenticatedSession(request, sessionService);
+      if (!session) return json({ error: 'authentication_required' }, 401);
+      if (!backendChatService) return json({ error: 'chat_gateway_unavailable' }, 503);
+      const body = await request.json().catch(() => null);
+      if (
+        !isRecord(body) ||
+        typeof body.message !== 'string' ||
+        !body.message.trim() ||
+        body.message.trim().length > 2_000 ||
+        (body.conversationId !== undefined && (
+          typeof body.conversationId !== 'string' ||
+          !body.conversationId.trim()
+        ))
+      ) {
+        return json({ error: 'message and optional conversationId are required' }, 400);
+      }
+      try {
+        return json(await backendChatService.chat(session.userId, {
+          message: body.message.trim(),
+          ...(typeof body.conversationId === 'string'
+            ? { conversationId: body.conversationId.trim() }
+            : {}),
+        }));
+      } catch (error) {
+        if (error instanceof BackendChatError) {
+          return json({ ok: false, error: { code: error.code, message: error.message } }, error.status);
+        }
+        console.error('Backend chat gateway failed.', error instanceof Error ? error.message : 'Unknown error');
+        return json({ ok: false, error: { code: 'CONVERSATION_PERSISTENCE_FAILED', message: 'The chat turn could not be committed.' } }, 500);
+      }
+    }
+
+    if (request.method === 'POST' && pathname === '/v1/agent/products/search') {
+      if (!productRepository || !agentServiceToken) {
+        return json({ error: 'agent_catalog_unavailable' }, 503);
+      }
       const authorization = request.headers.get('authorization');
       const match = authorization?.match(/^Bearer (.+)$/);
       if (!match || match[1] !== agentServiceToken) {
@@ -1003,7 +1042,10 @@ export function createApp({
       }
     }
 
-    if (productRepository && agentServiceToken && request.method === 'GET' && pathname === '/v1/agent/products') {
+    if (request.method === 'GET' && pathname === '/v1/agent/products') {
+      if (!productRepository || !agentServiceToken) {
+        return json({ error: 'agent_catalog_unavailable' }, 503);
+      }
       const authorization = request.headers.get('authorization');
       const match = authorization?.match(/^Bearer (.+)$/);
       if (!match || match[1] !== agentServiceToken) {
@@ -1377,6 +1419,33 @@ export function createApp({
       }
       const attempts = await paymentHistoryRepository.listPaymentAttempts(session.userId);
       return json({ payments: attempts });
+    }
+
+    if (
+      refundService &&
+      request.method === 'POST' &&
+      /^\/v1\/payments\/[^/]+\/refund$/.test(pathname)
+    ) {
+      const session = await authenticatedSession(request, sessionService);
+      if (!session) return json({ error: 'authentication_required' }, 401);
+      if (!paymentHistoryRepository) return json({ error: 'payment_history_unavailable' }, 503);
+      const id = pathname.split('/')[3];
+      if (!id) return json({ error: 'payment id is required' }, 400);
+      const attempt = await paymentHistoryRepository.getPaymentAttempt(session.userId, id);
+      if (!attempt) return json({ error: 'payment_not_found' }, 404);
+      if (!attempt.providerPaymentId) return json({ error: 'refund_unavailable', detail: 'No provider payment ID.' }, 400);
+      const body = await request.json().catch(() => ({})) as { reason?: string };
+      try {
+        const refund = await refundService.refund({
+          paymentIntentId: attempt.providerPaymentId,
+          reason: (body.reason ?? 'requested_by_customer') as 'duplicate' | 'fraudulent' | 'requested_by_customer',
+          idempotencyKey: `buyer-refund:${id}`,
+        });
+        await paymentHistoryRepository.markRefunded(session.userId, id, refund.id);
+        return json({ refund }, 200);
+      } catch (err) {
+        return json({ error: 'refund_failed', detail: (err as Error).message }, 500);
+      }
     }
 
     if (paymentHistoryRepository && request.method === 'GET' && pathname.startsWith('/v1/payments/')) {

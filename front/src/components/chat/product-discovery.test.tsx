@@ -56,4 +56,24 @@ describe("product discovery", () => {
     expect(screen.getByText("Catalog search")).toBeInTheDocument();
     expect(screen.getByText(/air purifier · up to \$100\.00/i)).toBeInTheDocument();
   });
+
+  it("makes the agent's comparison evidence visible with the product cards", () => {
+    render(<ProductDiscovery
+      products={[{
+        slug: "air-purifier-room-index",
+        name: "Air purifier room index",
+        description: "Current clean-air delivery and filter comparison.",
+        category: "home",
+        price: 95,
+        currency: "USD",
+      }]}
+      activity={[{
+        type: "product_comparison",
+        requestedSlugs: ["air-purifier-room-index"],
+        resultSlugs: ["air-purifier-room-index"],
+      }]}
+    />);
+
+    expect(screen.getByText("Compared 1 catalog product")).toBeInTheDocument();
+  });
 });

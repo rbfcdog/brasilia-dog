@@ -57,6 +57,17 @@ test('product catalog rejects callers without the agent service token', async ()
   assert.deepEqual(await response.json(), { error: 'agent_authentication_required' });
 });
 
+test('catalog route reports missing backend configuration instead of hiding it as not found', async () => {
+  const app = createApp({ paidHandler });
+
+  const response = await app(new Request('http://localhost/v1/agent/products', {
+    headers: { authorization: 'Bearer agent-backend-token' },
+  }));
+
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), { error: 'agent_catalog_unavailable' });
+});
+
 test('agent can run a bounded ranked marketplace query in the backend', async () => {
   const searches: unknown[] = [];
   const app = createApp({

@@ -29,6 +29,7 @@ test('loads a sandbox Stripe MPP configuration with test credentials', () => {
     passkey: { rpName: 'Brasilia Dog Marketplace', rpId: 'localhost', origin: 'http://localhost:3000' },
     sessionSecret: 'a'.repeat(64),
     agentServiceToken: null,
+    agentServiceUrl: null,
   });
 });
 
@@ -113,6 +114,7 @@ test('permits live mode only with explicit acknowledgement and live credentials'
     passkey: { rpName: 'Brasilia Dog Marketplace', rpId: 'localhost', origin: 'http://localhost:3000' },
     sessionSecret: 'a'.repeat(64),
     agentServiceToken: null,
+    agentServiceUrl: null,
   });
 });
 
