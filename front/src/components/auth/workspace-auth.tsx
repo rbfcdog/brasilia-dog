@@ -210,15 +210,19 @@ export function WorkspaceAuth() {
             {pending ? <Loader2 className="size-4 animate-spin" /> : <Fingerprint className="size-4" />} Set up passkey
           </button>
           {message ? <p role="alert" className="mt-3 text-xs leading-5 text-danger">{message}</p> : null}
-          {enrollment ? (
-            <section className="mt-4 rounded-xl border border-white/15 bg-white p-4 text-ink" aria-labelledby="passkey-qr-heading">
-              <div className="flex items-start gap-3">
-                <QrCode className="mt-0.5 size-5 text-primary" aria-hidden="true" />
-                <div>
-                  <h2 id="passkey-qr-heading" className="text-sm font-semibold">Finish on a secure device</h2>
-                  <p className="mt-1 text-xs leading-5 text-ink/70">Open this QR code on a secure device. It expires at {new Date(enrollment.expiresAt).toLocaleString()}.</p>
-                </div>
+          <section className="mt-4 rounded-xl border border-white/15 bg-white p-4 text-ink" aria-labelledby="passkey-qr-heading">
+            <div className="flex items-start gap-3">
+              <QrCode className="mt-0.5 size-5 text-primary" aria-hidden="true" />
+              <div>
+                <h2 id="passkey-qr-heading" className="text-sm font-semibold">Finish on a secure device</h2>
+                <p className="mt-1 text-xs leading-5 text-ink/70">
+                  {enrollment
+                    ? `Open this QR code on a secure device. It expires at ${new Date(enrollment.expiresAt).toLocaleString()}.`
+                    : "Preparing your passkey enrollment QR code…"}
+                </p>
               </div>
+            </div>
+            {enrollment ? (
               <div className="mt-3 flex items-center justify-center gap-3">
                 <div className="grid place-items-center rounded-lg bg-white p-2">
                   <img alt="Passkey enrollment QR code" src={enrollmentQr ?? ""} className="size-52" />
@@ -227,8 +231,12 @@ export function WorkspaceAuth() {
                   Refresh QR
                 </button>
               </div>
-            </section>
-          ) : null}
+            ) : (
+              <button type="button" onClick={() => void refreshEnrollment()} className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-xl border border-primary/25 text-xs font-medium text-primary hover:bg-primary/5">
+                Load QR code
+              </button>
+            )}
+          </section>
         </div>
       ) : pendingPasskey ? (
         <div className="mt-5 rounded-2xl border border-success/30 bg-white/[0.07] p-4">
