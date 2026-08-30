@@ -35,7 +35,6 @@ Every purchase is authorized by the *backend*, at the moment of decision, agains
 
 - [The problem](#the-problem)
 - [The core insight](#the-core-insight)
-- [The demo path](#the-demo-path-4-minutes)
 - [Trial by fire](#trial-by-fire)
 - [Architecture](#architecture)
 - [The authority model](#the-authority-model)
@@ -45,11 +44,11 @@ Every purchase is authorized by the *backend*, at the moment of decision, agains
 - [Three views: buyer, merchant, auditor](#three-views-buyer-merchant-auditor)
 - [Data model](#data-model)
 - [Repository layout](#repository-layout)
-- [Running it](#running-it)
-- [Tests](#tests)
 - [Engineering trade-offs](#engineering-trade-offs)
 - [Known limits](#known-limits)
 - [Deployment](#deployment)
+- [Further reading](#further-reading)
+- [Running it](#running-it) · [Tests](#tests)
 
 ---
 
@@ -84,21 +83,6 @@ A purchase requires a **passkey session** (proving a human authenticated with a 
 This is why the file is called [`cross-credential-auth.ts`](api/src/services/cross-credential-auth.ts). It is the heart of the product.
 
 ---
-
-## The demo path (4 minutes)
-
-| # | Time | Action | What to watch |
-| --- | --- | --- | --- |
-| 1 | 0:00 | Open `/assistant`, type a shopping goal in natural language | The agent uses catalog tools (`list_product_categories`, `search_agent_mpp_products`, `compare_products`) to ground itself in the **real** catalog. It cannot invent products — the schema rejects any slug the catalog did not return |
-| 2 | 0:45 | The agent proposes a **mandate card**: scope, ceiling, currency, validity | This is a *proposal*. Nothing is authorized yet. The card is a UI object, not a permission |
-| 3 | 1:15 | Approve with **passkey / biometric** | WebAuthn assertion → short-lived passkey session. This is the human-in-the-loop boundary. The BFF requires an assertion **less than 120 seconds old** before it will create a mandate ([`_shared.ts`](front/src/app/api/agent-runs/_shared.ts)) |
-| 4 | 1:30 | The mandate is created server-side and a **durable run** starts | The run row lands in Postgres. Close the tab, restart the agent process — the run survives and continues |
-| 5 | 1:45 | The worker polls every 3s: `poll_started` → `candidates_scanned` → `product_selected` | Every transition is an append-only `agent_run_events` row with a monotonic sequence number |
-| 6 | 2:30 | Settlement over **real Stripe MPP** | A Shared Payment Token is minted with `max_amount` and `expires_at` bound to the mandate. The agent never sees a card number |
-| 7 | 3:00 | The **receipt** appears with proof ID, payment attempt ID, and authority checks | Three named checks are recorded: `candidate_authorized_by_api`, `mandate_revalidated_before_payment`, `stripe_receipt_settled` |
-| 8 | 3:30 | Open `/merchant/dashboard` in another window | The *same* settled transaction appears on the merchant side with verified-agent evidence and a deterministic risk level. Buyer and merchant are reading the same underlying rows through different projections |
-
-The end-to-end path in step 8 — one settled transaction reaching both the buyer and merchant projections — is covered by a Playwright test: [`front/e2e/agent-run.spec.ts`](front/e2e/agent-run.spec.ts).
 
 ## Trial by fire
 
@@ -376,74 +360,6 @@ brasilia-dog/
 
 ---
 
-## Running it
-
-### Prerequisites
-
-Node 22, a Supabase project, Stripe **test-mode** credentials, and an OpenAI API key.
-
-### Option A — Dev container (recommended)
-
-```bash
-git clone https://github.com/rbfcdog/brasilia-dog.git
-cd brasilia-dog
-code .   # Command Palette → "Dev Containers: Reopen in Container"
-```
-
-First open copies `.env.example` to `.env`, installs dependencies, and provisions the Playwright Chromium binary. Fill in `.env`, then rebuild once (`Dev Containers: Rebuild Container`) — it is injected at container start, so editing it later always needs a rebuild.
-
-The **Dev: all** task starts automatically and runs a readiness gate that verifies five hops before declaring the stack up: api, agent, front, front→api proxy, and read-only Supabase access from *both* backend services.
-
-### Option B — Local
-
-```bash
-cp .env.example .env      # then fill it in — see the table below
-npm --prefix api install   && npm --prefix api run dev     # :3000
-npm --prefix agent install && npm --prefix agent run dev   # :3001
-npm --prefix front install && npm --prefix front run dev   # :3002
-node scripts/verify-local.mjs                              # readiness gate
-```
-
-Apply every migration in `api/supabase/migrations/` to your Supabase project first. The runtime **never falls back to fixtures** — a missing credential or a missing table fails visibly rather than silently serving mock data.
-
-### Configuration
-
-One `.env` at the repository root; all three services inherit it. Because it is consumed by `docker run --env-file`, values must be bare — no quotes, no spaces around `=`, no `${VAR}` expansion.
-
-| Group | Variables |
-| --- | --- |
-| Model | `OPENAI_API_KEY`, `OPENAI_MODEL` |
-| Agent | `ADAPTER_MODE=http`, `BACKEND_BASE_URL`, `AGENT_SERVICE_TOKEN`, `AGENT_BACKEND_TOKEN` |
-| Payments | `STRIPE_MODE=sandbox`, `STRIPE_SECRET_KEY`, `STRIPE_PROFILE_ID`, `MPP_SECRET_KEY`, `SESSION_SECRET` |
-| WebAuthn | `PASSKEY_RP_NAME`, `PASSKEY_RP_ID`, `PASSKEY_ORIGIN` |
-| Supabase | `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_*` |
-| Frontend | `BACKEND_API_URL`, `AGENT_SERVICE_URL` |
-
-`AGENT_SERVICE_TOKEN` and `AGENT_BACKEND_TOKEN` hold the same value locally: the API validates inbound agent calls against the first, the agent presents the second. They are separate names so the two hops can be rotated independently in production. `STRIPE_MODE=live` is blocked unless `ALLOW_LIVE_MPP_TEST=true` is set explicitly — a deliberate guard against a demo touching real money.
-
-`PORT` is intentionally absent from `.env`: the three services need different values, set per task in `.vscode/tasks.json`.
-
-## Tests
-
-**228 test cases across 59 files.** No mocked authorization — the security tests exercise the real verifier.
-
-```bash
-npm --prefix api   test    # 122 cases — authority, proofs, policy, payments, merchant
-npm --prefix agent test    #  49 cases — graph, contracts, catalog, proof, runs
-npm --prefix front test    #  57 cases — BFF boundary, hooks, components
-npm --prefix front run test:e2e   # Playwright end-to-end
-```
-
-The tests worth reading, because they are the security argument in executable form — [`agent/test/proof.test.ts`](agent/test/proof.test.ts):
-
-- a tampered signature is rejected
-- a proof from the wrong agent identity is rejected
-- reusing a valid nonce is rejected **even with a new idempotency key**
-- an expired proof is rejected
-- changing the signed UTF-8 body is detected by its SHA-256 binding
-
-Plus [`api/test/cross-credential.test.ts`](api/test/cross-credential.test.ts), [`api/test/marketplace-policy.test.ts`](api/test/marketplace-policy.test.ts), and [`front/src/app/api/agent-runs/route.test.ts`](front/src/app/api/agent-runs/route.test.ts) (the BFF authority boundary: ownership isolation, freshness gating, idempotency).
-
 ---
 
 ## Engineering trade-offs
@@ -510,3 +426,75 @@ None of these affect the security properties. They are availability and scale li
 - [Decision log](docs/decision-log.md) — trade-offs with alternatives and revisit conditions
 - [Merchant platform](docs/merchant-platform.md) — projections, commands, security boundary
 - [Local development](docs/local-dev.md) — dev container, configuration flow, service topology
+
+---
+
+## Running it
+
+### Prerequisites
+
+Node 22, a Supabase project, Stripe **test-mode** credentials, and an OpenAI API key.
+
+### Option A — Dev container (recommended)
+
+```bash
+git clone https://github.com/rbfcdog/brasilia-dog.git
+cd brasilia-dog
+code .   # Command Palette → "Dev Containers: Reopen in Container"
+```
+
+First open copies `.env.example` to `.env`, installs dependencies, and provisions the Playwright Chromium binary. Fill in `.env`, then rebuild once (`Dev Containers: Rebuild Container`) — it is injected at container start, so editing it later always needs a rebuild.
+
+The **Dev: all** task starts automatically and runs a readiness gate that verifies five hops before declaring the stack up: api, agent, front, front→api proxy, and read-only Supabase access from *both* backend services.
+
+### Option B — Local
+
+```bash
+cp .env.example .env      # then fill it in — see the table below
+npm --prefix api install   && npm --prefix api run dev     # :3000
+npm --prefix agent install && npm --prefix agent run dev   # :3001
+npm --prefix front install && npm --prefix front run dev   # :3002
+node scripts/verify-local.mjs                              # readiness gate
+```
+
+Apply every migration in `api/supabase/migrations/` to your Supabase project first. The runtime **never falls back to fixtures** — a missing credential or a missing table fails visibly rather than silently serving mock data.
+
+### Configuration
+
+One `.env` at the repository root; all three services inherit it. Because it is consumed by `docker run --env-file`, values must be bare — no quotes, no spaces around `=`, no `${VAR}` expansion.
+
+| Group | Variables |
+| --- | --- |
+| Model | `OPENAI_API_KEY`, `OPENAI_MODEL` |
+| Agent | `ADAPTER_MODE=http`, `BACKEND_BASE_URL`, `AGENT_SERVICE_TOKEN`, `AGENT_BACKEND_TOKEN` |
+| Payments | `STRIPE_MODE=sandbox`, `STRIPE_SECRET_KEY`, `STRIPE_PROFILE_ID`, `MPP_SECRET_KEY`, `SESSION_SECRET` |
+| WebAuthn | `PASSKEY_RP_NAME`, `PASSKEY_RP_ID`, `PASSKEY_ORIGIN` |
+| Supabase | `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_*` |
+| Frontend | `BACKEND_API_URL`, `AGENT_SERVICE_URL` |
+
+`AGENT_SERVICE_TOKEN` and `AGENT_BACKEND_TOKEN` hold the same value locally: the API validates inbound agent calls against the first, the agent presents the second. They are separate names so the two hops can be rotated independently in production. `STRIPE_MODE=live` is blocked unless `ALLOW_LIVE_MPP_TEST=true` is set explicitly — a deliberate guard against a demo touching real money.
+
+`PORT` is intentionally absent from `.env`: the three services need different values, set per task in `.vscode/tasks.json`.
+
+## Tests
+
+**228 test cases across 59 files.** No mocked authorization — the security tests exercise the real verifier.
+
+```bash
+npm --prefix api   test    # 122 cases — authority, proofs, policy, payments, merchant
+npm --prefix agent test    #  49 cases — graph, contracts, catalog, proof, runs
+npm --prefix front test    #  57 cases — BFF boundary, hooks, components
+npm --prefix front run test:e2e   # Playwright end-to-end
+```
+
+The end-to-end suite ([`front/e2e/agent-run.spec.ts`](front/e2e/agent-run.spec.ts)) drives the whole vertical in a real browser: a buyer approves a mandate with a passkey, the run settles, and the **same** transaction is asserted on both the buyer and merchant projections. A second case covers mandate expiry resuming at version two before settlement.
+
+The tests worth reading, because they are the security argument in executable form — [`agent/test/proof.test.ts`](agent/test/proof.test.ts):
+
+- a tampered signature is rejected
+- a proof from the wrong agent identity is rejected
+- reusing a valid nonce is rejected **even with a new idempotency key**
+- an expired proof is rejected
+- changing the signed UTF-8 body is detected by its SHA-256 binding
+
+Plus [`api/test/cross-credential.test.ts`](api/test/cross-credential.test.ts), [`api/test/marketplace-policy.test.ts`](api/test/marketplace-policy.test.ts), and [`front/src/app/api/agent-runs/route.test.ts`](front/src/app/api/agent-runs/route.test.ts) (the BFF authority boundary: ownership isolation, freshness gating, idempotency).
