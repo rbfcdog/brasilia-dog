@@ -70,6 +70,15 @@ export function WorkspaceAuth() {
     }).then(setEnrollmentQr).catch(() => setMessage("Could not generate the passkey enrollment QR code."));
   }, [enrollment]);
 
+  async function refreshEnrollment() {
+    setEnrollmentQr(null);
+    try {
+      setEnrollment(await backendService.createPasskeyEnrollment());
+    } catch {
+      setMessage("Could not refresh the passkey enrollment QR code.");
+    }
+  }
+
   function shouldOfferEnrollmentFallback(error: unknown): boolean {
     if (!(error instanceof Error)) return false;
     return error.name === "SecurityError"
@@ -210,8 +219,13 @@ export function WorkspaceAuth() {
                   <p className="mt-1 text-xs leading-5 text-ink/70">Open this QR code on a secure device. It expires at {new Date(enrollment.expiresAt).toLocaleString()}.</p>
                 </div>
               </div>
-              <div className="mt-3 grid place-items-center rounded-lg bg-white p-2">
-                <img alt="Passkey enrollment QR code" src={enrollmentQr ?? ""} className="size-52" />
+              <div className="mt-3 flex items-center justify-center gap-3">
+                <div className="grid place-items-center rounded-lg bg-white p-2">
+                  <img alt="Passkey enrollment QR code" src={enrollmentQr ?? ""} className="size-52" />
+                </div>
+                <button type="button" onClick={() => void refreshEnrollment()} className="inline-flex h-10 shrink-0 items-center justify-center rounded-xl border border-primary/25 px-3 text-xs font-medium text-primary hover:bg-primary/5">
+                  Refresh QR
+                </button>
               </div>
             </section>
           ) : null}
