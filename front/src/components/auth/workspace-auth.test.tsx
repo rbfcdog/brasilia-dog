@@ -67,6 +67,8 @@ describe("workspace authentication", () => {
     await user.type(screen.getByLabelText("Password"), "password123");
     await user.click(screen.getByRole("button", { name: "Sign in as buyer" }));
 
+    const setup = await screen.findByRole("button", { name: "Set up passkey" });
+    await user.click(setup);
     expect(mocks.registerPasskey).toHaveBeenCalledOnce();
     expect(mocks.push).toHaveBeenCalledWith("/assistant");
   });

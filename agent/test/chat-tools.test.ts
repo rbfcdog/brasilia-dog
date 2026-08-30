@@ -31,6 +31,7 @@ const product: CatalogProduct = {
 };
 interface CapturedRequest {
   input?: Array<{ type: string; output?: string }>;
+  tool_choice?: unknown;
 }
 
 test('shopping responder executes a ranked backend category search and returns exact products', async () => {
@@ -83,7 +84,7 @@ test('shopping responder executes a ranked backend category search and returns e
   } as unknown as OpenAI;
   const responder = new OpenAIShoppingResponder({ apiKey: 'test-key', model: 'test-model', client });
 
-  const result = await responder.respond({ message: 'Show home products under $100', catalog });
+  const result = await responder.respond({ message: 'Buy an ultrawide monitor up to $300', catalog });
 
   assert.deepEqual(searches, [{
     query: null,
@@ -93,6 +94,7 @@ test('shopping responder executes a ranked backend category search and returns e
     limit: 10,
   }]);
   assert.equal(requests.length, 2);
+  assert.deepEqual(requests[0]?.tool_choice, { type: 'function', name: 'search_products' });
   const toolOutput = requests[1]?.input?.find((item) => item.type === 'function_call_output');
   assert.deepEqual(JSON.parse(toolOutput?.output ?? '{}'), {
     products: [{
@@ -123,6 +125,87 @@ test('shopping responder executes a ranked backend category search and returns e
       resultSlugs: [product.slug],
     }],
   });
+});
+
+test('shopping responder forces a catalog search for a Portuguese product request', async () => {
+  const requests: CapturedRequest[] = [];
+  const client = {
+    responses: {
+      create: async (request: CapturedRequest) => {
+        requests.push(request);
+        return {
+          output_text: JSON.stringify({
+            message: 'What is your budget?',
+            scope: null,
+            maximumAmount: null,
+            minimumScreenSize: null,
+            category: null,
+            products: [],
+          }),
+          output: [],
+        };
+      },
+    },
+  } as unknown as OpenAI;
+  const responder = new OpenAIShoppingResponder({ apiKey: 'test-key', model: 'test-model', client });
+
+  await responder.respond({ message: 'Quero comprar um monitor ultrawide.' });
+
+  assert.deepEqual(requests[0]?.tool_choice, { type: 'function', name: 'search_products' });
+});
+
+test('shopping responder forces a catalog search for a generic product inquiry', async () => {
+  const requests: CapturedRequest[] = [];
+  const client = {
+    responses: {
+      create: async (request: CapturedRequest) => {
+        requests.push(request);
+        return {
+          output_text: JSON.stringify({
+            message: 'Which category interests you?',
+            scope: null,
+            maximumAmount: null,
+            minimumScreenSize: null,
+            category: null,
+            products: [],
+          }),
+          output: [],
+        };
+      },
+    },
+  } as unknown as OpenAI;
+  const responder = new OpenAIShoppingResponder({ apiKey: 'test-key', model: 'test-model', client });
+
+  await responder.respond({ message: 'Which products do you have?' });
+
+  assert.deepEqual(requests[0]?.tool_choice, { type: 'function', name: 'search_products' });
+});
+
+test('shopping responder forces category discovery for a Portuguese category request', async () => {
+  const requests: CapturedRequest[] = [];
+  const client = {
+    responses: {
+      create: async (request: CapturedRequest) => {
+        requests.push(request);
+        return {
+          output_text: JSON.stringify({
+            message: 'I can browse the catalog categories.',
+            scope: null,
+            maximumAmount: null,
+            minimumScreenSize: null,
+            category: null,
+            products: [],
+          }),
+          output: [],
+        };
+      },
+    },
+  } as unknown as OpenAI;
+  const responder = new OpenAIShoppingResponder({ apiKey: 'test-key', model: 'test-model', client });
+
+  await responder.respond({ message: 'Quais categorias vocês têm?' });
+
+  assert.deepEqual(requests[0]?.tool_choice, { type: 'function', name: 'list_product_categories' });
 });
 
 test('shopping responder returns catalog products when the model omits them after a successful search', async () => {

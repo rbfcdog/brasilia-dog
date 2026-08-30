@@ -204,6 +204,18 @@ const compareToolArgumentsSchema = z.strictObject({
   slugs: z.array(z.string()).min(1).max(5),
 });
 
+function requiresCatalogSearch(message: string): boolean {
+  return /\b(?:buy|find|show|search|browse|available|looking for|need|want|compare|product|products|catalog|offer|offers|comprar|encontrar|mostrar|buscar|procurar|pesquisar|navegar|dispon[ií]vel|produto|produtos|cat[aá]logo|oferta|ofertas|preciso|quero|comparar)\b/i.test(message);
+}
+
+function initialCatalogTool(message: string): 'list_product_categories' | 'search_products' | null {
+  if (/\b(?:categories|categorias)\b/i.test(message)) {
+    return 'list_product_categories';
+  }
+  return requiresCatalogSearch(message) ? 'search_products' : null;
+}
+
+
 function availableProducts(products: CatalogProduct[]): CatalogProduct[] {
   return products.filter((product) => product.status === 'published');
 }
@@ -330,7 +342,8 @@ export class OpenAIShoppingResponder implements ChatResponder {
     try {
       const instructions = [
         'Act as a capable shopping research assistant with tools for current catalog search, category discovery, and product comparison.',
-        'Use catalog tools whenever the user asks what is available, asks for products in a category, or asks to compare products. Never invent catalog results.',
+        'Use catalog tools whenever the user asks what is available, asks for products in a category, asks to buy or find a product, or asks to compare products. Never invent catalog results.',
+        'For a request to buy, find, show, search, browse, or locate a product, search the current catalog before responding.',
         'You may browse and explain products without requiring a budget. Product browsing is read-only and does not authorize selection or purchase.',
         'Help the user prepare a non-executable autonomous shopping mandate proposal when they provide a search category and spending cap.',
         'The mandate authorizes search constraints, not a preselected product, seller, or listing.',
@@ -341,6 +354,7 @@ export class OpenAIShoppingResponder implements ChatResponder {
         'For a mandate proposal, leave products empty and provide a category-level scope and maximumAmount.',
         'For a mandate proposal, category must be the exact normalized catalog category used by the merchant metadata.',
       ].join(' ');
+      const initialTool = initialCatalogTool(input.message);
       let modelInput: string | unknown[] = JSON.stringify({
         userMessage: input.message,
         conversationContext: input.conversationContext ?? null,
@@ -354,6 +368,9 @@ export class OpenAIShoppingResponder implements ChatResponder {
           instructions,
           input: modelInput as never,
           tools: catalogToolDefinitions as never,
+          ...(round === 0 && initialTool
+            ? { tool_choice: { type: 'function', name: initialTool } as never }
+            : {}),
           text: {
             format: {
               type: 'json_schema',
