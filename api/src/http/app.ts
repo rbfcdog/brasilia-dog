@@ -23,6 +23,7 @@ import type { CrossCredentialAuth } from '../services/cross-credential-auth.js';
 import type { SellerAgentVerificationService } from '../services/seller-agent-verification.js';
 import type { SellerQuoteRepository } from '../repositories/seller-quote-repository.js';
 import type { ConversationRepository } from '../repositories/conversation-repository.js';
+import { MerchantCommandError, type MerchantService } from '../services/merchant-service.js';
 
 
 function json(value: unknown, status = 200): Response {
@@ -158,6 +159,37 @@ const OPENAPI_DOCUMENT = Object.freeze({
         summary: 'Revoke a passkey session token',
         responses: {
           '200': { description: 'Session revoked' },
+        },
+      },
+    },
+    '/v1/merchant/products': {
+      post: {
+        summary: 'Create an owned fixed-price product draft',
+        description: 'Requires a Supabase user access token. The server derives product ownership and payment-network configuration.',
+        responses: {
+          '201': { description: 'Product draft, inactive offering, and disabled endpoint created atomically' },
+          '401': { description: 'Merchant authentication required' },
+          '409': { description: 'Product slug already exists' },
+        },
+      },
+    },
+    '/v1/merchant/products/{id}/publish': {
+      post: {
+        summary: 'Publish an owned fixed-price product draft',
+        responses: {
+          '200': { description: 'Product, offering, and endpoint activated atomically' },
+          '404': { description: 'Owned publishable draft not found' },
+        },
+      },
+    },
+    '/v1/merchant/refund-cases': {
+      post: {
+        summary: 'Create a pending refund case',
+        description: 'Records an operations request only. It does not call Stripe or authorize a refund.',
+        responses: {
+          '201': { description: 'Pending refund case created' },
+          '404': { description: 'Owned settled payment attempt not found' },
+          '409': { description: 'An open case already exists' },
         },
       },
     },
@@ -393,6 +425,7 @@ interface AppDeps {
   sellerQuoteRepository?: SellerQuoteRepository | null;
   sessionService?: SessionService | null;
   agentServiceToken?: string | null;
+  merchantService?: MerchantService | null;
 }
 
 export function createApp({
@@ -413,6 +446,7 @@ export function createApp({
   sellerQuoteRepository = null,
   sessionService = null,
   agentServiceToken = null,
+  merchantService = null,
 }: AppDeps): AppHandler {
   return async function app(request: Request): Promise<Response> {
     const { pathname } = new URL(request.url);
@@ -494,6 +528,54 @@ export function createApp({
       }
       await sessionService.revokeSession(body.sessionToken);
       return json({ revoked: true });
+    }
+
+    // Merchant commands accept a short-lived Supabase user JWT. The service
+    // derives the owner from that verified token; request bodies never carry it.
+    if (merchantService && request.method === 'POST' && pathname === '/v1/merchant/products') {
+      try {
+        const authorization = request.headers.get('authorization');
+        const token = authorization?.match(/^Bearer (.+)$/)?.[1];
+        if (!token) throw new MerchantCommandError('Merchant authentication is required.', 401, 'merchant_authentication_required');
+        const user = await merchantService.authenticate(token);
+        const body = await request.json().catch(() => ({}));
+        const product = await merchantService.createProduct(user.id, isRecord(body) ? body : {});
+        return json({ product }, 201);
+      } catch (error) {
+        const commandError = error instanceof MerchantCommandError ? error : new MerchantCommandError('Could not create the product draft.', 500, 'product_create_failed');
+        return json({ error: commandError.code, detail: commandError.message }, commandError.status);
+      }
+    }
+
+    if (merchantService && request.method === 'POST' && /^\/v1\/merchant\/products\/[^/]+\/publish$/.test(pathname)) {
+      try {
+        const authorization = request.headers.get('authorization');
+        const token = authorization?.match(/^Bearer (.+)$/)?.[1];
+        if (!token) throw new MerchantCommandError('Merchant authentication is required.', 401, 'merchant_authentication_required');
+        const user = await merchantService.authenticate(token);
+        const productId = pathname.split('/')[4];
+        if (!productId) throw new MerchantCommandError('Product ID is required.');
+        const product = await merchantService.publishProduct(user.id, productId);
+        return json({ product });
+      } catch (error) {
+        const commandError = error instanceof MerchantCommandError ? error : new MerchantCommandError('Could not publish the product.', 500, 'product_publish_failed');
+        return json({ error: commandError.code, detail: commandError.message }, commandError.status);
+      }
+    }
+
+    if (merchantService && request.method === 'POST' && pathname === '/v1/merchant/refund-cases') {
+      try {
+        const authorization = request.headers.get('authorization');
+        const token = authorization?.match(/^Bearer (.+)$/)?.[1];
+        if (!token) throw new MerchantCommandError('Merchant authentication is required.', 401, 'merchant_authentication_required');
+        const user = await merchantService.authenticate(token);
+        const body = await request.json().catch(() => ({}));
+        const refundCase = await merchantService.createRefundCase(user.id, isRecord(body) ? body : {});
+        return json({ refundCase }, 201);
+      } catch (error) {
+        const commandError = error instanceof MerchantCommandError ? error : new MerchantCommandError('Could not create the refund case.', 500, 'refund_case_create_failed');
+        return json({ error: commandError.code, detail: commandError.message }, commandError.status);
+      }
     }
 
     // Refund route

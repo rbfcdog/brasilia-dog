@@ -238,6 +238,46 @@ Request body:
 
 Deletes the server-side session and returns `{"revoked":true}`.
 
+## Merchant command endpoints
+
+Merchant commands require `Authorization: Bearer <supabaseAccessToken>`. The API validates the Supabase user, requires an active `merchant_profiles` record, and derives `owner_id` from that verified identity. Merchant IDs and owner IDs are never accepted as authority claims.
+
+### `POST /v1/merchant/products`
+
+Creates a product, Stripe MPP offering, and endpoint as one inactive draft. Price is always a positive integer in USD minor units; payment network configuration comes from the server.
+
+```json
+{
+  "name": "34-inch ultrawide monitor",
+  "slug": "34-inch-ultrawide-monitor",
+  "description": "A precise display description.",
+  "amountMinor": 29900,
+  "currency": "usd",
+  "metadata": { "screen_size_inches": 34, "panel": "IPS", "usb_c": true }
+}
+```
+
+Returns `201 {"product":{"id":"...","status":"draft"}}`.
+
+### `POST /v1/merchant/products/{id}/publish`
+
+Atomically publishes an owned draft and activates its existing fixed-price offering and endpoint. It accepts no body and returns `{"product":{"id":"...","status":"published"}}`.
+
+### `POST /v1/merchant/refund-cases`
+
+Creates a pending operations case for an owned settled receipt. It does not execute a Stripe refund or change payment status.
+
+```json
+{
+  "paymentAttemptId": "...",
+  "amountMinor": 5000,
+  "reason": "requested_by_customer",
+  "note": "Package returned."
+}
+```
+
+Only one open case is allowed per payment attempt. The requested amount cannot exceed the receipt total.
+
 ## Refund endpoint
 
 ### `POST /refund`

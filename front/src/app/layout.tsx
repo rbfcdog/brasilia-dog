@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { headers } from "next/headers";
-import { AppShell } from "@/components/layout/app-shell";
-import { ShoppingProvider } from "@/components/providers/shopping-provider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -28,8 +26,8 @@ export async function generateMetadata(): Promise<Metadata> {
     // Keep the safe local fallback when proxy metadata is malformed.
   }
 
-  const title = "Nomad — Buyer Assistant";
-  const description = "A governed AI shopping assistant that keeps you in control.";
+  const title = "Nomad — Agentic commerce for buyers and sellers";
+  const description = "A fixed-price commerce operating system where people set the rules and AI agents execute with proof.";
   const socialImage = `${origin}/og.png`;
 
   return {
@@ -41,7 +39,7 @@ export async function generateMetadata(): Promise<Metadata> {
       description,
       type: "website",
       url: origin,
-      images: [{ url: socialImage, width: 1731, height: 909, alt: "Nomad — Your agent can shop. You stay in control." }],
+      images: [{ url: socialImage, width: 1536, height: 1024, alt: "Nomad — fixed-price commerce for people and AI agents." }],
     },
     twitter: {
       card: "summary_large_image",
@@ -59,9 +57,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body suppressHydrationWarning className="min-h-full bg-canvas font-sans text-ink">
-        <ShoppingProvider>
-          <AppShell>{children}</AppShell>
-        </ShoppingProvider>
+        {children}
       </body>
     </html>
   );

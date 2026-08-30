@@ -35,7 +35,10 @@ function isAllowedPath(pathname: string): boolean {
     pathname === "/v1/payments" ||
     /^\/v1\/payments\/[^/]+$/.test(pathname) ||
     pathname === "/v1/conversations" ||
-    /^\/v1\/conversations\/[^/]+\/messages$/.test(pathname)
+    /^\/v1\/conversations\/[^/]+\/messages$/.test(pathname) ||
+    pathname === "/v1/merchant/products" ||
+    /^\/v1\/merchant\/products\/[^/]+\/publish$/.test(pathname) ||
+    pathname === "/v1/merchant/refund-cases"
   );
 }
 

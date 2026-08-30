@@ -1,8 +1,8 @@
-# Nomad buyer assistant
+# Nomad unified commerce platform
 
-Nomad is the buyer-facing frontend for a governed AI shopping assistant. The conversational agent and purchase orchestration remain simulated until the backend is configured with its separate agent API.
+Nomad is a unified Buyer and Merchant frontend for governed, fixed-price agentic commerce. Buyers define purchasing mandates; Merchants publish structured products and audit the proof behind agent-originated orders.
 
-The browser communicates only with this Next.js application. Its `/api/backend/*` route proxies allowlisted requests to the Node backend in `../api`; it never calls Supabase, Stripe, or an agent API directly.
+The Buyer browser communicates through the Next.js backend proxy. The Merchant workspace authenticates with Supabase and reads only RLS-scoped projections; product, publish, and refund-case commands are allowlisted calls to the Node API. No browser receives a service-role or Stripe secret.
 
 ## Run locally
 
@@ -13,7 +13,16 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-Copy `.env.example` to `.env.local` and set `BACKEND_API_URL`. Use `http://localhost:3000` locally, then replace it with the deployed `api` service URL. Keep this variable server-only: do not rename it with a `NEXT_PUBLIC_` prefix.
+Merchant demo authentication and populated in-memory projections are enabled automatically during `npm run dev`, so the complete workspace can be explored without Supabase credentials. Use the **Explore demo workspace** button on `/merchant/login`, or open a Merchant route directly. Demo catalog and refund-case changes reset when the development server restarts.
+
+To exercise the real authentication flow locally, copy `.env.example` to `.env.local`, set `NEXT_PUBLIC_MERCHANT_MOCK_AUTH=false`, and configure `BACKEND_API_URL`, `NEXT_PUBLIC_SUPABASE_URL`, and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. The backend URL remains server-only. The Supabase publishable key is intentionally public and relies on RLS; never expose the Supabase secret key.
+
+Routes:
+
+- `/` — unified Buyer/Merchant landing
+- `/assistant` — Buyer shopping agent
+- `/merchant/login` — Merchant email/password access
+- `/merchant/dashboard`, `/merchant/orders`, `/merchant/catalog`, `/merchant/finance` — protected Merchant workspace
 
 ## Deterministic demo prompts
 
