@@ -201,6 +201,7 @@ export type TerminalResult =
   | { outcome: 'failed'; code: string; message: string };
 
 export interface PublicRun {
+  ownerId?: string;
   runId: string;
   status: RunStatus;
   goal: string;

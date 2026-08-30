@@ -147,8 +147,8 @@ test('run creation, polling, and start idempotency follow the public contract', 
   const request = {
     goal: 'Buy a flight to Córdoba below USD 150',
     mandateId: 'mandate-vuelaya-cordoba',
+    ownerId: randomUUID(),
   };
-
   const firstResponse = await fetch(`${baseUrl}/v1/agent-runs`, {
     method: 'POST',
     headers: authenticatedHeaders(idempotencyKey),
@@ -170,6 +170,7 @@ test('run creation, polling, and start idempotency follow the public contract', 
 
   const completed = await pollRun(baseUrl, first.data.runId, 'completed');
   assert.equal(completed.result.outcome, 'allowed');
+  assert.equal(completed.ownerId, request.ownerId);
   assert.deepEqual(completed.events.map((event: { type: string }) => event.type), [
     'run_started',
     'mandate_loaded',

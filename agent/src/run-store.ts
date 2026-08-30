@@ -66,6 +66,7 @@ export class RunStore {
       status: 'queued',
       goal: request.goal,
       mandateId: request.mandateId,
+      ...(request.ownerId ? { ownerId: request.ownerId } : {}),
       ...(request.conversationId ? { conversationId: request.conversationId } : {}),
       createdAt: timestamp,
       updatedAt: timestamp,
