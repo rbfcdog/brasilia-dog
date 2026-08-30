@@ -40,6 +40,33 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
+function digits(value: string): string {
+  return value.replace(/\D/g, '');
+}
+
+function validCpf(value: string): boolean {
+  const cpf = digits(value);
+  if (!/^\d{11}$/.test(cpf) || /^(\d)\1{10}$/.test(cpf)) return false;
+  const checkDigit = (length: number): number => {
+    const sum = [...cpf.slice(0, length)].reduce((total, digit, index) => total + Number(digit) * (length + 1 - index), 0);
+    const remainder = (sum * 10) % 11;
+    return remainder === 10 ? 0 : remainder;
+  };
+  return checkDigit(9) === Number(cpf[9]) && checkDigit(10) === Number(cpf[10]);
+}
+
+function validCnpj(value: string): boolean {
+  const cnpj = digits(value);
+  if (!/^\d{14}$/.test(cnpj) || /^(\d)\1{13}$/.test(cnpj)) return false;
+  const checkDigit = (length: number): number => {
+    const weights = length === 12 ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    const sum = [...cnpj.slice(0, length)].reduce((total, digit, index) => total + Number(digit) * weights[index]!, 0);
+    const remainder = sum % 11;
+    return remainder < 2 ? 0 : 11 - remainder;
+  };
+  return checkDigit(12) === Number(cnpj[12]) && checkDigit(13) === Number(cnpj[13]);
+}
+
 const conversationEventTypes = new Set([
   'catalog_search',
   'category_list',
@@ -591,24 +618,31 @@ export function createApp({
         !isRecord(body) ||
         typeof body.email !== 'string' ||
         typeof body.password !== 'string' ||
+        typeof body.cpf !== 'string' ||
         (body.role !== 'buyer' && body.role !== 'merchant')
       ) {
-        return json({ error: 'email_password_and_role_required' }, 400);
+        return json({ error: 'email_password_cpf_and_role_required' }, 400);
       }
+      const cpf = digits(body.cpf);
+      if (!validCpf(cpf)) return json({ error: 'cpf_invalid' }, 400);
       const businessName = typeof body.businessName === 'string' ? body.businessName.trim() : '';
+      const cnpj = typeof body.cnpj === 'string' ? digits(body.cnpj) : '';
       if (body.role === 'merchant' && businessName.length < 2) {
         return json({ error: 'business_name_required' }, 400);
+      }
+      if (body.role === 'merchant' && !validCnpj(cnpj)) {
+        return json({ error: 'cnpj_invalid' }, 400);
       }
       try {
         return json(await userAuthService.signUp(body.email.trim(), body.password, {
           account_type: body.role,
-          ...(body.role === 'merchant' ? { business_name: businessName } : {}),
+          cpf,
+          ...(body.role === 'merchant' ? { business_name: businessName, cnpj } : {}),
         }), 201);
       } catch (error) {
         return json({ error: 'signup_failed', detail: (error as Error).message }, 400);
       }
     }
-
     if (userAuthService && request.method === 'POST' && pathname === '/v1/auth/refresh') {
       const body = await request.json().catch(() => null);
       if (!isRecord(body) || typeof body.refreshToken !== 'string') {

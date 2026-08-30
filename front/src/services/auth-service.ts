@@ -26,7 +26,7 @@ export const authService = {
     method: "POST",
     body: JSON.stringify({ email, password }),
   }),
-  signUp: (input: { email: string; password: string; role: "buyer" | "merchant"; businessName?: string }) =>
+  signUp: (input: { email: string; password: string; cpf: string; role: "buyer" | "merchant"; businessName?: string; cnpj?: string }) =>
     request<{ user?: AuthUser; confirmationRequired: boolean }>("sign-up", {
       method: "POST",
       body: JSON.stringify(input),

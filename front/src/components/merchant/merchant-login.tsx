@@ -16,6 +16,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { registerEnrolledPasskey } from "@/hooks/use-passkey";
+import { isValidCnpj, isValidCpf } from "@/lib/brazilian-tax-id";
 import { backendService } from "@/services/backend-service";
 import { authService } from "@/services/auth-service";
 
@@ -71,6 +72,8 @@ export function MerchantLogin({
     const email = String(form.get("email") ?? "").trim();
     const password = String(form.get("password") ?? "");
     const businessName = String(form.get("businessName") ?? "").trim();
+    const cpf = String(form.get("cpf") ?? "");
+    const cnpj = String(form.get("cnpj") ?? "");
 
     if (password.length < 8) {
       setMessage("Password must be at least 8 characters.");
@@ -83,13 +86,16 @@ export function MerchantLogin({
         await authService.signIn(email, password);
         await beginAccess();
       } else {
-        if (businessName.length < 2)
-          throw new Error("Enter your business name.");
+        if (businessName.length < 2) throw new Error("Enter your business name.");
+        if (!isValidCpf(cpf)) throw new Error("Enter a valid CPF.");
+        if (!isValidCnpj(cnpj)) throw new Error("Enter a valid CNPJ.");
         const data = await authService.signUp({
           email,
           password,
+          cpf,
           role: "merchant",
           businessName,
+          cnpj,
         });
         if (!data.confirmationRequired) {
           if (!data.user) throw new Error("Account creation did not return an active session.");
@@ -198,6 +204,8 @@ export function MerchantLogin({
               <form onSubmit={(event) => void submit(event)} className="mt-6 space-y-4">
                 {mode === "signup" ? <div className="flex gap-3 rounded-xl border border-primary/20 bg-primary-soft p-3 text-xs leading-5 text-subtle"><Fingerprint className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" /><p><strong className="text-ink">Device passkey required.</strong> After creating your storefront, set up a passkey here using biometrics, a PIN, or another local verifier.</p></div> : null}
                 {mode === "signup" ? <label className="block"><span className="text-xs font-medium">Business name</span><input name="businessName" required minLength={2} autoComplete="organization" placeholder="Northstar Supply" className="mt-2 h-11 w-full rounded-xl border border-line bg-white px-3.5 text-sm outline-none transition focus:border-primary focus:ring-3 focus:ring-primary/10" /></label> : null}
+                {mode === "signup" ? <label className="block"><span className="text-xs font-medium">CPF</span><input name="cpf" required inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" className="mt-2 h-11 w-full rounded-xl border border-line bg-white px-3.5 text-sm outline-none transition focus:border-primary focus:ring-3 focus:ring-primary/10" /></label> : null}
+                {mode === "signup" ? <label className="block"><span className="text-xs font-medium">CNPJ</span><input name="cnpj" required inputMode="numeric" autoComplete="off" placeholder="00.000.000/0000-00" className="mt-2 h-11 w-full rounded-xl border border-line bg-white px-3.5 text-sm outline-none transition focus:border-primary focus:ring-3 focus:ring-primary/10" /></label> : null}
                 <label className="block"><span className="text-xs font-medium">Work email</span><input name="email" type="email" required autoComplete="email" placeholder="you@company.com" className="mt-2 h-11 w-full rounded-xl border border-line bg-white px-3.5 text-sm outline-none transition focus:border-primary focus:ring-3 focus:ring-primary/10" /></label>
                 <label className="block"><span className="text-xs font-medium">Password</span><span className="relative mt-2 block"><input name="password" type={showPassword ? "text" : "password"} required minLength={8} autoComplete={mode === "signin" ? "current-password" : "new-password"} className="h-11 w-full rounded-xl border border-line bg-white px-3.5 pr-11 text-sm outline-none transition focus:border-primary focus:ring-3 focus:ring-primary/10" /><button type="button" onClick={() => setShowPassword((value) => !value)} className="absolute inset-y-0 right-0 grid w-11 place-items-center text-muted hover:text-ink" aria-label={showPassword ? "Hide password" : "Show password"}>{showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</button></span></label>
                 {message ? <p role="alert" className="rounded-xl border border-danger/20 bg-danger-soft px-3.5 py-3 text-xs leading-5 text-danger">{message}</p> : null}

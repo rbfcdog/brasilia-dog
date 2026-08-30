@@ -6,6 +6,7 @@ import { type FormEvent, useEffect, useState } from "react";
 
 import { registerEnrolledPasskey } from "@/hooks/use-passkey";
 import { backendService } from "@/services/backend-service";
+import { isValidCnpj, isValidCpf } from "@/lib/brazilian-tax-id";
 import { authService, type AuthUser } from "@/services/auth-service";
 
 type Role = "buyer" | "merchant";
@@ -24,6 +25,8 @@ export function WorkspaceAuth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [businessName, setBusinessName] = useState("");
+  const [cpf, setCpf] = useState("");
+  const [cnpj, setCnpj] = useState("");
   const [authenticatedEmail, setAuthenticatedEmail] = useState<string | null>(null);
   const [pendingEnrollment, setPendingEnrollment] = useState<{ user: AuthUser; destination: string } | null>(null);
   const [pending, setPending] = useState(false);
@@ -77,14 +80,17 @@ export function WorkspaceAuth() {
         return;
       }
 
+      if (!isValidCpf(cpf)) throw new Error("Enter a valid CPF.");
       if (role === "merchant" && businessName.trim().length < 2) {
         throw new Error("Enter your business name.");
       }
+      if (role === "merchant" && !isValidCnpj(cnpj)) throw new Error("Enter a valid CNPJ.");
       const data = await authService.signUp({
         email: email.trim(),
         password,
+        cpf,
         role,
-        ...(role === "merchant" ? { businessName: businessName.trim() } : {}),
+        ...(role === "merchant" ? { businessName: businessName.trim(), cnpj } : {}),
       });
       if (data.confirmationRequired) {
         setMessage("Check your email to confirm the account, then sign in here.");
@@ -144,7 +150,8 @@ export function WorkspaceAuth() {
             <button type="button" onClick={() => setMode("signup")} className={`rounded-lg px-3 py-1.5 ${mode === "signup" ? "bg-white text-ink" : "text-white/60"}`}>Create account</button>
           </div>
           {mode === "signup" ? <div className="flex gap-3 rounded-xl border border-success/30 bg-success/10 p-3 text-xs leading-5 text-white/75"><Fingerprint className="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" /><p><strong className="text-white">Device passkey required.</strong> After creating your account, set up a passkey here. Your device may use biometrics, a PIN, or another local verifier.</p></div> : null}
-          {mode === "signup" && role === "merchant" ? <input aria-label="Business name" value={businessName} onChange={(event) => setBusinessName(event.target.value)} placeholder="Business name" className="h-10 w-full rounded-lg border border-white/15 bg-white/10 px-3 text-sm text-white placeholder:text-white/35" /> : null}
+          {mode === "signup" ? <input required aria-label="CPF" inputMode="numeric" value={cpf} onChange={(event) => setCpf(event.target.value)} placeholder="CPF" className="h-10 w-full rounded-lg border border-white/15 bg-white/10 px-3 text-sm text-white placeholder:text-white/35" /> : null}
+          {mode === "signup" && role === "merchant" ? <><input aria-label="Business name" value={businessName} onChange={(event) => setBusinessName(event.target.value)} placeholder="Business name" className="h-10 w-full rounded-lg border border-white/15 bg-white/10 px-3 text-sm text-white placeholder:text-white/35" /><input required aria-label="CNPJ" inputMode="numeric" value={cnpj} onChange={(event) => setCnpj(event.target.value)} placeholder="CNPJ" className="h-10 w-full rounded-lg border border-white/15 bg-white/10 px-3 text-sm text-white placeholder:text-white/35" /></> : null}
           <input required aria-label="Email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" className="h-10 w-full rounded-lg border border-white/15 bg-white/10 px-3 text-sm text-white placeholder:text-white/35" />
           <input required minLength={8} aria-label="Password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Password" className="h-10 w-full rounded-lg border border-white/15 bg-white/10 px-3 text-sm text-white placeholder:text-white/35" />
           <button disabled={pending} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-white text-sm font-medium text-ink disabled:opacity-60">

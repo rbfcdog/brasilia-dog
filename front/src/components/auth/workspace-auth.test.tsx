@@ -7,6 +7,7 @@ import { WorkspaceAuth } from "@/components/auth/workspace-auth";
 const mocks = vi.hoisted(() => ({
   push: vi.fn(),
   signInWithPassword: vi.fn(),
+  signUp: vi.fn(),
   passkeyStatus: vi.fn(),
   registerPasskey: vi.fn(),
   search: "",
@@ -21,7 +22,7 @@ vi.mock("@/services/auth-service", () => ({
   authService: {
     session: vi.fn().mockRejectedValue(new Error("signed out")),
     signIn: mocks.signInWithPassword,
-    signUp: vi.fn(),
+    signUp: mocks.signUp,
   },
 }));
 
@@ -40,6 +41,7 @@ describe("workspace authentication", () => {
     mocks.signInWithPassword.mockReset();
     mocks.passkeyStatus.mockResolvedValue({ registered: true, credentialCount: 1 });
     mocks.registerPasskey.mockReset();
+    mocks.signUp.mockReset();
   });
   it("signs a buyer in and routes to the assistant", async () => {
     mocks.signInWithPassword.mockResolvedValue({ user: { id: "buyer-1", email: "buyer@example.com" } });
@@ -97,5 +99,24 @@ describe("workspace authentication", () => {
     await user.click(screen.getByRole("button", { name: "Sign in as buyer" }));
 
     expect(mocks.push).toHaveBeenCalledWith("/profile?enroll=passkey");
+  });
+
+  it("sends a CPF when creating a buyer profile", async () => {
+    mocks.signUp.mockResolvedValue({ confirmationRequired: true });
+    const user = userEvent.setup();
+    render(<WorkspaceAuth />);
+
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+    await user.type(screen.getByRole("textbox", { name: "Email" }), "buyer@example.com");
+    await user.type(screen.getByRole("textbox", { name: "CPF" }), "529.982.247-25");
+    await user.type(screen.getByLabelText("Password"), "password123");
+    await user.click(screen.getByRole("button", { name: "Create buyer account" }));
+
+    expect(mocks.signUp).toHaveBeenCalledWith({
+      email: "buyer@example.com",
+      password: "password123",
+      cpf: "529.982.247-25",
+      role: "buyer",
+    });
   });
 });
