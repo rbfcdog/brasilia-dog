@@ -2,8 +2,6 @@
 
 import { useCallback, useEffect, useReducer, useRef } from "react";
 import { PaymentChallengeError } from "@/lib/api";
-import { hasPasskeySession } from "@/lib/passkey-session";
-import { demoStorage } from "@/lib/demo-storage";
 import { passkeyBiometricProvider } from "@/services/biometric-provider";
 import { shoppingService } from "@/services/shopping-service";
 import { backendService, type ConversationEventInput } from "@/services/backend-service";
@@ -20,7 +18,7 @@ import type {
 } from "@/types/shopping";
 import { useShoppingStore } from "@/components/providers/shopping-provider";
 
-export type ConversationStorage = "backend" | "local" | "unavailable";
+export type ConversationStorage = "backend" | "unavailable";
 
 export interface AIShoppingState {
   status: ChatFlowState;
@@ -68,7 +66,7 @@ export const initialAIShoppingState: AIShoppingState = {
   paymentChallenge: null,
   error: null,
   hydrated: false,
-  storage: "local",
+  storage: "unavailable",
   toast: null,
 };
 
@@ -200,47 +198,12 @@ async function persistEvent(
   }
 }
 
-async function synchronizePendingConversation(
+
+
+function ensureBackendConversation(
   conversationIdRef: React.RefObject<string | null>,
-  pendingMessages: React.MutableRefObject<ChatMessage[]>,
-  pendingEvents: React.MutableRefObject<ConversationEventInput[]>,
-): Promise<boolean> {
-  try {
-    const conversationId = await ensureBackendConversation(conversationIdRef);
-    if (!conversationId) return false;
-
-    while (pendingMessages.current.length > 0) {
-      const message = pendingMessages.current[0];
-      if (!message) break;
-      await backendService.appendConversationMessage(conversationId, {
-        role: message.role,
-        content: message.content,
-        createdAt: message.createdAt,
-      });
-      pendingMessages.current.shift();
-    }
-    while (pendingEvents.current.length > 0) {
-      const event = pendingEvents.current[0];
-      if (!event) break;
-      await backendService.appendConversationEvent(conversationId, event);
-      pendingEvents.current.shift();
-    }
-    return true;
-  } catch (error) {
-    throw new ConversationPersistenceError(error);
-  }
-}
-
-
-async function ensureBackendConversation(
-  conversationIdRef: React.RefObject<string | null>,
-): Promise<string | null> {
-  if (conversationIdRef.current) return conversationIdRef.current;
-  if (!hasPasskeySession()) return null;
-
-  const { conversation } = await backendService.createConversation();
-  conversationIdRef.current = conversation.id;
-  return conversation.id;
+): string | null {
+  return conversationIdRef.current;
 }
 
 async function persistMessage(
@@ -270,8 +233,6 @@ export function useAIShopping() {
     preferredPaymentMethodId,
   } = useShoppingStore();
   const conversationIdRef = useRef<string | null>(null);
-  const pendingMessagesRef = useRef<ChatMessage[]>([]);
-  const pendingEventsRef = useRef<ConversationEventInput[]>([]);
 
   const loadConversation = useCallback(async (conversationId: string) => {
     const { messages } = await backendService.conversationMessages(conversationId);
@@ -288,8 +249,7 @@ export function useAIShopping() {
     });
   }, []);
 
-  // Hydrate the selected backend conversation, or the most recent one.
-  // Always hydrate from backend. Anonymous users get 'anon' conversations.
+  // Conversation transcripts are server-owned. Never hydrate browser storage.
   useEffect(() => {
     const selectedConversationId = new URLSearchParams(window.location.search).get("conversation");
     void backendService
@@ -304,7 +264,7 @@ export function useAIShopping() {
         }
         dispatch({ type: "HYDRATE", messages: [], storage: "backend" });
       })
-      .catch(() => dispatch({ type: "HYDRATE", messages: demoStorage.readMessages(), storage: "unavailable" }));
+      .catch(() => dispatch({ type: "HYDRATE", messages: [], storage: "unavailable" }));
   }, [loadConversation]);
 
   useEffect(() => {
@@ -319,18 +279,13 @@ export function useAIShopping() {
     return () => window.removeEventListener("nomad:open-conversation", openConversation);
   }, [loadConversation]);
 
-  // When using demoStorage (no backend conversation), keep it in sync.
+  // One-time migration cleanup for transcripts saved by prior browser builds.
   useEffect(() => {
-    if (state.hydrated && !conversationIdRef.current) {
-      demoStorage.writeMessages(state.messages);
-    }
-  }, [state.hydrated, state.messages]);
+    window.localStorage.removeItem("nomad:chat:v1");
+  }, []);
 
   const reset = useCallback(() => {
-    if (!conversationIdRef.current) {
-      demoStorage.clearMessages();
-    }
-    // On reset, clear the conversation ref so a new conversation is created next time.
+    // New requests begin with no selected server conversation.
     conversationIdRef.current = null;
     dispatch({ type: "RESET" });
   }, []);
@@ -399,13 +354,8 @@ export function useAIShopping() {
         throw new Error("Native passkey verification is required before this mandate can be executed.");
       }
 
-      const synchronized = await synchronizePendingConversation(
-        conversationIdRef,
-        pendingMessagesRef,
-        pendingEventsRef,
-      );
-      if (!synchronized) {
-        throw new ConversationPersistenceError(new Error("Passkey session was not established."));
+      if (!ensureBackendConversation(conversationIdRef)) {
+        throw new ConversationPersistenceError(new Error("The chat conversation was not persisted."));
       }
       dispatch({ type: "SET_STORAGE", storage: "backend" });
 

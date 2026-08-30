@@ -84,9 +84,7 @@ export function ChatExperience() {
           <p className={`mt-0.5 text-xs ${state.storage === "unavailable" ? "text-danger" : "text-subtle"}`}>
             {state.storage === "backend"
               ? "Conversation saved to the backend"
-              : state.storage === "unavailable"
-                ? "Backend persistence unavailable"
-                : "Local only · authenticate in Profile to save"}
+              : "Backend persistence unavailable"}
           </p>
         </div>
         <div className="flex items-center gap-2">

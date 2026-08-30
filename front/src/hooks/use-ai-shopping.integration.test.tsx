@@ -11,9 +11,6 @@ const mocks = vi.hoisted(() => ({
   analyze: vi.fn(),
   execute: vi.fn(),
   addScheduledPurchase: vi.fn(),
-  readMessages: vi.fn(),
-  writeMessages: vi.fn(),
-  clearMessages: vi.fn(),
 }));
 
 vi.mock("@/lib/passkey-session", () => ({
@@ -34,13 +31,6 @@ vi.mock("@/services/shopping-service", () => ({
   shoppingService: {
     analyze: mocks.analyze,
     execute: mocks.execute,
-  },
-}));
-vi.mock("@/lib/demo-storage", () => ({
-  demoStorage: {
-    readMessages: mocks.readMessages,
-    writeMessages: mocks.writeMessages,
-    clearMessages: mocks.clearMessages,
   },
 }));
 vi.mock("@/components/providers/shopping-provider", () => ({
@@ -86,7 +76,6 @@ describe("live agent chat", () => {
 
   it("routes anonymous chat through the backend gateway with anon owner", async () => {
     mocks.getPasskeySessionToken.mockReturnValue(null);
-    mocks.readMessages.mockReturnValue([]);
     mocks.listConversations.mockResolvedValue({ conversations: [] });
     mocks.analyze.mockResolvedValue({
       kind: "clarification",
@@ -104,6 +93,22 @@ describe("live agent chat", () => {
     expect(mocks.analyze).toHaveBeenCalledWith("Find appliances", undefined);
     expect(result.current.state.storage).toBe("backend");
     expect(result.current.state.messages.at(-1)?.content).toBe("Tell me your budget.");
+  });
+
+  it("clears legacy browser transcripts instead of hydrating them", async () => {
+    window.localStorage.setItem("nomad:chat:v1", JSON.stringify([{
+      id: "legacy-message",
+      role: "user",
+      content: "Stored only in the browser",
+      createdAt: "2026-08-30T00:00:00.000Z",
+    }]));
+    mocks.listConversations.mockResolvedValue({ conversations: [] });
+
+    const { result } = renderHook(() => useAIShopping());
+
+    await waitFor(() => expect(result.current.state.hydrated).toBe(true));
+    expect(result.current.state.messages).toEqual([]);
+    expect(window.localStorage.getItem("nomad:chat:v1")).toBeNull();
   });
 
   it("loads a conversation selected from the recent history controls", async () => {

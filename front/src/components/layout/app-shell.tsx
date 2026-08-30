@@ -16,7 +16,6 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { demoStorage } from "@/lib/demo-storage";
 import { backendService, type BackendConversation } from "@/services/backend-service";
 import { useShoppingStore } from "@/components/providers/shopping-provider";
 import { authService } from "@/services/auth-service";
@@ -80,7 +79,6 @@ function SidebarContent({ closeMenu }: { closeMenu?: () => void }) {
   }, []);
 
   function newRequest() {
-    demoStorage.clearMessages();
     window.dispatchEvent(new Event("nomad:new-request"));
     closeMenu?.();
     router.push("/assistant");

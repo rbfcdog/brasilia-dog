@@ -1,6 +1,5 @@
-import type { ChatMessage, PaymentMethod, ScheduledPurchase } from "@/types/shopping";
+import type { PaymentMethod, ScheduledPurchase } from "@/types/shopping";
 
-const CHAT_KEY = "nomad:chat:v1";
 const SCHEDULED_KEY = "nomad:scheduled:v2";
 const PAYMENT_METHODS_KEY = "nomad:payment-methods:v1";
 const PAYMENT_PREFERENCE_KEY = "nomad:payment-preference:v1";
@@ -27,11 +26,6 @@ function writeValue<T>(key: string, value: T) {
 }
 
 export const demoStorage = {
-  readMessages: () => readValue<ChatMessage[]>(CHAT_KEY, []),
-  writeMessages: (messages: ChatMessage[]) => writeValue(CHAT_KEY, messages),
-  clearMessages: () => {
-    if (typeof window !== "undefined") window.localStorage.removeItem(CHAT_KEY);
-  },
   readScheduled: () => readValue<ScheduledPurchase[]>(SCHEDULED_KEY, []),
   writeScheduled: (items: ScheduledPurchase[]) => writeValue(SCHEDULED_KEY, items),
   readPaymentMethods: () => readValue<PaymentMethod[]>(PAYMENT_METHODS_KEY, defaultPaymentMethods),
