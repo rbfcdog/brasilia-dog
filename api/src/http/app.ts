@@ -712,11 +712,11 @@ export function createApp({
     }
 
     if (sessionService && demoPasskeyEnabled && request.method === 'POST' && pathname === '/passkey/demo/verify') {
-      const accessToken = request.headers.get('authorization')?.match(/^Bearer (.+)$/)?.[1];
-      const user = accessToken && authenticateSupabaseUser ? await authenticateSupabaseUser(accessToken) : null;
-      if (!user) return json({ error: 'authentication_required' }, 401);
+      // Demo mode intentionally creates a temporary isolated buyer session; it
+      // must not require an already-authenticated Supabase account.
+      const demoUserId = '00000000-0000-4000-8000-000000000001';
       const credentialId = `demo-passkey-${randomBytes(24).toString('base64url')}`;
-      const session = await sessionService.createSession(user.id, credentialId);
+      const session = await sessionService.createSession(demoUserId, credentialId);
       return json({ verified: true, demo: true, credentialId, sessionToken: session.token });
     }
     // Passkey routes
