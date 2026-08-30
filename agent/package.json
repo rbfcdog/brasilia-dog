@@ -1,0 +1,29 @@
+{
+  "name": "vuelaya-minimal-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node dist/bootstrap.js",
+    "dev": "tsx watch src/bootstrap.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/*.test.ts",
+    "test:live": "LIVE_OPENAI=1 tsx --test test/live.test.ts"
+  },
+  "dependencies": {
+    "@langchain/langgraph": "^1.4.13",
+    "express": "^5.2.1",
+    "openai": "^7.8.0",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.4.0",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2"
+  }
+}
