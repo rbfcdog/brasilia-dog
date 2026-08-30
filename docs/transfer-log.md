@@ -1,4 +1,4 @@
-# Transfer log e decision log do projeto Nomad
+# Transfer log e decision log do projeto Vero
 
 **Data do registro:** 30 de agosto de 2026  
 **Repositório:** `rbfcdog/brasilia-dog`  
