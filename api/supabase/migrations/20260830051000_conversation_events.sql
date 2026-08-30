@@ -1,4 +1,4 @@
-create table public.conversation_events (
+create table if not exists public.conversation_events (
   id uuid primary key default gen_random_uuid(),
   conversation_id uuid not null references public.conversations(id) on delete restrict,
   type text not null check (type in (
@@ -16,7 +16,7 @@ create table public.conversation_events (
   created_at timestamptz not null default now()
 );
 
-create index conversation_events_conversation_created_idx
+create index if not exists conversation_events_conversation_created_idx
   on public.conversation_events (conversation_id, created_at asc, id asc);
 
 alter table public.conversation_events enable row level security;
