@@ -13,6 +13,17 @@ import {
 import { chatRequestSchema } from './chat.js';
 import { AgentError, toAgentError } from './errors.js';
 import type { AgentService } from './service.js';
+import type { StartRunRequest, ResumeRunRequest } from './contracts.js';
+
+interface HttpAgentService {
+  start(idempotencyKey: string, request: StartRunRequest): unknown | Promise<unknown>;
+  get(runId: string): unknown | Promise<unknown>;
+  resume(runId: string, idempotencyKey: string, request: ResumeRunRequest): unknown | Promise<unknown>;
+  chat(request: Parameters<AgentService['chat']>[0]): ReturnType<AgentService['chat']>;
+  listProducts(): ReturnType<AgentService['listProducts']>;
+  list?(ownerId: string): unknown | Promise<unknown>;
+  identity?(): unknown | Promise<unknown>;
+}
 
 const idempotencyKeySchema = z.string().uuid();
 
@@ -20,7 +31,7 @@ export function createApp({
   service,
   serviceToken,
 }: {
-  service: AgentService;
+  service: HttpAgentService;
   serviceToken: string;
 }) {
   const app = express();
@@ -31,19 +42,32 @@ export function createApp({
     response.json({ status: 'ok' });
   });
 
+  app.get('/v1/identity', async (_request, response) => {
+    if (!service.identity) throw new AgentError('NOT_FOUND', 'Identity is unavailable.', 404);
+    response.json({ ok: true, data: await service.identity() });
+  });
+
   app.use('/v1', (request, _response, next) => {
     requireBearerToken(request, serviceToken);
     next();
   });
 
-  app.post('/v1/agent-runs', (request, response) => {
+  app.post('/v1/agent-runs', async (request, response) => {
     const body = parseBody(startRunRequestSchema, request.body);
     const idempotencyKey = requireIdempotencyKey(request);
-    const run = service.start(idempotencyKey, body);
+    const run = await service.start(idempotencyKey, body) as { runId: string; status: string };
     response.status(202).json({
       ok: true,
       data: { runId: run.runId, status: run.status },
     });
+  });
+
+  app.get('/v1/agent-runs', async (request, response) => {
+    if (!service.list) throw new AgentError('NOT_FOUND', 'Run listing is unavailable.', 404);
+    const parsedOwner = z.string().uuid().safeParse(request.query.ownerId);
+    if (!parsedOwner.success) throw new AgentError('INVALID_REQUEST', 'ownerId must be a UUID.', 400);
+    const ownerId = parsedOwner.data;
+    response.json({ ok: true, data: { runs: await service.list(ownerId) } });
   });
 
   app.post('/v1/chat', async (request, response) => {
@@ -55,19 +79,19 @@ export function createApp({
     response.json({ ok: true, data: { products: await service.listProducts() } });
   });
 
-  app.get('/v1/agent-runs/:runId', (request, response) => {
-    const run = service.get(requirePathParameter(request.params.runId, 'runId'));
+  app.get('/v1/agent-runs/:runId', async (request, response) => {
+    const run = await service.get(requirePathParameter(request.params.runId, 'runId'));
     response.json({ ok: true, data: run });
   });
 
-  app.post('/v1/agent-runs/:runId/resume', (request, response) => {
+  app.post('/v1/agent-runs/:runId/resume', async (request, response) => {
     const body = parseBody(resumeRunRequestSchema, request.body);
     const idempotencyKey = requireIdempotencyKey(request);
-    const run = service.resume(
+    const run = await service.resume(
       requirePathParameter(request.params.runId, 'runId'),
       idempotencyKey,
       body,
-    );
+    ) as { runId: string; status: string };
     response.status(202).json({
       ok: true,
       data: { runId: run.runId, status: run.status },
@@ -115,7 +139,7 @@ function requireIdempotencyKey(request: Request): string {
 }
 
 function requirePathParameter(value: string | string[] | undefined, name: string): string {
-  if (typeof value !== 'string' || value.length === 0) {
+  if (typeof value !== 'string' || !z.string().uuid().safeParse(value).success) {
     throw new AgentError('INVALID_REQUEST', `The ${name} path parameter is invalid.`, 400);
   }
   return value;

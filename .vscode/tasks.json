@@ -3,9 +3,10 @@
   "tasks": [
     {
       "label": "Dev: all",
-      "dependsOn": ["Dev: api", "Dev: agent", "Dev: front"],
+      "dependsOn": ["Dev: api", "Dev: agent", "Dev: front", "Dev: readiness"],
       "dependsOrder": "parallel",
       "group": { "kind": "build", "isDefault": true },
+      "runOptions": { "runOn": "folderOpen" },
       "problemMatcher": []
     },
     {
@@ -44,6 +45,14 @@
         }
       },
       "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "group": "dev", "panel": "dedicated", "reveal": "always" }
+    },
+    {
+      "label": "Dev: readiness",
+      "type": "shell",
+      "command": "node scripts/verify-local.mjs",
+      "options": { "cwd": "${workspaceFolder}" },
       "problemMatcher": [],
       "presentation": { "group": "dev", "panel": "dedicated", "reveal": "always" }
     },

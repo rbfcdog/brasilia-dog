@@ -14,8 +14,11 @@ hot-reloads without rebuilding an image.
    ```
    Then rebuild once so the container picks it up (*Dev Containers: Rebuild Container*).
    Editing `.env` later always requires a rebuild — it is injected at container start.
-3. Run the task: Command Palette → *Tasks: Run Build Task* (`Cmd+Shift+B`), or
-   *Tasks: Run Task* → **Dev: all**.
+3. The **Dev: all** task starts automatically when the repository opens in the
+   container. Its readiness terminal confirms the API, agent, frontend, and the
+   frontend-to-API proxy before declaring the stack ready. If automatic tasks
+   were previously disabled for this workspace, run Command Palette →
+   *Tasks: Run Build Task* (`Cmd+Shift+B`) once.
 
 Three terminals open, one per service:
 
@@ -27,6 +30,12 @@ Three terminals open, one per service:
 
 Run a single service instead with *Tasks: Run Task* → **Dev: api** / **Dev: agent** / **Dev: front**.
 Tests: **Test: all**, or one project at a time.
+
+You can rerun the same readiness gate at any time with:
+
+```bash
+node scripts/verify-local.mjs
+```
 
 ## How configuration flows
 
