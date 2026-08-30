@@ -25,6 +25,7 @@ import type { SellerQuoteRepository } from '../repositories/seller-quote-reposit
 import type { ConversationRepository } from '../repositories/conversation-repository.js';
 import { MerchantCommandError, type MerchantService } from '../services/merchant-service.js';
 import type { UserAuthService } from '../services/user-auth-service.js';
+import type { PasskeyEnrollmentService } from '../services/passkey-enrollment-service.js';
 
 
 function json(value: unknown, status = 200): Response {
@@ -33,6 +34,39 @@ function json(value: unknown, status = 200): Response {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+const conversationEventTypes = new Set([
+  'catalog_search',
+  'category_list',
+  'product_comparison',
+  'agent_response',
+  'mandate_proposed',
+  'passkey_approved',
+  'mandate_activated',
+  'payment_executed',
+  'payment_failed',
+]);
+
+function parseConversationEvent(body: unknown): {
+  type: string;
+  payload: Record<string, unknown>;
+  createdAt: string;
+} | null {
+  if (
+    !isRecord(body)
+    || typeof body.type !== 'string'
+    || !conversationEventTypes.has(body.type)
+    || !isRecord(body.payload)
+    || Array.isArray(body.payload)
+    || typeof body.createdAt !== 'string'
+    || Number.isNaN(Date.parse(body.createdAt))
+  ) {
+    return null;
+  }
+  const serializedPayload = JSON.stringify(body.payload);
+  if (serializedPayload.length > 16_000) return null;
+  return { type: body.type, payload: body.payload, createdAt: body.createdAt };
 }
 
 function parseProductCatalogSearch(value: unknown): ProductCatalogSearch | null {
@@ -429,6 +463,7 @@ interface AppDeps {
   merchantService?: MerchantService | null;
   authenticateSupabaseUser?: ((accessToken: string) => Promise<{ id: string; email?: string } | null>) | null;
   userAuthService?: UserAuthService | null;
+  passkeyEnrollmentService?: PasskeyEnrollmentService | null;
 }
 
 export function createApp({
@@ -452,6 +487,7 @@ export function createApp({
   merchantService = null,
   authenticateSupabaseUser = null,
   userAuthService = null,
+  passkeyEnrollmentService = null,
 }: AppDeps): AppHandler {
   return async function app(request: Request): Promise<Response> {
     const { pathname } = new URL(request.url);
@@ -522,6 +558,35 @@ export function createApp({
       return user ? json({ user }) : json({ error: 'authentication_required' }, 401);
     }
 
+    if (
+      passkeyEnrollmentService &&
+      userAuthService &&
+      request.method === 'POST' &&
+      pathname === '/v1/passkey/enrollments'
+    ) {
+      const accessToken = request.headers.get('authorization')?.match(/^Bearer (.+)$/)?.[1];
+      const user = accessToken ? await userAuthService.getUser(accessToken) : null;
+      if (!user) return json({ error: 'authentication_required' }, 401);
+      try {
+        return json(await passkeyEnrollmentService.create(user.id), 201);
+      } catch (err) {
+        return json({ error: 'enrollment_unavailable', detail: (err as Error).message }, 503);
+      }
+    }
+
+    if (
+      passkeyEnrollmentService &&
+      request.method === 'POST' &&
+      pathname === '/v1/passkey/enrollments/claim'
+    ) {
+      const body = await request.json().catch(() => null);
+      const token = isRecord(body) && typeof body.token === 'string' ? body.token : '';
+      const grant = token ? await passkeyEnrollmentService.resolve(token) : null;
+      return grant
+        ? json({ valid: true, expiresAt: grant.expiresAt })
+        : json({ error: 'enrollment_invalid_or_expired' }, 401);
+    }
+
     // Passkey routes
     if (
       passkeyService &&
@@ -529,9 +594,14 @@ export function createApp({
       request.method === 'POST' &&
       /^\/passkey\/(?:register|auth)\/(?:options|verify)$/.test(pathname)
     ) {
+      const enrollmentToken = request.headers.get('x-passkey-enrollment');
+      const enrollment = enrollmentToken && passkeyEnrollmentService && pathname.startsWith('/passkey/register/')
+        ? await passkeyEnrollmentService.resolve(enrollmentToken)
+        : null;
       const accessToken = request.headers.get('authorization')?.match(/^Bearer (.+)$/)?.[1];
-      const user = accessToken ? await authenticateSupabaseUser(accessToken) : null;
-      if (!user) return json({ error: 'supabase_authentication_required' }, 401);
+      const accountUser = accessToken ? await authenticateSupabaseUser(accessToken) : null;
+      const user = enrollment ? { id: enrollment.userId } : accountUser;
+      if (!user) return json({ error: 'passkey_registration_authorization_required' }, 401);
       const body = await request.json().catch(() => ({})) as { response?: unknown };
 
       if (pathname === '/passkey/register/options') {
@@ -544,6 +614,10 @@ export function createApp({
       if (pathname === '/passkey/register/verify') {
         if (!body.response) return json({ error: 'response is required' }, 400);
         try {
+          if (enrollmentToken && passkeyEnrollmentService) {
+            const consumed = await passkeyEnrollmentService.consume(enrollmentToken, user.id);
+            if (!consumed) return json({ error: 'enrollment_invalid_or_consumed' }, 401);
+          }
           const result = await passkeyService.verifyRegistration(user.id, body.response);
           return json({ verified: result.verified, ...(result.credentialId ? { credentialId: result.credentialId } : {}) });
         } catch (err) {
@@ -1010,6 +1084,39 @@ export function createApp({
         return json({ conversations: await conversationRepository.listConversations(session.userId) });
       } catch {
         return json({ error: 'conversation_list_failed' }, 500);
+      }
+    }
+
+    if (
+      conversationRepository &&
+      request.method === 'POST' &&
+      /^\/v1\/conversations\/[^/]+\/events$/.test(pathname)
+    ) {
+      const session = await authenticatedSession(request, sessionService);
+      if (!session) {
+        return json({ error: 'authentication_required' }, 401);
+      }
+      const conversationId = pathname.split('/')[3];
+      if (!conversationId) {
+        return json({ error: 'conversation_id_required' }, 400);
+      }
+      const conversation = await conversationRepository.getConversation(conversationId);
+      if (!conversation || conversation.ownerId !== session.userId) {
+        return json({ error: 'conversation_not_found' }, 404);
+      }
+      const input = parseConversationEvent(await request.json().catch(() => null));
+      if (!input) {
+        return json({ error: 'event type, object payload, and createdAt are required' }, 400);
+      }
+      try {
+        const event = await conversationRepository.appendEvent({
+          ownerId: session.userId,
+          conversationId: conversation.id,
+          ...input,
+        });
+        return json({ event }, 201);
+      } catch {
+        return json({ error: 'conversation_event_persistence_failed' }, 500);
       }
     }
 

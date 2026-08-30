@@ -69,6 +69,20 @@ export interface ConversationMessageInput {
   createdAt: string;
 }
 
+export interface BackendConversationEvent {
+  id: string;
+  conversationId: string;
+  type: string;
+  payload: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface ConversationEventInput {
+  type: BackendConversationEvent["type"];
+  payload: Record<string, unknown>;
+  createdAt: string;
+}
+
 export const backendService = {
   health(): Promise<BackendHealth> {
     return apiFetch<BackendHealth>(backendPath("/health"));
@@ -147,6 +161,19 @@ export const backendService = {
       {
         method: "POST",
         body: JSON.stringify(message),
+      },
+    );
+  },
+
+  appendConversationEvent(
+    conversationId: string,
+    event: ConversationEventInput,
+  ): Promise<{ event: BackendConversationEvent }> {
+    return apiFetch<{ event: BackendConversationEvent }>(
+      backendPath(`/v1/conversations/${encodeURIComponent(conversationId)}/events`),
+      {
+        method: "POST",
+        body: JSON.stringify(event),
       },
     );
   },

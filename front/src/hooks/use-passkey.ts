@@ -56,7 +56,7 @@ function isWebAuthnSupported(): boolean {
  * Initiates WebAuthn registration (create) using the browser PublicKeyCredential API
  * and verifies the result with the backend.
  */
-async function registerPasskey(): Promise<PasskeyVerificationResult> {
+export async function registerEnrolledPasskey(): Promise<PasskeyVerificationResult> {
   const options: PasskeyRegistrationOptions = await backendService.passkeyRegisterOptions();
 
   const publicKey: PublicKeyCredentialCreationOptions = {
@@ -186,7 +186,7 @@ export function usePasskey() {
     }
     setState({ status: "loading", message: "Waiting for passkey creation...", sessionToken: null, userId: null });
     try {
-      const result = await registerPasskey();
+      const result = await registerEnrolledPasskey();
       if (result.verified) {
         window.sessionStorage.setItem(registrationKey(userId), "true");
         setState({

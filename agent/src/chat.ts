@@ -18,6 +18,28 @@ const discoveredProductSchema = z.strictObject({
   currency: z.literal('USD'),
 });
 
+const catalogActivitySchema = z.discriminatedUnion('type', [
+  z.strictObject({
+    type: z.literal('catalog_search'),
+    category: z.string().nullable(),
+    query: z.string().nullable(),
+    maximumAmount: z.number().nonnegative().nullable(),
+    resultSlugs: z.array(z.string()).max(10),
+  }),
+  z.strictObject({
+    type: z.literal('category_list'),
+    categories: z.array(z.string()).max(50),
+  }),
+  z.strictObject({
+    type: z.literal('product_comparison'),
+    requestedSlugs: z.array(z.string()).min(1).max(5),
+    resultSlugs: z.array(z.string()).max(5),
+  }),
+]);
+type CatalogActivity = z.infer<typeof catalogActivitySchema>;
+
+const responseActivitySchema = z.array(catalogActivitySchema).max(10);
+
 const modelProposalSchema = z.strictObject({
   message: z.string().trim().min(1).max(1_500),
   scope: z.string().trim().min(1).max(300).nullable(),
@@ -30,11 +52,13 @@ const chatResponseSchema = z.discriminatedUnion('kind', [
   z.strictObject({
     kind: z.literal('clarification'),
     message: z.string().trim().min(1).max(500),
+    activity: responseActivitySchema,
   }),
   z.strictObject({
     kind: z.literal('products'),
     message: z.string().trim().min(1).max(1_500),
     products: z.array(discoveredProductSchema).min(1).max(10),
+    activity: responseActivitySchema,
   }),
   z.strictObject({
     kind: z.literal('mandate'),
@@ -49,6 +73,7 @@ const chatResponseSchema = z.discriminatedUnion('kind', [
       status: z.literal('pending'),
       mockOutcome: z.literal('immediate'),
     }),
+    activity: responseActivitySchema,
   }),
 ]);
 
@@ -179,39 +204,57 @@ async function executeCatalogTool(
   name: string,
   argumentsJson: string,
   catalog: ProductCatalogAdapter,
-): Promise<string> {
+): Promise<{ output: string; activity: CatalogActivity }> {
   if (name === 'list_product_categories') {
     const available = availableProducts(await catalog.listProducts());
-    return JSON.stringify({
-      categories: [...new Set(available.map((product) =>
-        typeof product.metadata.category === 'string' ? product.metadata.category : 'uncategorized'))].sort(),
-    });
+    const categories = [...new Set(available.map((product) =>
+      typeof product.metadata.category === 'string' ? product.metadata.category : 'uncategorized'))].sort();
+    return {
+      output: JSON.stringify({ categories }),
+      activity: { type: 'category_list', categories },
+    };
   }
   if (name === 'compare_products') {
     const { slugs } = compareToolArgumentsSchema.parse(JSON.parse(argumentsJson));
-    return JSON.stringify({
-      products: (await catalog.searchProducts({
-        query: null,
-        category: null,
-        maximumAmountMinor: null,
-        slugs,
-        limit: slugs.length,
-      })).map(productProjection),
-    });
+    const products = (await catalog.searchProducts({
+      query: null,
+      category: null,
+      maximumAmountMinor: null,
+      slugs,
+      limit: slugs.length,
+    })).map(productProjection);
+    return {
+      output: JSON.stringify({ products }),
+      activity: {
+        type: 'product_comparison',
+        requestedSlugs: slugs,
+        resultSlugs: products.map((product) => product.slug),
+      },
+    };
   }
   if (name === 'search_products') {
     const input = searchToolArgumentsSchema.parse(JSON.parse(argumentsJson));
-    return JSON.stringify({
-      products: (await catalog.searchProducts({
-        query: input.query?.trim() || null,
-        category: normalizeCategory(input.category),
-        maximumAmountMinor: input.maximumAmount === null
-          ? null
-          : Math.round(input.maximumAmount * 100),
-        slugs: [],
-        limit: 10,
-      })).map(productProjection),
-    });
+    const category = normalizeCategory(input.category);
+    const query = input.query?.trim() || null;
+    const products = (await catalog.searchProducts({
+      query,
+      category,
+      maximumAmountMinor: input.maximumAmount === null
+        ? null
+        : Math.round(input.maximumAmount * 100),
+      slugs: [],
+      limit: 10,
+    })).map(productProjection);
+    return {
+      output: JSON.stringify({ products }),
+      activity: {
+        type: 'catalog_search',
+        category,
+        query,
+        maximumAmount: input.maximumAmount,
+        resultSlugs: products.map((product) => product.slug),
+      },
+    };
   }
   throw new AgentError('UNKNOWN_TOOL', `The model requested unsupported tool ${name}.`, 502);
 }
@@ -238,6 +281,7 @@ export class OpenAIShoppingResponder implements ChatResponder {
     catalog?: ProductCatalogAdapter;
   }): Promise<AgentChatResponse> {
     let outputText: string;
+    let activity: CatalogActivity[] = [];
     try {
       const instructions = [
         'Act as a capable shopping research assistant with tools for current catalog search, category discovery, and product comparison.',
@@ -283,11 +327,21 @@ export class OpenAIShoppingResponder implements ChatResponder {
           throw new AgentError('PRODUCT_CATALOG_UNAVAILABLE', 'Marketplace search is not configured.', 503);
         }
         const catalog = input.catalog;
-        const toolOutputs = await Promise.all(functionCalls.map(async (call) => ({
+        const toolExecutions = await Promise.all(functionCalls.map(async (call) => {
+          const execution = await executeCatalogTool(call.name, call.arguments, catalog);
+          return {
+            type: 'function_call_output' as const,
+            call_id: call.call_id,
+            output: execution.output,
+            activity: execution.activity,
+          };
+        }));
+        activity = toolExecutions.map((execution) => execution.activity);
+        const toolOutputs = toolExecutions.map(({ call_id, output }) => ({
           type: 'function_call_output' as const,
-          call_id: call.call_id,
-          output: await executeCatalogTool(call.name, call.arguments, catalog),
-        })));
+          call_id,
+          output,
+        }));
         const finalResponse = await this.client.responses.create({
           model: this.model,
           store: false,
@@ -318,16 +372,28 @@ export class OpenAIShoppingResponder implements ChatResponder {
     try {
       const proposal = modelProposalSchema.parse(JSON.parse(outputText));
       if (proposal.products.length > 0) {
+        const catalogResultSlugs = new Set(activity.flatMap((entry) =>
+          entry.type === 'category_list' ? [] : entry.resultSlugs));
+        if (catalogResultSlugs.size === 0 || proposal.products.some((product) =>
+          !catalogResultSlugs.has(product.slug))) {
+          throw new AgentError(
+            'MODEL_OUTPUT_INVALID',
+            'The agent returned products that were not supplied by the catalog.',
+            502,
+          );
+        }
         return chatResponseSchema.parse({
           kind: 'products',
           message: proposal.message,
           products: proposal.products,
+          activity,
         });
       }
       if (!proposal.scope || proposal.maximumAmount === null) {
         return chatResponseSchema.parse({
           kind: 'clarification',
           message: proposal.message,
+          activity,
         });
       }
 
@@ -347,6 +413,7 @@ export class OpenAIShoppingResponder implements ChatResponder {
           status: 'pending',
           mockOutcome: 'immediate',
         },
+        activity,
       });
     } catch (error) {
       throw new AgentError('MODEL_OUTPUT_INVALID', 'The agent returned an invalid shopping response.', 502, {

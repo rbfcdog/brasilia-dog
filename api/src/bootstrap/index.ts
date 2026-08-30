@@ -24,6 +24,7 @@ import { SellerAgentVerificationService } from '../services/seller-agent-verific
 import { createSupabaseClient } from '../integrations/supabase.js';
 import { MerchantService } from '../services/merchant-service.js';
 import { UserAuthService } from '../services/user-auth-service.js';
+import { PasskeyEnrollmentService } from '../services/passkey-enrollment-service.js';
 
 loadEnvironment();
 
@@ -46,6 +47,7 @@ const merchantService = supabase && config.supabase
   ? new MerchantService(supabase, config.stripeProfileId, config.supabase)
   : null;
 const userAuthService = supabase ? new UserAuthService(supabase) : null;
+const passkeyEnrollmentService = supabase ? new PasskeyEnrollmentService(supabase) : null;
 
 const sessionStore = supabase ? new SupabaseSessionStore(supabase) : new InMemorySessionStore();
 const sessionService = new SessionService({ secret: config.sessionSecret, store: sessionStore, ttlSeconds: 86_400 });
@@ -119,6 +121,7 @@ const app = createApp({
       }
     : null,
   userAuthService,
+  passkeyEnrollmentService,
 });
 const server = createExpressApp(app).listen(config.port, '0.0.0.0', () => {
   console.log(`Stripe MPP ${config.mode} service listening on http://0.0.0.0:${config.port}`);

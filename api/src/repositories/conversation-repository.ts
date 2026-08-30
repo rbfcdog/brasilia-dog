@@ -1,6 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import type { Conversation, ConversationMessage, ConversationMessageInput } from '../domain/types.js';
+import type {
+  Conversation,
+  ConversationEvent,
+  ConversationEventInput,
+  ConversationMessage,
+  ConversationMessageInput,
+} from '../domain/types.js';
 
 interface ConversationRow {
   id: string;
@@ -14,6 +20,14 @@ interface ConversationMessageRow {
   conversation_id: string;
   role: string;
   content: string;
+  created_at: string;
+}
+
+interface ConversationEventRow {
+  id: string;
+  conversation_id: string;
+  type: string;
+  payload: Record<string, unknown>;
   created_at: string;
 }
 
@@ -32,6 +46,16 @@ function mapMessage(row: ConversationMessageRow): ConversationMessage {
     conversationId: row.conversation_id,
     role: row.role as ConversationMessage['role'],
     content: row.content,
+    createdAt: row.created_at,
+  };
+}
+
+function mapEvent(row: ConversationEventRow): ConversationEvent {
+  return {
+    id: row.id,
+    conversationId: row.conversation_id,
+    type: row.type,
+    payload: row.payload,
     createdAt: row.created_at,
   };
 }
@@ -110,5 +134,21 @@ export class ConversationRepository {
     }
 
     return mapMessage(data as ConversationMessageRow);
+  }
+
+  async appendEvent(input: ConversationEventInput): Promise<ConversationEvent> {
+    const { data, error } = await this.client.rpc('append_conversation_event', {
+      p_conversation_id: input.conversationId,
+      p_owner_id: input.ownerId,
+      p_type: input.type,
+      p_payload: input.payload,
+      p_created_at: input.createdAt,
+    });
+
+    if (error || !data) {
+      throw new Error('Could not append conversation event.');
+    }
+
+    return mapEvent(data as ConversationEventRow);
   }
 }

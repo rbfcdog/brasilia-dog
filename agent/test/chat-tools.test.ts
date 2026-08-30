@@ -115,6 +115,13 @@ test('shopping responder executes a ranked backend category search and returns e
       price: 95,
       currency: 'USD',
     }],
+    activity: [{
+      type: 'catalog_search',
+      category: 'home',
+      query: null,
+      maximumAmount: 100,
+      resultSlugs: [product.slug],
+    }],
   });
 });
 

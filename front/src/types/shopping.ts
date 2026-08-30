@@ -92,20 +92,41 @@ export interface DiscoveredProduct {
   currency: "USD";
 }
 
+export type AgentActivity =
+  | {
+      type: "catalog_search";
+      category: string | null;
+      query: string | null;
+      maximumAmount: number | null;
+      resultSlugs: string[];
+    }
+  | {
+      type: "category_list";
+      categories: string[];
+    }
+  | {
+      type: "product_comparison";
+      requestedSlugs: string[];
+      resultSlugs: string[];
+    };
+
 export type AgentResponse =
   | {
       kind: "clarification";
       message: string;
+      activity?: AgentActivity[];
     }
   | {
       kind: "products";
       message: string;
       products: DiscoveredProduct[];
+      activity?: AgentActivity[];
     }
   | {
       kind: "mandate";
       message: string;
       mandate: Mandate;
+      activity?: AgentActivity[];
     };
 
 export type PurchaseResponse =

@@ -37,6 +37,7 @@ function isAllowedPath(pathname: string): boolean {
     /^\/v1\/payments\/[^/]+$/.test(pathname) ||
     pathname === "/v1/conversations" ||
     /^\/v1\/conversations\/[^/]+\/messages$/.test(pathname) ||
+    /^\/v1\/conversations\/[^/]+\/events$/.test(pathname) ||
     pathname === "/v1/merchant/session" ||
     pathname === "/v1/merchant/dashboard" ||
     pathname === "/v1/merchant/orders" ||
@@ -70,10 +71,18 @@ async function requestHeaders(request: Request, pathname: string): Promise<Heade
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }
-  const accountAuthRequired = /^\/passkey\/(?:register|auth)\//.test(pathname);
-  if (!headers.has("authorization") || accountAuthRequired) {
-    const accessToken = (await cookies()).get("nomad-auth-access")?.value;
+  const cookieStore = await cookies();
+  const passkeyRoute = /^\/passkey\/(?:register|auth)\//.test(pathname);
+  if (!headers.has("authorization") || passkeyRoute) {
+    const accessToken = cookieStore.get("nomad-auth-access")?.value;
     if (accessToken) headers.set("authorization", `Bearer ${accessToken}`);
+  }
+  if (pathname.startsWith("/passkey/register/")) {
+    const enrollmentToken = cookieStore.get("nomad-passkey-enrollment")?.value;
+    if (enrollmentToken) {
+      headers.delete("authorization");
+      headers.set("x-passkey-enrollment", enrollmentToken);
+    }
   }
   return headers;
 }
@@ -120,10 +129,14 @@ async function proxy(request: Request, context: RouteContext): Promise<Response>
       cache: "no-store",
     });
 
-    return new Response(await upstream.arrayBuffer(), {
+    const response = new Response(await upstream.arrayBuffer(), {
       status: upstream.status,
       headers: responseHeaders(upstream),
     });
+    if (upstream.ok && pathname === "/passkey/register/verify") {
+      response.headers.append("Set-Cookie", "nomad-passkey-enrollment=; Max-Age=0; Path=/api/backend/passkey/register; HttpOnly; SameSite=Strict");
+    }
+    return response;
   } catch {
     return NextResponse.json({ error: "backend_unreachable" }, { status: 502 });
   }

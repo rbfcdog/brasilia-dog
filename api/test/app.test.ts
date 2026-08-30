@@ -178,5 +178,5 @@ test('rejects passkey enrollment without Supabase authentication', async () => {
   }));
 
   assert.equal(response.status, 401);
-  assert.deepEqual(await response.json(), { error: 'supabase_authentication_required' });
+  assert.deepEqual(await response.json(), { error: 'passkey_registration_authorization_required' });
 });

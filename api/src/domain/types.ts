@@ -240,6 +240,22 @@ export interface ConversationMessageInput {
   createdAt: string;
 }
 
+export interface ConversationEvent {
+  id: string;
+  conversationId: string;
+  type: string;
+  payload: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface ConversationEventInput {
+  ownerId: string;
+  conversationId: string;
+  type: string;
+  payload: Record<string, unknown>;
+  createdAt: string;
+}
+
 // Payment history types
 
 export interface PaymentAttemptRecord {

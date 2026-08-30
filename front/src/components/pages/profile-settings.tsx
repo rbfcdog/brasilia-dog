@@ -65,8 +65,16 @@ export function ProfileSettings() {
 
   useEffect(() => {
     if (!accountUser) return;
-    const enrollmentUrl = `${window.location.origin}/profile?enroll=passkey`;
-    void QRCode.toDataURL(enrollmentUrl, { width: 220, margin: 2 }).then(setQrCode);
+    let cancelled = false;
+    void fetch("/api/passkey/enrollment", { method: "POST", cache: "no-store" })
+      .then(async (response) => {
+        const payload = await response.json() as { enrollmentUrl?: string; detail?: string; error?: string };
+        if (!response.ok || !payload.enrollmentUrl) throw new Error(payload.detail ?? payload.error ?? "Could not create enrollment QR.");
+        return QRCode.toDataURL(payload.enrollmentUrl, { width: 220, margin: 2 });
+      })
+      .then((code) => { if (!cancelled) setQrCode(code); })
+      .catch((error) => { if (!cancelled) setAuthError(error instanceof Error ? error.message : "Could not create enrollment QR."); });
+    return () => { cancelled = true; };
   }, [accountUser]);
 
   async function signInToAccount() {
@@ -169,11 +177,11 @@ export function ProfileSettings() {
         </article>
 
         <article className="h-full rounded-2xl border border-line bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-3"><QrCode className="size-5 text-primary" /><div><h2 className="font-semibold">Enroll another device</h2><p className="mt-0.5 text-xs text-muted">Open the secure Profile enrollment page on your phone</p></div></div>
+          <div className="flex items-center gap-3"><QrCode className="size-5 text-primary" /><div><h2 className="font-semibold">Enroll another device</h2><p className="mt-0.5 text-xs text-muted">Single-use passkey registration for this user only</p></div></div>
           {qrCode ? (
             <div className="mt-4 flex items-center gap-4">
               <Image src={qrCode} width={144} height={144} unoptimized alt="QR code linking to passkey enrollment on this site" className="size-36 rounded-lg border border-line" />
-              <p className="text-xs leading-5 text-subtle">Scan with your phone, sign into the same account, then create a passkey on that device. The QR contains only this site&apos;s Profile URL, never a session or credential.</p>
+              <p className="text-xs leading-5 text-subtle">Scan with the device that should receive the passkey. This user-bound QR expires in five minutes, works once, and opens only the dedicated passkey registration endpoint.</p>
             </div>
           ) : <p className="mt-4 text-sm text-subtle">Sign in to generate the enrollment QR code.</p>}
         </article>

@@ -6,7 +6,7 @@ import { getPasskeySessionToken } from "@/lib/passkey-session";
 import { demoStorage } from "@/lib/demo-storage";
 import { passkeyBiometricProvider } from "@/services/biometric-provider";
 import { shoppingService } from "@/services/shopping-service";
-import { backendService } from "@/services/backend-service";
+import { backendService, type ConversationEventInput } from "@/services/backend-service";
 import type {
   ChatFlowState,
   ChatMessage,
@@ -180,6 +180,52 @@ class ConversationPersistenceError extends Error {
   }
 }
 
+async function persistEvent(
+  conversationIdRef: React.RefObject<string | null>,
+  event: ConversationEventInput,
+): Promise<boolean> {
+  try {
+    const conversationId = await ensureBackendConversation(conversationIdRef);
+    if (!conversationId) return false;
+
+    await backendService.appendConversationEvent(conversationId, event);
+    return true;
+  } catch (error) {
+    throw new ConversationPersistenceError(error);
+  }
+}
+
+async function synchronizePendingConversation(
+  conversationIdRef: React.RefObject<string | null>,
+  pendingMessages: React.MutableRefObject<ChatMessage[]>,
+  pendingEvents: React.MutableRefObject<ConversationEventInput[]>,
+): Promise<boolean> {
+  try {
+    const conversationId = await ensureBackendConversation(conversationIdRef);
+    if (!conversationId) return false;
+
+    while (pendingMessages.current.length > 0) {
+      const message = pendingMessages.current[0];
+      if (!message) break;
+      await backendService.appendConversationMessage(conversationId, {
+        role: message.role,
+        content: message.content,
+        createdAt: message.createdAt,
+      });
+      pendingMessages.current.shift();
+    }
+    while (pendingEvents.current.length > 0) {
+      const event = pendingEvents.current[0];
+      if (!event) break;
+      await backendService.appendConversationEvent(conversationId, event);
+      pendingEvents.current.shift();
+    }
+    return true;
+  } catch (error) {
+    throw new ConversationPersistenceError(error);
+  }
+}
+
 
 async function ensureBackendConversation(
   conversationIdRef: React.RefObject<string | null>,
@@ -219,6 +265,8 @@ export function useAIShopping() {
     preferredPaymentMethodId,
   } = useShoppingStore();
   const conversationIdRef = useRef<string | null>(null);
+  const pendingMessagesRef = useRef<ChatMessage[]>([]);
+  const pendingEventsRef = useRef<ConversationEventInput[]>([]);
 
   const loadConversation = useCallback(async (conversationId: string) => {
     const { messages } = await backendService.conversationMessages(conversationId);
@@ -298,23 +346,27 @@ export function useAIShopping() {
     async (content: string) => {
       const trimmed = content.trim();
       if (!trimmed || state.status === "analyzing" || state.status === "searching") return;
-      if (!getPasskeySessionToken()) {
-        dispatch({
-          type: "ERROR",
-          message: "Sign in and verify a passkey in Profile before using chat.",
-        });
-        return;
-      }
 
       const userMessage = createMessage("user", trimmed);
       dispatch({ type: "SUBMIT", message: userMessage });
 
-
       try {
         const userPersisted = await persistMessage(conversationIdRef, userMessage);
+        if (!userPersisted) {
+          pendingMessagesRef.current.push(userMessage);
+        }
         dispatch({ type: "SET_STORAGE", storage: userPersisted ? "backend" : "local" });
         const response = await shoppingService.analyze(trimmed, conversationIdRef.current ?? undefined);
         const assistantMessage = createMessage("assistant", response.message);
+
+        if (!userPersisted) {
+          pendingMessagesRef.current.push(assistantMessage);
+          pendingEventsRef.current.push({
+            type: "agent_response",
+            payload: response,
+            createdAt: assistantMessage.createdAt,
+          });
+        }
 
         if (response.kind === "clarification") {
           dispatch({ type: "CLARIFICATION", message: assistantMessage });
@@ -360,17 +412,64 @@ export function useAIShopping() {
         throw new Error("Native passkey verification is required before this mandate can be executed.");
       }
 
+      const synchronized = await synchronizePendingConversation(
+        conversationIdRef,
+        pendingMessagesRef,
+        pendingEventsRef,
+      );
+      if (!synchronized) {
+        throw new ConversationPersistenceError(new Error("Passkey session was not established."));
+      }
+      dispatch({ type: "SET_STORAGE", storage: "backend" });
+
+      const approvalSaved = await persistEvent(conversationIdRef, {
+        type: "passkey_approved",
+        payload: {
+          mandateId: state.mandate.id,
+          method: approval.method,
+          approvedAt: approval.approvedAt,
+        },
+        createdAt: approval.approvedAt,
+      });
+      if (!approvalSaved) {
+        throw new ConversationPersistenceError(new Error("Passkey approval could not be saved."));
+      }
+
+      const paymentMethod = paymentMethods.find((method) => method.id === state.mandate?.paymentMethodId);
+      if (!paymentMethod) throw new Error("Select a payment method before approving this mandate.");
+
       const searchingMessage = createMessage(
         "assistant",
         "Search mandate approved. I am now comparing verified merchants and will automatically buy the best qualifying offer.",
       );
-      await persistMessage(conversationIdRef, searchingMessage);
+      const searchingSaved = await persistMessage(conversationIdRef, searchingMessage);
+      if (!searchingSaved) {
+        throw new ConversationPersistenceError(new Error("Mandate activation could not be saved."));
+      }
+      const activationSaved = await persistEvent(conversationIdRef, {
+        type: "mandate_activated",
+        payload: { mandateId: state.mandate.id, scope: state.mandate.scope },
+        createdAt: searchingMessage.createdAt,
+      });
+      if (!activationSaved) {
+        throw new ConversationPersistenceError(new Error("Mandate activation could not be saved."));
+      }
       dispatch({ type: "SEARCHING", message: searchingMessage });
 
-      const paymentMethod = paymentMethods.find((method) => method.id === state.mandate?.paymentMethodId);
-      if (!paymentMethod) throw new Error("Select a payment method before approving this mandate.");
       const result = await shoppingService.execute(state.mandate, paymentMethod);
       const assistantMessage = createMessage("assistant", result.message);
+      const resultSaved = await persistMessage(conversationIdRef, assistantMessage);
+      if (!resultSaved) {
+        throw new ConversationPersistenceError(new Error("Purchase result could not be saved."));
+      }
+      const resultEventSaved = await persistEvent(conversationIdRef, {
+        type: result.kind === "purchased" ? "payment_executed" : "mandate_activated",
+        payload: result,
+        createdAt: assistantMessage.createdAt,
+      });
+      if (!resultEventSaved) {
+        throw new ConversationPersistenceError(new Error("Purchase result could not be saved."));
+      }
 
       if (result.kind === "purchased") {
         dispatch({
@@ -388,7 +487,6 @@ export function useAIShopping() {
           listings: result.listings,
         });
       }
-      await persistMessage(conversationIdRef, assistantMessage);
     } catch (error) {
       if (error instanceof ConversationPersistenceError) {
         dispatch({ type: "SET_STORAGE", storage: "unavailable" });

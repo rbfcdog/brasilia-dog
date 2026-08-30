@@ -52,6 +52,7 @@ test('chat reads persisted context and returns a non-executable purchase mandate
             status: 'pending',
             mockOutcome: 'immediate',
           },
+          activity: [],
         };
       },
     },
@@ -76,6 +77,7 @@ test('chat reads persisted context and returns a non-executable purchase mandate
       status: 'pending',
       mockOutcome: 'immediate',
     },
+    activity: [],
   });
   assert.deepEqual(responderInputs, [{
     message: 'Cap the budget at $300.',
@@ -94,6 +96,7 @@ test('the authenticated chat endpoint returns the agent response envelope', asyn
         return {
           kind: 'clarification',
           message: 'What is your maximum budget?',
+          activity: [],
         };
       },
     },
@@ -124,6 +127,7 @@ test('the authenticated chat endpoint returns the agent response envelope', asyn
     data: {
       kind: 'clarification',
       message: 'What is your maximum budget?',
+      activity: [],
     },
   });
 });

@@ -33,6 +33,14 @@ class MockConversationRepository implements Pick<ConversationRepository,
   private readonly messages = new Map<string, ConversationMessage[]>();
   private conversationCounter = 0;
   private messageCounter = 0;
+  private readonly events = new Map<string, Array<{
+    id: string;
+    conversationId: string;
+    type: string;
+    payload: Record<string, unknown>;
+    createdAt: string;
+  }>>();
+  private eventCounter = 0;
 
   async createConversation(ownerId: string): Promise<Conversation> {
     const conversation: Conversation = {
@@ -43,6 +51,7 @@ class MockConversationRepository implements Pick<ConversationRepository,
     };
     this.conversations.set(conversation.id, conversation);
     this.messages.set(conversation.id, []);
+    this.events.set(conversation.id, []);
     return conversation;
   }
 
@@ -68,6 +77,23 @@ class MockConversationRepository implements Pick<ConversationRepository,
     };
     this.messages.get(input.conversationId)?.push(message);
     return message;
+  }
+
+  async appendEvent(input: {
+    conversationId: string;
+    type: string;
+    payload: Record<string, unknown>;
+    createdAt: string;
+  }) {
+    const event = {
+      id: `event-${++this.eventCounter}`,
+      conversationId: input.conversationId,
+      type: input.type,
+      payload: input.payload,
+      createdAt: input.createdAt,
+    };
+    this.events.get(input.conversationId)?.push(event);
+    return event;
   }
 }
 
@@ -108,6 +134,47 @@ test('persists and returns an owner-scoped conversation transcript', async () =>
   const listed = await app(authenticatedRequest('session-user-1', 'http://localhost/v1/conversations'));
   assert.equal(listed.status, 200);
   assert.deepEqual((await listed.json()).conversations, [conversation]);
+});
+
+test('persists immutable owner-scoped agent interaction evidence', async () => {
+  const repository = new MockConversationRepository();
+  const conversation = await repository.createConversation('user-1');
+  const app = createApp({
+    paidHandler,
+    sessionService: testSessionService,
+    conversationRepository: repository as unknown as ConversationRepository,
+  });
+
+  const response = await app(authenticatedRequest(
+    'session-user-1',
+    `http://localhost/v1/conversations/${conversation.id}/events`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        type: 'catalog_search',
+        payload: {
+          query: 'ultrawide monitor',
+          resultSlugs: ['aster-34-uwqhd'],
+        },
+        createdAt: '2026-08-29T00:01:00.000Z',
+      }),
+    },
+  ));
+
+  assert.equal(response.status, 201);
+  assert.deepEqual(await response.json(), {
+    event: {
+      id: 'event-1',
+      conversationId: conversation.id,
+      type: 'catalog_search',
+      payload: {
+        query: 'ultrawide monitor',
+        resultSlugs: ['aster-34-uwqhd'],
+      },
+      createdAt: '2026-08-29T00:01:00.000Z',
+    },
+  });
 });
 
 test('does not expose a conversation transcript to another owner', async () => {

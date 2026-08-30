@@ -19,28 +19,25 @@ const mockData = vi.hoisted(() => ({
   },
   approve: vi.fn(),
   execute: vi.fn(),
+  sessionToken: "passkey-session" as string | null,
+  backend: {
+    listConversations: vi.fn().mockResolvedValue({ conversations: [] }),
+    createConversation: vi.fn().mockResolvedValue({ conversation: { id: "conversation-1" } }),
+    conversationMessages: vi.fn().mockResolvedValue({ messages: [] }),
+    appendConversationEvent: vi.fn().mockResolvedValue({ event: {} }),
+    appendConversationMessage: vi.fn().mockResolvedValue({ message: {} }),
+  },
 }));
 
 vi.mock("@/lib/passkey-session", () => ({
-  getPasskeySessionToken: () => "passkey-session",
+  getPasskeySessionToken: () => mockData.sessionToken,
   clearPasskeySessionToken: vi.fn(),
   storePasskeySessionToken: vi.fn(),
 }));
 
 vi.mock("@/services/backend-service", () => ({
-  backendService: {
-    listConversations: vi.fn().mockResolvedValue({ conversations: [] }),
-    createConversation: vi.fn().mockResolvedValue({ conversation: { id: "conversation-1" } }),
-    conversationMessages: vi.fn().mockResolvedValue({ messages: [] }),
-    appendConversationMessage: vi.fn().mockResolvedValue({ message: {} }),
-  },
+  backendService: mockData.backend,
 }));
-vi.mock("@/services/biometric-provider", () => ({
-  passkeyBiometricProvider: {
-    approve: mockData.approve,
-  },
-}));
-
 vi.mock("@/services/shopping-service", () => ({
   shoppingService: {
     analyze: vi.fn().mockResolvedValue({
@@ -50,6 +47,9 @@ vi.mock("@/services/shopping-service", () => ({
     }),
     execute: mockData.execute,
   },
+}));
+vi.mock("@/services/biometric-provider", () => ({
+  passkeyBiometricProvider: { approve: mockData.approve },
 }));
 
 const purchaseResult = {
@@ -105,12 +105,31 @@ describe("chat purchase flow", () => {
     window.localStorage.clear();
     mockData.approve.mockReset();
     mockData.execute.mockReset();
+    mockData.backend.createConversation.mockClear();
+    mockData.backend.appendConversationMessage.mockClear();
+    mockData.backend.appendConversationEvent.mockClear();
+    mockData.sessionToken = "passkey-session";
     mockData.approve.mockResolvedValue({
       approved: true,
       method: "passkey",
       approvedAt: "2026-08-29T00:00:00Z",
     });
     mockData.execute.mockResolvedValue(purchaseResult);
+  });
+
+  it("accepts a shopping prompt before asking for passkey confirmation", async () => {
+    mockData.sessionToken = null;
+    const user = userEvent.setup();
+    renderChat();
+
+    await user.click(await screen.findByRole("button", { name: /buy now/i }));
+
+    expect(await screen.findByText("34-inch ultrawide monitor")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockData.approve).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: /approve search mandate/i }));
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Confirm your identity");
   });
 
   it("executes a mandate only after a verified native passkey approval", async () => {
@@ -124,6 +143,7 @@ describe("chat purchase flow", () => {
     expect(await screen.findByRole("dialog")).toHaveTextContent("Confirm your identity");
 
     await user.click(screen.getByRole("button", { name: /confirm with passkey/i }));
+    await screen.findByRole("status");
     expect(mockData.approve).toHaveBeenCalledWith({
       ...mockData.mandate,
       paymentMethodId: "payment-visa-4242",
@@ -135,6 +155,40 @@ describe("chat purchase flow", () => {
     expect(screen.queryByText("Orbit 38-inch Monitor")).not.toBeInTheDocument();
     await user.click(screen.getByRole("tab", { name: "All offers" }));
     expect(screen.getByText("Orbit 38-inch Monitor")).toBeInTheDocument();
+  });
+
+  it("saves the deferred prompt, decision trail, approval, and purchase after passkey confirmation", async () => {
+    mockData.sessionToken = null;
+    mockData.approve.mockImplementation(async () => {
+      mockData.sessionToken = "fresh-passkey-session";
+      return {
+        approved: true,
+        method: "passkey" as const,
+        approvedAt: "2026-08-29T00:00:00Z",
+      };
+    });
+    const user = userEvent.setup();
+    renderChat();
+
+    await user.click(await screen.findByRole("button", { name: /buy now/i }));
+    await user.click(screen.getByRole("button", { name: /approve search mandate/i }));
+    await user.click(await screen.findByRole("button", { name: /confirm with passkey/i }));
+    await screen.findByRole("status");
+
+    expect(mockData.backend.createConversation).toHaveBeenCalledTimes(1);
+    expect(mockData.backend.appendConversationMessage).toHaveBeenCalledTimes(4);
+    expect(mockData.backend.appendConversationEvent).toHaveBeenCalledWith(
+      "conversation-1",
+      expect.objectContaining({ type: "agent_response" }),
+    );
+    expect(mockData.backend.appendConversationEvent).toHaveBeenCalledWith(
+      "conversation-1",
+      expect.objectContaining({ type: "passkey_approved" }),
+    );
+    expect(mockData.backend.appendConversationEvent).toHaveBeenCalledWith(
+      "conversation-1",
+      expect.objectContaining({ type: "payment_executed" }),
+    );
   });
 
   it("does not execute when the native passkey approval is rejected", async () => {

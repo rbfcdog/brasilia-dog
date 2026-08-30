@@ -58,12 +58,20 @@ describe("agent chat BFF", () => {
     const upstream = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({
         ok: true,
-        data: { kind: "clarification", message: "What is your maximum budget?" },
+        data: {
+          kind: "clarification",
+          message: "What is your maximum budget?",
+          activity: [{ type: "category_list", categories: ["electronics"] }],
+        },
       }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ message: { id: "message-1" } }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ event: { id: "event-1" } }), {
         status: 201,
         headers: { "Content-Type": "application/json" },
       }));
@@ -95,6 +103,16 @@ describe("agent chat BFF", () => {
     expect(JSON.parse(String(upstream.mock.calls[1]?.[1]?.body))).toMatchObject({
       role: "assistant",
       content: "What is your maximum budget?",
+    });
+    expect(String(upstream.mock.calls[2]?.[0])).toBe(
+      "https://api.example.test/v1/conversations/conversation-123/events",
+    );
+    expect(JSON.parse(String(upstream.mock.calls[2]?.[1]?.body))).toMatchObject({
+      type: "agent_response",
+      payload: {
+        kind: "clarification",
+        activity: [{ type: "category_list", categories: ["electronics"] }],
+      },
     });
     expect(response.status).toBe(200);
   });

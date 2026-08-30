@@ -22,9 +22,8 @@ import { passkeyBiometricProvider } from "@/services/biometric-provider";
   });
 
 describe("passkey biometric provider", () => {
-  it("requires a fresh native passkey assertion before approval", async () => {
-    getPasskeySessionToken.mockReturnValue("existing-session");
-    verifyPasskeySession.mockResolvedValue({ userId: "user-1" });
+  it("creates a fresh native passkey session when approval follows an anonymous prompt", async () => {
+    getPasskeySessionToken.mockReturnValue(null);
     authenticatePasskey.mockResolvedValue({
       verified: true,
       sessionToken: "fresh-session",
@@ -43,7 +42,7 @@ describe("passkey biometric provider", () => {
       mockOutcome: "scheduled",
     });
 
-    expect(verifyPasskeySession).toHaveBeenCalledWith("existing-session");
+    expect(verifyPasskeySession).not.toHaveBeenCalled();
     expect(authenticatePasskey).toHaveBeenCalledWith();
     expect(storePasskeySessionToken).toHaveBeenCalledWith("fresh-session");
     expect(approval).toMatchObject({ approved: true, method: "passkey" });

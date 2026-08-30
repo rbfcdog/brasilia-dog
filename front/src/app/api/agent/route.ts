@@ -25,36 +25,40 @@ function chatRequest(body: unknown): { message: string; conversationId?: string 
   };
 }
 
-function backendConversationMessagesUrl(conversationId: string): URL | null {
+function backendConversationUrl(
+  conversationId: string,
+  resource: "messages" | "events",
+): URL | null {
   const configuredUrl = process.env.BACKEND_API_URL?.trim();
   if (!configuredUrl) return null;
 
   const baseUrl = new URL(configuredUrl);
   const normalizedBasePath = baseUrl.pathname.replace(/\/$/, "");
-  baseUrl.pathname = `${normalizedBasePath}/v1/conversations/${encodeURIComponent(conversationId)}/messages`;
+  baseUrl.pathname = `${normalizedBasePath}/v1/conversations/${encodeURIComponent(conversationId)}/${resource}`;
   return baseUrl;
 }
 
-function assistantMessage(payload: unknown): string | null {
+function agentReply(payload: unknown): { content: string; evidence: Record<string, unknown> } | null {
   if (
-    !isRecord(payload) ||
-    payload.ok !== true ||
-    !isRecord(payload.data) ||
-    typeof payload.data.message !== "string" ||
-    !payload.data.message.trim()
+    !isRecord(payload)
+    || payload.ok !== true
+    || !isRecord(payload.data)
+    || typeof payload.data.message !== "string"
+    || !payload.data.message.trim()
   ) {
     return null;
   }
-  return payload.data.message.trim();
+  return { content: payload.data.message.trim(), evidence: payload.data };
 }
 
-async function persistAssistantReply(
+async function persistConversationResource(
   request: Request,
   conversationId: string,
-  content: string,
+  resource: "messages" | "events",
+  body: Record<string, unknown>,
 ): Promise<boolean> {
   const authorization = request.headers.get("authorization");
-  const target = backendConversationMessagesUrl(conversationId);
+  const target = backendConversationUrl(conversationId, resource);
   if (!authorization || !target) return false;
 
   try {
@@ -65,11 +69,7 @@ async function persistAssistantReply(
         Authorization: authorization,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        role: "assistant",
-        content,
-        createdAt: new Date().toISOString(),
-      }),
+      body: JSON.stringify(body),
       cache: "no-store",
       signal: AbortSignal.timeout(10_000),
     });
@@ -77,6 +77,27 @@ async function persistAssistantReply(
   } catch {
     return false;
   }
+}
+
+async function persistAssistantReply(
+  request: Request,
+  conversationId: string,
+  content: string,
+  evidence: Record<string, unknown>,
+): Promise<boolean> {
+  const createdAt = new Date().toISOString();
+  const messageSaved = await persistConversationResource(request, conversationId, "messages", {
+    role: "assistant",
+    content,
+    createdAt,
+  });
+  if (!messageSaved) return false;
+
+  return persistConversationResource(request, conversationId, "events", {
+    type: "agent_response",
+    payload: evidence,
+    createdAt,
+  });
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -121,8 +142,13 @@ export async function POST(request: Request): Promise<Response> {
     } catch {
       return errorResponse("INVALID_AGENT_RESPONSE", "The agent returned invalid JSON.", 502);
     }
-    const content = assistantMessage(payload);
-    if (!content || !(await persistAssistantReply(request, input.conversationId, content))) {
+    const reply = agentReply(payload);
+    if (!reply || !(await persistAssistantReply(
+      request,
+      input.conversationId,
+      reply.content,
+      reply.evidence,
+    ))) {
       return errorResponse(
         "CONVERSATION_PERSISTENCE_FAILED",
         "The agent reply could not be saved to the backend.",
