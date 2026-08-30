@@ -529,6 +529,8 @@ interface AppDeps {
   sellerAgentVerificationService?: SellerAgentVerificationService | null;
   sellerQuoteRepository?: SellerQuoteRepository | null;
   sessionService?: SessionService | null;
+  merchantService?: MerchantService | null;
+  authenticateSupabaseUser?: ((token: string) => Promise<{ id: string; email?: string } | null>) | null;
   demoPasskeyEnabled?: boolean;
   agentServiceToken?: string | null;
   userAuthService?: UserAuthService | null;
