@@ -28,6 +28,8 @@ export default defineRailway(() => {
       OPENAI_API_KEY: preserve(),
       OPENAI_MODEL: preserve(),
       ADAPTER_MODE: preserve(),
+      BACKEND_BASE_URL: preserve(),
+      AGENT_BACKEND_TOKEN: preserve(),
     },
   });
 

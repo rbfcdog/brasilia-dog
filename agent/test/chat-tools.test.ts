@@ -3,6 +3,7 @@ import test from 'node:test';
 import type OpenAI from 'openai';
 
 import type { CatalogProduct } from '../src/adapters.js';
+import { AgentError } from '../src/errors.js';
 import { OpenAIShoppingResponder } from '../src/chat.js';
 
 const product: CatalogProduct = {
@@ -115,4 +116,37 @@ test('shopping responder executes a ranked backend category search and returns e
       currency: 'USD',
     }],
   });
+});
+
+test('shopping responder preserves backend catalog failures', async () => {
+  const backendFailure = new AgentError(
+    'BACKEND_REQUEST_FAILED',
+    'The backend returned HTTP 404.',
+    502,
+  );
+  const catalog = {
+    listProducts: async () => [],
+    searchProducts: async () => {
+      throw backendFailure;
+    },
+  };
+  const client = {
+    responses: {
+      create: async () => ({
+        output_text: '',
+        output: [{
+          type: 'function_call',
+          name: 'search_products',
+          call_id: 'call-1',
+          arguments: JSON.stringify({ category: 'home', query: null, maximumAmount: 100 }),
+        }],
+      }),
+    },
+  } as unknown as OpenAI;
+  const responder = new OpenAIShoppingResponder({ apiKey: 'test-key', model: 'test-model', client });
+
+  await assert.rejects(
+    responder.respond({ message: 'Show home products under $100', catalog }),
+    (error: unknown) => error === backendFailure,
+  );
 });

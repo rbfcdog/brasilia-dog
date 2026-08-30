@@ -307,6 +307,9 @@ export class OpenAIShoppingResponder implements ChatResponder {
         outputText = finalResponse.output_text;
       }
     } catch (error) {
+      if (error instanceof AgentError) {
+        throw error;
+      }
       throw new AgentError('OPENAI_REQUEST_FAILED', 'The agent could not generate a response.', 502, {
         cause: error,
       });
