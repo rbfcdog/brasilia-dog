@@ -1563,6 +1563,36 @@ export function createApp({
       return json({ mandates });
     }
 
+    // Legacy agent runs load their mandate with the server-to-server bearer,
+    // not a browser passkey cookie. Keep this narrow route ahead of the
+    // owner-scoped browser mandate route below.
+    if (
+      mandateRepository
+      && agentServiceToken
+      && request.method === 'GET'
+      && /^\/v1\/mandates\/[^/]+\/agent-view$/.test(pathname)
+    ) {
+      if (request.headers.get('authorization') !== `Bearer ${agentServiceToken}`) {
+        return json({ error: 'agent_authentication_required' }, 401);
+      }
+      const mandateId = pathname.split('/')[3];
+      const mandate = mandateId ? await mandateRepository.getMandate(mandateId) : null;
+      if (!mandate) return json({ error: 'mandate_not_found' }, 404);
+      const query = typeof mandate.scope.query === 'string' && mandate.scope.query.trim()
+        ? mandate.scope.query.trim()
+        : 'marketplace search';
+      return json({
+        id: mandate.id,
+        version: mandate.version,
+        agentId: mandate.agentIdentityId,
+        status: mandate.status,
+        scope: { category: 'flight', destination: query },
+        maxAmountMinor: mandate.maxAmountMinor,
+        currency: mandate.currency,
+        expiresAt: mandate.expiresAt,
+      });
+    }
+
     // Mandate: GET /v1/mandates/:id
     if (mandateRepository && request.method === 'GET' && pathname.startsWith('/v1/mandates/') && !pathname.endsWith('/revoke')) {
       const session = await authenticatedSession(request, sessionService);
