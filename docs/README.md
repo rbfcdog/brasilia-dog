@@ -424,6 +424,7 @@ None of these affect the security properties. They are availability and scale li
 
 - [Challenge 01 brief](docs/challenge-01-buyer-who-isnt-human.md) — the problem we chose
 - [Decision log](docs/decision-log.md) — trade-offs with alternatives and revisit conditions
+- [Transfer log](docs/transfer-log.md) - handoff operacional detalhado, decisões, evidências, riscos e próximos passos
 - [Merchant platform](docs/merchant-platform.md) — projections, commands, security boundary
 - [Local development](docs/local-dev.md) — dev container, configuration flow, service topology
 
