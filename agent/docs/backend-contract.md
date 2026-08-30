@@ -1,15 +1,40 @@
 # Agent-to-backend REST contract
 
-This document is the integration contract proposed for the authoritative Node backend. The agent consumes it in `ADAPTER_MODE=http`; the current backend does not implement these routes yet.
+The agent now reads persisted conversation history from the authoritative Node backend. The flight catalog, signing, purchase, and approval routes below remain a proposed `ADAPTER_MODE=http` contract; the current API does not implement those routes. Use `ADAPTER_MODE=demo` with backend context variables for the supported integration.
 
 ## Common rules
 
 - Every request uses `Authorization: Bearer $AGENT_BACKEND_TOKEN`.
-- JSON responses use `{ "ok": true, "data": ... }` on success.
+- The implemented conversation route returns its documented `{ "messages": [...] }` body.
+- The proposed purchase routes return `{ "ok": true, "data": ... }` on success.
 - A deterministic purchase decision is returned as successful protocol data. The agent reads only the `outcome` discriminant and never derives authorization from HTTP status.
-- Non-2xx status codes are reserved for authentication, malformed requests, conflicts, and infrastructure/protocol failures; the agent marks the run `failed`.
 - Currency codes are lowercase ISO-style three-letter strings. Amounts are non-negative integers in minor units.
 - The backend revalidates agent identity, proof, nonce, mandate status/version/expiry/revocation, approval resolution, scope, and current offer price for every presentation.
+
+## Implemented conversation context
+
+```http
+GET /v1/conversations/:id/messages
+Authorization: Bearer $AGENT_BACKEND_TOKEN
+```
+
+`AGENT_BACKEND_TOKEN` must equal the API service's `AGENT_SERVICE_TOKEN`. The API returns:
+
+```json
+{
+  "messages": [
+    {
+      "id": "message-id",
+      "conversationId": "conversation-id",
+      "role": "user",
+      "content": "Find the cheapest authorized offer.",
+      "createdAt": "2026-08-30T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+The agent accepts an optional `conversationId` when creating a run, requests this endpoint before selection, limits the transcript to the newest 20 messages and 6,000 characters, and passes it to the model only as untrusted data. It does not receive a user passkey credential, passkey session token, or payment credential.
 
 ## 1. Safe mandate projection
 
