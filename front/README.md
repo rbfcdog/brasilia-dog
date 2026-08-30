@@ -15,6 +15,8 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Merchant demo authentication and populated in-memory projections are enabled automatically during `npm run dev`, so the complete workspace can be explored without Supabase credentials. Use the **Explore demo workspace** button on `/merchant/login`, or open a Merchant route directly. Demo catalog and refund-case changes reset when the development server restarts.
 
+For the deployed hackathon demo, set `NEXT_PUBLIC_MERCHANT_MOCK_AUTH=true` in the frontend service and redeploy. This exposes the same **Explore demo workspace** button without requiring registration. Keep the variable unset or `false` in any environment connected to real Merchant data.
+
 To exercise the real authentication flow locally, copy `.env.example` to `.env.local`, set `NEXT_PUBLIC_MERCHANT_MOCK_AUTH=false`, and configure `BACKEND_API_URL`, `NEXT_PUBLIC_SUPABASE_URL`, and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. The backend URL remains server-only. The Supabase publishable key is intentionally public and relies on RLS; never expose the Supabase secret key.
 
 Routes:
