@@ -49,25 +49,23 @@ export function ProfileSettings() {
       });
   }, []);
 
-  // Sync passkeyState session changes with sessionState display
-  useEffect(() => {
-    if (passkeyState.status === "success" && passkeyState.sessionToken && passkeyState.userId) {
-      setSessionState({ kind: "authenticated", userId: passkeyState.userId });
-    }
-  }, [passkeyState.status, passkeyState.sessionToken, passkeyState.userId]);
+  const displayedSessionState: SessionState =
+    passkeyState.status === "success" && passkeyState.sessionToken && passkeyState.userId
+      ? { kind: "authenticated", userId: passkeyState.userId }
+      : sessionState;
 
   const authLabel =
-    sessionState.kind === "checking"
+    displayedSessionState.kind === "checking"
       ? "Checking session"
-      : sessionState.kind === "authenticated"
+      : displayedSessionState.kind === "authenticated"
         ? "Authenticated"
-        : sessionState.kind === "expired"
+        : displayedSessionState.kind === "expired"
           ? "Session expired"
           : "Signed out";
 
-  const authenticated = sessionState.kind === "authenticated";
+  const authenticated = displayedSessionState.kind === "authenticated";
   const identityLabel = authenticated
-    ? sessionState.userId
+    ? displayedSessionState.userId
     : "No active passkey session";
 
   const testUserId = "test-user-local";
@@ -138,7 +136,10 @@ export function ProfileSettings() {
                 {authenticated && (
                   <button
                     type="button"
-                    onClick={signOut}
+                    onClick={() => {
+                      signOut();
+                      setSessionState({ kind: "signed_out" });
+                    }}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-white px-3 py-1.5 text-xs font-medium text-muted transition hover:bg-canvas"
                   >
                     Sign out
