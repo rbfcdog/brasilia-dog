@@ -218,6 +218,10 @@ function initialCatalogTool(message: string): InitialCatalogTool | null {
   if (/\b(?:compare|comparar)\b/i.test(message) && requestedSlugs.length >= 2) {
     return 'compare_products';
   }
+  if (/\b(?:buy|purchase|order|comprar|adquirir|pedir)\b/i.test(message)
+    && /\b(?:up to|under|below|até|abaixo de|menos de)\b/i.test(message)) {
+    return null;
+  }
   return requiresCatalogSearch(message) ? 'search_products' : null;
 }
 
@@ -384,6 +388,7 @@ export class OpenAIShoppingResponder implements ChatResponder {
         'For product discovery, put exact tool-returned products in products and leave scope and maximumAmount null.',
         'For a mandate proposal, leave products empty and provide a category-level scope and maximumAmount.',
         'For a mandate proposal, category must be the exact normalized catalog category used by the merchant metadata.',
+        'For explicit buy, purchase, or order requests with a stated budget, do not search or present products first. Return a pending mandate proposal immediately; approval and passkey verification happen before catalog search and MPP execution.',
         'Tool-call policy: before any prose, call search_products for a product request; call list_product_categories only for an unscoped category question; call compare_products only when two or more exact product slugs are supplied.',
         'For search_products, send concise product terms in query, category only when it exactly matches merchant metadata, and maximumAmount only when the user stated a ceiling. Never put instructions, seller names, or a budget in query.',
         'Do not ask a clarification question when the request already names a product or category. Search first, then report the authoritative result or that no current listing qualifies.',

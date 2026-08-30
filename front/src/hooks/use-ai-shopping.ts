@@ -49,7 +49,7 @@ function resultMessage(run: PublicAgentRun): string {
 export function aiShoppingReducer(state: AIShoppingState, action: AIShoppingAction): AIShoppingState {
   switch (action.type) {
     case "HYDRATE": return { ...initialAIShoppingState, messages: action.messages, hydrated: true, storage: action.storage };
-    case "SUBMIT": return { ...state, status: "analyzing", messages: [...state.messages, action.message], mandate: null, run: null, discoveredProducts: [], error: null, toast: null };
+    case "SUBMIT": return { ...state, status: "analyzing", messages: [...state.messages, action.message], mandate: null, run: null, error: null, toast: null };
     case "CLARIFICATION": return { ...state, status: "clarification", messages: [...state.messages, action.message] };
     case "PRODUCT_RESULTS": return { ...state, status: "clarification", messages: [...state.messages, action.message], discoveredProducts: action.products };
     case "MANDATE_READY": return { ...state, status: "mandate_ready", messages: [...state.messages, action.message], mandate: action.mandate };
