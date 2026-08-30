@@ -111,7 +111,7 @@ export class AgentService {
       throw new AgentError('CHAT_UNAVAILABLE', 'Chat is not configured for this agent service.', 503);
     }
 
-    const conversationContext = request.conversationId
+    const conversationContext = request.conversationId && this.conversations
       ? await this.loadConversationContextForChat(request.conversationId)
       : undefined;
     return this.responder.respond({

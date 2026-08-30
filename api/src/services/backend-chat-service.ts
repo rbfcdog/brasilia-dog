@@ -83,11 +83,16 @@ export class BackendChatService {
     if (!response.ok) {
       const agentError = isRecord(payload) && isRecord(payload.error) ? payload.error : null;
       if (
-        response.status === 503
-        && agentError?.code === 'PRODUCT_CATALOG_UNAVAILABLE'
+        typeof agentError?.code === 'string'
+        && agentError.code.length > 0
         && typeof agentError.message === 'string'
+        && agentError.message.length > 0
       ) {
-        throw new BackendChatError(agentError.message, 'PRODUCT_CATALOG_UNAVAILABLE', 503);
+        throw new BackendChatError(
+          agentError.message,
+          agentError.code,
+          response.status >= 400 && response.status < 600 ? response.status : 502,
+        );
       }
       throw new BackendChatError('The agent service rejected the request.', 'AGENT_UNAVAILABLE', 502);
     }

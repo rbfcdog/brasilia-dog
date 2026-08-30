@@ -98,3 +98,25 @@ test('backend chat exposes an agent catalog outage as a retryable 503', async ()
       && "status" in error && error.status === 503,
   );
 });
+
+test('backend chat preserves a safe agent service error for the caller', async () => {
+  const { repository } = fixture();
+  const request = async () => new Response(JSON.stringify({
+    ok: false,
+    error: {
+      code: 'CONVERSATION_CONTEXT_UNAVAILABLE',
+      message: 'Conversation context requires a backend-connected agent adapter.',
+    },
+  }), { status: 503, headers: { 'Content-Type': 'application/json' } });
+  const service = new BackendChatService(repository, 'https://agent.example.test', 'agent-token', request as typeof fetch);
+
+  await assert.rejects(
+    service.chat('user-1', { message: 'Show current products.' }),
+    (error: unknown) => error instanceof Error
+      && 'code' in error
+      && error.code === 'CONVERSATION_CONTEXT_UNAVAILABLE'
+      && error.message === 'Conversation context requires a backend-connected agent adapter.'
+      && 'status' in error
+      && error.status === 503,
+  );
+});

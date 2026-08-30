@@ -85,6 +85,38 @@ test('chat reads persisted context and returns a non-executable purchase mandate
   }]);
 });
 
+test('chat remains available when a demo agent has no conversation context adapter', async () => {
+  const backend = new DemoBackend();
+  const responderInputs: unknown[] = [];
+  const service = new AgentService({
+    adapters: backend,
+    selector: new FakeFlightSelector(),
+    logger: silentStepLogger,
+    responder: {
+      async respond(input) {
+        responderInputs.push(input);
+        return {
+          kind: 'clarification',
+          message: 'What is your budget?',
+          activity: [],
+        };
+      },
+    },
+  });
+
+  const response = await service.chat({
+    conversationId: 'conversation-123',
+    message: 'Find appliances.',
+  });
+
+  assert.deepEqual(response, {
+    kind: 'clarification',
+    message: 'What is your budget?',
+    activity: [],
+  });
+  assert.deepEqual(responderInputs, [{ message: 'Find appliances.' }]);
+});
+
 test('the authenticated chat endpoint returns the agent response envelope', async (t) => {
   const backend = new DemoBackend();
   const service = new AgentService({
