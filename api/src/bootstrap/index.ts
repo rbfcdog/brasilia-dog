@@ -49,8 +49,8 @@ const merchantService = supabase && config.supabase
   : null;
 const userAuthService = supabase ? new UserAuthService(supabase) : null;
 const passkeyEnrollmentService = supabase ? new PasskeyEnrollmentService(supabase) : null;
-const backendChatService = conversationRepository && config.agentServiceUrl && config.agentServiceToken
-  ? new BackendChatService(conversationRepository, config.agentServiceUrl, config.agentServiceToken)
+const backendChatService = conversationRepository && config.agentServiceUrl && config.agentServiceOutboundToken
+  ? new BackendChatService(conversationRepository, config.agentServiceUrl, config.agentServiceOutboundToken)
   : null;
 
 const sessionStore = supabase ? new SupabaseSessionStore(supabase) : new InMemorySessionStore();

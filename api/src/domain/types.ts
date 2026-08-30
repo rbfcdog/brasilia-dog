@@ -17,6 +17,7 @@ export interface AppConfig {
   passkey: PasskeyConfig;
   sessionSecret: string;
   agentServiceToken: string | null;
+  agentServiceOutboundToken: string | null;
   agentServiceUrl: string | null;
 }
 

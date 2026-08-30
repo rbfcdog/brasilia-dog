@@ -14,6 +14,7 @@ const sandboxConfig: AppConfig = {
   passkey: { rpName: 'Test', rpId: 'localhost', origin: 'http://localhost:3000' },
   sessionSecret: 'a'.repeat(64),
   agentServiceToken: null,
+  agentServiceOutboundToken: null,
   agentServiceUrl: null,
 };
 

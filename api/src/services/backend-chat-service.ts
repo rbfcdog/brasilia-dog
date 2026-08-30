@@ -43,7 +43,7 @@ export class BackendChatService {
   constructor(
     private readonly conversations: ConversationRepository,
     private readonly agentServiceUrl: string,
-    private readonly agentServiceToken: string,
+    private readonly agentServiceOutboundToken: string,
     private readonly request: typeof fetch = fetch,
   ) {}
 
@@ -69,7 +69,7 @@ export class BackendChatService {
       response = await this.request(new URL('/v1/chat', this.agentServiceUrl), {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${this.agentServiceToken}`,
+          Authorization: `Bearer ${this.agentServiceOutboundToken}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ message: input.message, conversationId: conversation.id }),

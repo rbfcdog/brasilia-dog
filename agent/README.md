@@ -44,12 +44,12 @@ Use `.env.example` as a reference and set every required variable in the process
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `PORT` | always | HTTP listen port |
-| `AGENT_SERVICE_TOKEN` | always | Bearer secret used only by the trusted Next BFF |
+| `AGENT_SERVICE_TOKEN` | always | Bearer secret accepted from the trusted Node API |
 | `OPENAI_API_KEY` | always | Server-side key for the Responses API |
 | `OPENAI_MODEL` | always | Explicit model; there is no hardcoded fallback |
 | `ADAPTER_MODE` | always | `demo` or `http` |
 | `BACKEND_BASE_URL` | HTTP mode; optional demo context | Base URL for the authoritative backend |
-| `AGENT_BACKEND_TOKEN` | HTTP mode; optional demo context | Must equal the API service's `AGENT_SERVICE_TOKEN` |
+| `AGENT_BACKEND_TOKEN` | HTTP mode; optional demo context | Must equal the Node API's incoming `AGENT_SERVICE_TOKEN` |
 
 The selected MVP model is `gpt-5.4-mini`: the offer-selection task is narrow but benefits from the reliability of the strongest current mini tier. It supports the Responses API and Structured Outputs. The slug remains an explicit environment value—there is no runtime default—so it can be changed and evaluated without a code release.
 

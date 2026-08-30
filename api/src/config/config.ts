@@ -111,6 +111,7 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
     },
     sessionSecret,
     agentServiceToken: optionalValue(environment, 'AGENT_SERVICE_TOKEN'),
+    agentServiceOutboundToken: optionalValue(environment, 'AGENT_SERVICE_OUTBOUND_TOKEN'),
     agentServiceUrl: optionalValue(environment, 'AGENT_SERVICE_URL'),
   };
 }

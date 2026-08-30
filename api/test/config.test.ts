@@ -29,8 +29,22 @@ test('loads a sandbox Stripe MPP configuration with test credentials', () => {
     passkey: { rpName: 'Brasilia Dog Marketplace', rpId: 'localhost', origin: 'http://localhost:3000' },
     sessionSecret: 'a'.repeat(64),
     agentServiceToken: null,
+    agentServiceOutboundToken: null,
     agentServiceUrl: null,
   });
+});
+
+test('loads distinct incoming and outgoing agent credentials', () => {
+  const config = loadConfig({
+    ...sandboxEnvironment,
+    AGENT_SERVICE_TOKEN: 'agent-to-api-token',
+    AGENT_SERVICE_OUTBOUND_TOKEN: 'api-to-agent-token',
+    AGENT_SERVICE_URL: 'https://agent.example.test',
+  });
+
+  assert.equal(config.agentServiceToken, 'agent-to-api-token');
+  assert.equal(config.agentServiceOutboundToken, 'api-to-agent-token');
+  assert.equal(config.agentServiceUrl, 'https://agent.example.test');
 });
 
 test('requires a dedicated MPP challenge secret', () => {
@@ -114,6 +128,7 @@ test('permits live mode only with explicit acknowledgement and live credentials'
     passkey: { rpName: 'Brasilia Dog Marketplace', rpId: 'localhost', origin: 'http://localhost:3000' },
     sessionSecret: 'a'.repeat(64),
     agentServiceToken: null,
+    agentServiceOutboundToken: null,
     agentServiceUrl: null,
   });
 });
