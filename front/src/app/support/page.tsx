@@ -30,12 +30,12 @@ export default function SupportPage() {
         })}
       </div>
 
-      <div className="mt-4 rounded-2xl border border-primary/15 bg-primary-soft p-6 text-ink shadow-sm md:p-8">
+      <div className="mt-4 rounded-2xl border border-primary/20 bg-primary-soft p-6 text-ink shadow-soft md:p-8">
         <p className="font-mono text-[9px] uppercase tracking-[0.15em] text-primary">Non-negotiable controls</p>
         <div className="mt-5 grid gap-4 text-sm text-subtle md:grid-cols-3">
-          <p className="flex gap-2"><Check className="mt-0.5 size-4 shrink-0 text-primary" /> The agent never receives a raw card number.</p>
-          <p className="flex gap-2"><Check className="mt-0.5 size-4 shrink-0 text-primary" /> Every request is checked against current mandate state.</p>
-          <p className="flex gap-2"><Check className="mt-0.5 size-4 shrink-0 text-primary" /> Failed and challenged attempts remain visible.</p>
+          <p className="flex gap-2"><Check className="mt-0.5 size-4 shrink-0 text-success-ink" aria-hidden="true" /> The agent never receives a raw card number.</p>
+          <p className="flex gap-2"><Check className="mt-0.5 size-4 shrink-0 text-success-ink" aria-hidden="true" /> Every request is checked against current mandate state.</p>
+          <p className="flex gap-2"><Check className="mt-0.5 size-4 shrink-0 text-success-ink" aria-hidden="true" /> Failed and challenged attempts remain visible.</p>
         </div>
       </div>
     </PageFrame>

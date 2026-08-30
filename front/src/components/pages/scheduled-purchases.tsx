@@ -1,7 +1,8 @@
 "use client";
 
-import { ArrowRight, CalendarClock, Radar, Search, ShieldCheck } from "lucide-react";
+import { ArrowRight, Ban, CalendarClock, CreditCard, Radar, Search, ShieldCheck } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 import { PageFrame } from "@/components/pages/page-frame";
 import { useShoppingStore } from "@/components/providers/shopping-provider";
 
@@ -13,7 +14,8 @@ function validityProgress(createdAt: string, validUntil: string) {
 }
 
 export function ScheduledPurchases() {
-  const { scheduledPurchases, hydrated } = useShoppingStore();
+  const { scheduledPurchases, revokeScheduledPurchase, hydrated } = useShoppingStore();
+  const [revokingId, setRevokingId] = useState<string | null>(null);
 
   return (
     <PageFrame
@@ -44,8 +46,9 @@ export function ScheduledPurchases() {
             return (
               <article key={purchase.id} className="rounded-2xl border border-line bg-white p-5 shadow-sm">
                 <div className="flex items-center justify-between gap-4">
-                  <span className="inline-flex items-center gap-2 rounded-full bg-success/35 px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.1em] text-success-ink">
-                    <span className="size-1.5 animate-pulse rounded-full bg-success-ink motion-reduce:animate-none" /> Searching
+                  <span className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.1em] ${purchase.status === "searching" ? "bg-success/35 text-success-ink" : "bg-danger-soft text-danger"}`}>
+                    {purchase.status === "searching" ? <span className="size-1.5 animate-pulse rounded-full bg-success-ink motion-reduce:animate-none" /> : <Ban className="size-3" aria-hidden="true" />}
+                    {purchase.status === "searching" ? "Searching" : "Revoked"}
                   </span>
                   <span className="font-mono text-[9px] text-muted">{purchase.id}</span>
                 </div>
@@ -53,17 +56,31 @@ export function ScheduledPurchases() {
                 <p className="mt-2 font-mono text-xl font-semibold">≤ ${purchase.maximumAmount.toFixed(2)}</p>
                 <div className="mt-6 rounded-xl bg-canvas p-4">
                   <div className="flex justify-between font-mono text-[9px] uppercase tracking-[0.08em] text-muted">
-                    <span>Mandate validity</span><span>72 hours</span>
+                    <span>Mandate validity</span><span>{purchase.validityHours} hours</span>
                   </div>
                   <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-line">
-                    <div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />
+                    <div className={`h-full rounded-full ${purchase.status === "searching" ? "bg-primary" : "bg-danger"}`} style={{ width: `${progress}%` }} />
                   </div>
                 </div>
                 <div className="mt-4 space-y-2 text-xs text-subtle">
-                  <p className="flex items-center gap-2"><Search className="size-3.5 text-primary" /> Searching verified merchants</p>
-                  <p className="flex items-center gap-2"><ShieldCheck className="size-3.5 text-primary" /> Purchase constraints locked</p>
-                  <p className="flex items-center gap-2"><CalendarClock className="size-3.5 text-primary" /> Expires automatically</p>
+                  <p className="flex items-center gap-2"><Search className="size-3.5 text-primary" aria-hidden="true" /> {purchase.status === "searching" ? "Searching verified merchants" : "Merchant search stopped"}</p>
+                  <p className="flex items-center gap-2"><ShieldCheck className="size-3.5 text-primary" aria-hidden="true" /> Purchase constraints locked</p>
+                  <p className="flex items-center gap-2"><CalendarClock className="size-3.5 text-primary" aria-hidden="true" /> {purchase.status === "searching" ? "Expires automatically" : "Mandate can no longer execute"}</p>
+                  <p className="flex items-center gap-2"><CreditCard className="size-3.5 text-primary" aria-hidden="true" /> {purchase.paymentMethod.label} · {purchase.paymentMethod.brand} •••• {purchase.paymentMethod.last4}</p>
                 </div>
+                {purchase.status === "searching" ? (
+                  <div className="mt-5 border-t border-line pt-4">
+                    {revokingId === purchase.id ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="mr-auto text-xs text-subtle">Stop this mandate before it can execute?</p>
+                        <button type="button" onClick={() => setRevokingId(null)} className="h-9 rounded-lg px-3 text-xs font-medium text-subtle hover:bg-canvas">Keep active</button>
+                        <button type="button" onClick={() => { revokeScheduledPurchase(purchase.id); setRevokingId(null); }} className="h-9 rounded-lg bg-danger px-3 text-xs font-medium text-white hover:bg-red-600">Confirm revocation</button>
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => setRevokingId(purchase.id)} className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-danger/25 text-xs font-medium text-danger hover:bg-danger-soft"><Ban className="size-3.5" aria-hidden="true" /> Revoke purchase mandate</button>
+                    )}
+                  </div>
+                ) : null}
               </article>
             );
           })}

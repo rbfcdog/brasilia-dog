@@ -52,11 +52,19 @@ describe("mock shopping engine", () => {
     expect(analysis.kind).toBe("mandate");
     if (analysis.kind !== "mandate") return;
 
-    const executionPromise = executeMockPurchase(analysis.mandate.id, analysis.mandate.mockOutcome);
+    const executionPromise = executeMockPurchase(
+      { ...analysis.mandate, paymentMethodId: "payment-visa-4242" },
+      { id: "payment-visa-4242", brand: "Visa", label: "Personal Visa", last4: "4242", expiry: "08/29" },
+    );
     await vi.advanceTimersByTimeAsync(1_150);
     await expect(executionPromise).resolves.toMatchObject({
       kind: "scheduled",
-      scheduledPurchase: { maximumAmount: 220, status: "searching" },
+      scheduledPurchase: {
+        maximumAmount: 220,
+        validityHours: 72,
+        paymentMethod: { last4: "4242" },
+        status: "searching",
+      },
     });
   });
 });

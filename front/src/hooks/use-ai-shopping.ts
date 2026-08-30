@@ -32,6 +32,7 @@ export type AIShoppingAction =
   | { type: "SUBMIT"; message: ChatMessage }
   | { type: "CLARIFICATION"; message: ChatMessage }
   | { type: "MANDATE_READY"; message: ChatMessage; mandate: Mandate }
+  | { type: "UPDATE_MANDATE"; mandate: Mandate }
   | { type: "REQUEST_APPROVAL" }
   | { type: "CANCEL_APPROVAL" }
   | { type: "SEARCHING"; message: ChatMessage }
@@ -86,6 +87,8 @@ export function aiShoppingReducer(
         messages: [...state.messages, action.message],
         mandate: action.mandate,
       };
+    case "UPDATE_MANDATE":
+      return state.status === "mandate_ready" ? { ...state, mandate: action.mandate } : state;
     case "REQUEST_APPROVAL":
       return { ...state, status: "biometric_confirmation" };
     case "CANCEL_APPROVAL":
@@ -140,7 +143,7 @@ function createMessage(role: ChatMessage["role"], content: string): ChatMessage 
 
 export function useAIShopping() {
   const [state, dispatch] = useReducer(aiShoppingReducer, initialAIShoppingState);
-  const { addScheduledPurchase } = useShoppingStore();
+  const { addScheduledPurchase, paymentMethods, preferredPaymentMethodId } = useShoppingStore();
 
   useEffect(() => {
     dispatch({ type: "HYDRATE", messages: demoStorage.readMessages() });
@@ -181,7 +184,7 @@ export function useAIShopping() {
         dispatch({
           type: "MANDATE_READY",
           message: assistantMessage,
-          mandate: response.mandate,
+          mandate: { ...response.mandate, paymentMethodId: preferredPaymentMethodId },
         });
       } catch (error) {
         if (error instanceof PaymentChallengeError) {
@@ -194,7 +197,7 @@ export function useAIShopping() {
         });
       }
     },
-    [state.messages, state.status],
+    [preferredPaymentMethodId, state.messages, state.status],
   );
 
   const requestApproval = useCallback(() => {
@@ -216,7 +219,9 @@ export function useAIShopping() {
         ),
       });
 
-      const result = await shoppingService.execute(state.mandate);
+      const paymentMethod = paymentMethods.find((method) => method.id === state.mandate?.paymentMethodId);
+      if (!paymentMethod) throw new Error("Select a payment method before approving this mandate.");
+      const result = await shoppingService.execute(state.mandate, paymentMethod);
       const assistantMessage = createMessage("assistant", result.message);
 
       if (result.kind === "purchased") {
@@ -239,12 +244,13 @@ export function useAIShopping() {
         message: error instanceof Error ? error.message : "Approval could not be completed.",
       });
     }
-  }, [addScheduledPurchase, state.mandate]);
+  }, [addScheduledPurchase, paymentMethods, state.mandate]);
 
   return {
     state,
     sendMessage,
     requestApproval,
+    updateMandate: (mandate: Mandate) => dispatch({ type: "UPDATE_MANDATE", mandate }),
     cancelApproval: () => dispatch({ type: "CANCEL_APPROVAL" }),
     confirmApproval,
     reset,
