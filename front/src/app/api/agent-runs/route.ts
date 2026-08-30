@@ -1,5 +1,5 @@
 import {
-  agent, backend, bffError, parseProposal, requireIdempotencyKey, verifyOwnerSession,
+  MANDATE_VALIDITY_MS, agent, backend, bffError, parseProposal, requireIdempotencyKey, verifyOwnerSession,
 } from "./_shared";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +31,7 @@ export async function POST(request: Request): Promise<Response> {
         scope: proposal.scope,
         maxAmountMinor: Math.round(proposal.maximumAmount * 100),
         currency: proposal.currency,
-        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+        expiresAt: new Date(Date.now() + MANDATE_VALIDITY_MS).toISOString(),
       }),
     });
     const run = await agent<Record<string, unknown>>("/v1/agent-runs", {

@@ -218,6 +218,20 @@ function productProjection(product: CatalogProduct) {
   };
 }
 
+// Categories seeded into the marketplace catalog. The authoritative product search
+// filters on an exact category match, so anything outside this set matches nothing.
+const CATALOG_CATEGORIES = new Set([
+  'education', 'electronics', 'food', 'home', 'outdoors',
+  'services', 'software', 'sports', 'tools', 'travel',
+]);
+
+// The mandate scope is free text, so it is only usable as a category when it happens to
+// name one. Everything else falls back to a category that actually exists in the catalog.
+function marketplaceCategory(value: string | null): string {
+  const normalized = normalizeCategory(value);
+  return normalized && CATALOG_CATEGORIES.has(normalized) ? normalized : 'electronics';
+}
+
 function normalizeCategory(value: string | null): string | null {
   if (!value) return null;
   const normalized = value.trim().toLowerCase();
@@ -437,7 +451,7 @@ export class OpenAIShoppingResponder implements ChatResponder {
       }
 
       const validUntil = new Date(this.now().getTime() + MANDATE_VALIDITY_MS).toISOString();
-      const category = normalizeCategory(proposal.category ?? proposal.scope) ?? 'electronics';
+      const category = marketplaceCategory(proposal.category ?? proposal.scope);
       return chatResponseSchema.parse({
         kind: 'mandate',
         message: proposal.message,

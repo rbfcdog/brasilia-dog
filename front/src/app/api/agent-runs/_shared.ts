@@ -1,3 +1,11 @@
+import { cookies } from "next/headers";
+
+const PASSKEY_SESSION_COOKIE = "nomad-passkey-session";
+
+// Must match MANDATE_VALIDITY_MS in agent/src/chat.ts: the authority granted here has to
+// be the same window the user saw and approved on the mandate card.
+export const MANDATE_VALIDITY_MS = 72 * 60 * 60 * 1_000;
+
 export interface VerifiedOwnerSession {
   token: string;
   userId: string;
@@ -54,9 +62,21 @@ export function requireIdempotencyKey(request: Request): string {
   return value.toLowerCase();
 }
 
+async function passkeySessionToken(request: Request): Promise<string | null> {
+  const bearer = request.headers.get("authorization")?.match(/^Bearer (.+)$/)?.[1]?.trim();
+  if (bearer) return bearer;
+  // The browser client never attaches Authorization headers (see lib/api.ts), so the
+  // HttpOnly passkey cookie is the carrier for a signed-in session, exactly as in the
+  // /api/backend proxy.
+  try {
+    return (await cookies()).get(PASSKEY_SESSION_COOKIE)?.value?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function verifyOwnerSession(request: Request, fresh = false): Promise<VerifiedOwnerSession> {
-  const authorization = request.headers.get("authorization");
-  const token = authorization?.match(/^Bearer (.+)$/)?.[1];
+  const token = await passkeySessionToken(request);
   if (!token) throw new BffError("AUTHENTICATION_REQUIRED", "A passkey session is required.", 401);
   const response = await fetch(configuredUrl("BACKEND_API_URL", "passkey/session/verify"), {
     method: "POST",
