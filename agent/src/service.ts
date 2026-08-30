@@ -262,7 +262,13 @@ export class AgentService {
 
   private fail(runId: string, error: unknown): void {
     const failure = toAgentError(error);
-    this.store.appendEvent(runId, 'run_failed', { code: failure.code });
+    console.error('Agent run failed.', {
+      runId,
+      code: failure.code,
+      message: failure.message,
+      cause: failure.cause instanceof Error ? failure.cause.stack : failure.cause,
+    });
+    this.store.appendEvent(runId, 'run_failed', { code: failure.code, message: failure.message });
     this.store.finish(runId, 'failed', {
       outcome: 'failed',
       code: failure.code,

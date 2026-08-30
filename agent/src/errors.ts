@@ -15,7 +15,10 @@ export function toAgentError(error: unknown): AgentError {
     return error;
   }
 
-  return new AgentError('INTERNAL_ERROR', 'The agent run failed unexpectedly.', 500, {
+  const message = error instanceof Error && error.message.trim()
+    ? error.message
+    : 'The agent run failed unexpectedly.';
+  return new AgentError('INTERNAL_ERROR', message, 500, {
     cause: error,
   });
 }
