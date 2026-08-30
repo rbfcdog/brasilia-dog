@@ -806,6 +806,15 @@ O bug `Run not found` foi causado por `ownerId` não persistido no run público.
 **Ação concluída:** commit `3888c94`.  
 **Ação operacional restante:** redeploy do agent service e confirmar que a versão implantada inclui a correção.
 
+
+### R-008. Nome do produto divergente na documentação
+
+`docs/README.md` ainda usa `Vero` no título, enquanto `docs/decision-log.md`, o código e este handoff usam `Nomad`.
+
+**Impacto:** apresentações, URLs, screenshots e documentação podem parecer referir-se a produtos diferentes.
+
+**Ação:** escolher um nome canônico e atualizar título, copy, metadata, URLs e referências antes da próxima publicação externa. Até essa decisão, este documento usa `Nomad`, que é o nome predominante no decision log e no fluxo técnico.
+
 ---
 
 ## 13. Próximos passos priorizados
