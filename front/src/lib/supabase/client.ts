@@ -9,7 +9,7 @@ let browserClient: SupabaseClient | null = null;
 export function createMerchantBrowserClient(): SupabaseClient {
   if (browserClient) return browserClient;
   const config = getSupabasePublicConfig();
-  if (!config) throw new Error("Merchant authentication is not configured.");
+  if (!config) throw new Error("Supabase authentication is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, then redeploy the frontend.");
   browserClient = createBrowserClient(config.url, config.key);
   return browserClient;
 }
