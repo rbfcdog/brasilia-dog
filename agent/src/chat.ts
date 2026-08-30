@@ -215,6 +215,22 @@ function initialCatalogTool(message: string): 'list_product_categories' | 'searc
   return requiresCatalogSearch(message) ? 'search_products' : null;
 }
 
+function forcedSearchArguments(message: string): string {
+  const budgetMatch = message.match(/\b(?:up to|under|below|less than|até|abaixo de|menos de)\s*(?:usd|us\$|r\$|\$)?\s*(\d[\d,.]*)/i);
+  const maximumAmount = budgetMatch ? Number(budgetMatch[1]!.replace(/,/g, '')) : null;
+  const query = message
+    .replace(/\b(?:buy|find|show|search|browse|available|looking for|need|want|comprar|encontrar|mostrar|buscar|procurar|pesquisar|navegar|dispon[ií]vel|produto|produtos|cat[aá]logo|oferta|ofertas|preciso|quero)\b/gi, ' ')
+    .replace(/\b(?:up to|under|below|less than|até|abaixo de|menos de)\b.*$/i, ' ')
+    .replace(/[^\p{L}\p{N}\s-]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return JSON.stringify({
+    category: null,
+    query: query || null,
+    maximumAmount: Number.isFinite(maximumAmount) ? maximumAmount : null,
+  });
+}
+
 
 function availableProducts(products: CatalogProduct[]): CatalogProduct[] {
   return products.filter((product) => product.status === 'published');
@@ -388,10 +404,12 @@ export class OpenAIShoppingResponder implements ChatResponder {
         } => item.type === 'function_call');
         if (functionCalls.length === 0) {
           outputText = response.output_text;
+          if (round === 0 && initialTool === 'search_products' && input.catalog) {
+            const execution = await executeCatalogTool('search_products', forcedSearchArguments(input.message), input.catalog);
+            activity = [...activity, execution.activity];
+            catalogProducts = uniqueProducts([...catalogProducts, ...execution.products]);
+          }
           break;
-        }
-        if (round === MAX_CATALOG_TOOL_ROUNDS) {
-          throw new AgentError('MODEL_OUTPUT_INVALID', 'The agent exceeded the catalog tool-call limit.', 502);
         }
         if (!input.catalog) {
           throw new AgentError('PRODUCT_CATALOG_UNAVAILABLE', 'Marketplace search is not configured.', 503);

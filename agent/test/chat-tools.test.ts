@@ -425,3 +425,49 @@ test('shopping responder returns verified tool results when the model selection 
     }],
   });
 });
+
+test('shopping responder executes a deterministic backend search when a forced model tool call is omitted', async () => {
+  const searches: unknown[] = [];
+  const catalog = {
+    listProducts: async () => [product],
+    searchProducts: async (input: unknown) => {
+      searches.push(input);
+      return [product];
+    },
+  };
+  const client = {
+    responses: {
+      create: async () => ({
+        output_text: JSON.stringify({
+          message: 'How can I help with shopping today?',
+          scope: null,
+          maximumAmount: null,
+          minimumScreenSize: null,
+          category: null,
+          products: [],
+        }),
+        output: [],
+      }),
+    },
+  } as unknown as OpenAI;
+  const responder = new OpenAIShoppingResponder({ apiKey: 'test-key', model: 'test-model', client });
+
+  const result = await responder.respond({ message: 'Buy an ultrawide monitor up to $300', catalog });
+
+  assert.deepEqual(searches, [{
+    query: 'an ultrawide monitor',
+    category: null,
+    maximumAmountMinor: 30_000,
+    slugs: [],
+    limit: 10,
+  }]);
+  assert.equal(result.kind, 'products');
+  assert.deepEqual(result.products, [{
+    slug: product.slug,
+    name: product.name,
+    description: product.description,
+    category: 'home',
+    price: 95,
+    currency: 'USD',
+  }]);
+});

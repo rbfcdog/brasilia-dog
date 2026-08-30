@@ -31,6 +31,21 @@ A mandate authorizes a category and constraints, not a previously selected item.
 | 9 | Cross-device passkey enrollment | Enroll a second device using a short-lived account-bound QR flow. | Deferred | Useful later, but not part of the primary demo after first-account setup moved to login. |
 | 10 | Fail-safe examples | Demonstrate a draft product excluded from search, an over-budget offer excluded from a mandate, and a rejected passkey verification blocking execution. | Partially implemented | Security behavior is more persuasive when visible. |
 
+## Demo feature inventory
+
+| Feature | Demo moment | Why it lands |
+| --- | --- | --- |
+| Merchant creates and publishes a product | Merchant publishes `USB-C 4K Monitor` with price and structured specs. | Proves a controlled supply side, rather than a static catalog. |
+| Agent discovers a merchant product | Buyer asks for `Show 4K monitors below $400` and receives the published listing, price, and metadata. | Proves merchant catalog data reaches buyer chat. |
+| Search mandate, not product approval | Buyer approves `Find a 4K monitor under $400`; the mandate authorizes constraints and the Agent chooses a qualifying offer later. | Demonstrates buyer control without preselecting a seller or SKU. |
+| Native passkey approval before execution | The browser invokes the platform WebAuthn prompt before execution continues. | Demonstrates fresh human verification. A local PIN is a valid verifier too. |
+| Merchant order and proof timeline | Merchant inspects product, amount, status, risk rationale, execution-proof reference, and receipt state. | Provides operational evidence for the transaction story. |
+| Merchant catalog lifecycle | Demonstrate draft to published to Agent-visible, with drafts absent from results. | Makes publishing, rather than record creation, the visibility gate. |
+| Agent comparison card | Compare exact product slugs and show price, merchant, category, structured metadata, and selected result. | Makes bounded tool use visible. |
+| Refund operations view | Open a settled order and create a refund case with reason and optional partial amount. | Adds operational credibility without representing incomplete reconciliation as live settlement. |
+| Cross-device passkey enrollment | Enroll a second device through a short-lived QR code. | A strong security moment only after the live enrollment path is stable. |
+| Fail-safe examples | Show a draft exclusion, over-budget exclusion, or rejected passkey verification blocking execution. | A visible denial is stronger than a generic security claim. |
+
 ## Recommended four-minute script
 
 1. Merchant signs in and opens **Catalog**.
