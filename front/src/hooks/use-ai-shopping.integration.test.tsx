@@ -88,12 +88,14 @@ describe("live agent chat", () => {
     expect(result.current.state.storage).toBe("backend");
   });
 
-  it("routes anonymous chat through the local agent without backend persistence", async () => {
+  it("routes anonymous chat through the backend gateway with anon owner", async () => {
     mocks.getPasskeySessionToken.mockReturnValue(null);
     mocks.readMessages.mockReturnValue([]);
-    mocks.analyzeLocal.mockResolvedValue({
+    mocks.listConversations.mockResolvedValue({ conversations: [] });
+    mocks.analyze.mockResolvedValue({
       kind: "clarification",
       message: "Tell me your budget.",
+      conversationId: "conversation-anon",
     });
 
     const { result } = renderHook(() => useAIShopping());
@@ -103,9 +105,10 @@ describe("live agent chat", () => {
       await result.current.sendMessage("Find appliances");
     });
 
-    expect(mocks.analyzeLocal).toHaveBeenCalledWith("Find appliances");
-    expect(mocks.analyze).not.toHaveBeenCalled();
-    expect(result.current.state.storage).toBe("local");
+    expect(mocks.analyze).toHaveBeenCalledWith("Find appliances", undefined);
+    expect(mocks.analyzeLocal).not.toHaveBeenCalled();
+    expect(result.current.state.storage).toBe("backend");
+    expect(result.current.state.messages.at(-1)?.content).toBe("Tell me your budget.");
   });
 
   it("loads a conversation selected from the recent history controls", async () => {

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useReducer, useRef } from "react";
 import { ApiError, PaymentChallengeError } from "@/lib/api";
-import { hasAccountSession, hasPasskeySession } from "@/lib/passkey-session";
+import { hasPasskeySession } from "@/lib/passkey-session";
 import { demoStorage } from "@/lib/demo-storage";
 import { passkeyBiometricProvider } from "@/services/biometric-provider";
 import { shoppingService } from "@/services/shopping-service";
@@ -289,12 +289,8 @@ export function useAIShopping() {
   }, []);
 
   // Hydrate the selected backend conversation, or the most recent one.
+  // Always hydrate from backend. Anonymous users get 'anon' conversations.
   useEffect(() => {
-    if (!hasAccountSession()) {
-      dispatch({ type: "HYDRATE", messages: demoStorage.readMessages(), storage: "local" });
-      return;
-    }
-
     const selectedConversationId = new URLSearchParams(window.location.search).get("conversation");
     void backendService
       .listConversations()
@@ -306,17 +302,9 @@ export function useAIShopping() {
           await loadConversation(selected.id);
           return;
         }
-        const { conversation } = await backendService.createConversation();
-        conversationIdRef.current = conversation.id;
         dispatch({ type: "HYDRATE", messages: [], storage: "backend" });
       })
-      .catch((error) => {
-        if (error instanceof ApiError && error.status === 401) {
-          dispatch({ type: "HYDRATE", messages: demoStorage.readMessages(), storage: "local" });
-          return;
-        }
-        dispatch({ type: "HYDRATE", messages: demoStorage.readMessages(), storage: "unavailable" });
-      });
+      .catch(() => dispatch({ type: "HYDRATE", messages: demoStorage.readMessages(), storage: "unavailable" }));
   }, [loadConversation]);
 
   useEffect(() => {
@@ -361,78 +349,30 @@ export function useAIShopping() {
       dispatch({ type: "SUBMIT", message: userMessage });
 
       try {
-        if (hasAccountSession()) {
-          const response = await shoppingService.analyze(trimmed, conversationIdRef.current ?? undefined);
-          conversationIdRef.current = response.conversationId;
-          dispatch({ type: "SET_STORAGE", storage: "backend" });
+        const response = await shoppingService.analyze(trimmed, conversationIdRef.current ?? undefined);
+        conversationIdRef.current = response.conversationId;
+        dispatch({ type: "SET_STORAGE", storage: "backend" });
 
-          const assistantMessage = createMessage("assistant", response.message);
-          if (response.kind === "clarification") {
-            dispatch({ type: "CLARIFICATION", message: assistantMessage });
-            return;
-          }
-          if (response.kind === "products") {
-            dispatch({
-              type: "PRODUCT_RESULTS",
-              message: assistantMessage,
-              products: response.products,
-              activity: response.activity ?? [],
-            });
-            return;
-          }
-          dispatch({
-            type: "MANDATE_READY",
-            message: assistantMessage,
-            mandate: { ...response.mandate, paymentMethodId: preferredPaymentMethodId },
-          });
-        } else {
-          const response = await shoppingService.analyzeLocal(trimmed);
-          dispatch({ type: "SET_STORAGE", storage: "local" });
-          const assistantMessage = createMessage("assistant", response.message);
-          pendingMessagesRef.current.push(userMessage, assistantMessage);
-          pendingEventsRef.current.push({
-            type: "agent_response",
-            payload: response,
-            createdAt: assistantMessage.createdAt,
-          });
-          if (response.kind === "mandate") {
-            pendingEventsRef.current.push({
-              type: "mandate_proposed",
-              payload: { ...response.mandate },
-              createdAt: assistantMessage.createdAt,
-            });
-          }
-          if (response.kind === "clarification") {
-            dispatch({ type: "CLARIFICATION", message: assistantMessage });
-            return;
-          }
-          if (response.kind === "products") {
-            dispatch({
-              type: "PRODUCT_RESULTS",
-              message: assistantMessage,
-              products: response.products,
-              activity: response.activity ?? [],
-            });
-            return;
-          }
-          dispatch({
-            type: "MANDATE_READY",
-            message: assistantMessage,
-            mandate: { ...response.mandate, paymentMethodId: preferredPaymentMethodId },
-          });
+        const assistantMessage = createMessage("assistant", response.message);
+        if (response.kind === "clarification") {
+          dispatch({ type: "CLARIFICATION", message: assistantMessage });
+          return;
         }
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 401) {
-          dispatch({ type: "HYDRATE", messages: demoStorage.readMessages(), storage: "local" });
+        if (response.kind === "products") {
           dispatch({
-            type: "ERROR",
-            message: "Your passkey session expired. Re-authenticate in Profile to save conversations.",
+            type: "PRODUCT_RESULTS",
+            message: assistantMessage,
+            products: response.products,
+            activity: response.activity ?? [],
           });
           return;
         }
-        if (error instanceof ConversationPersistenceError) {
-          dispatch({ type: "SET_STORAGE", storage: "unavailable" });
-        }
+        dispatch({
+          type: "MANDATE_READY",
+          message: assistantMessage,
+          mandate: { ...response.mandate, paymentMethodId: preferredPaymentMethodId },
+        });
+      } catch (error) {
         if (error instanceof PaymentChallengeError) {
           dispatch({ type: "PAYMENT_CHALLENGE", challenge: error.challenge });
           return;

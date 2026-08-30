@@ -125,6 +125,66 @@ test('shopping responder executes a ranked backend category search and returns e
   });
 });
 
+test('shopping responder returns catalog products when the model omits them after a successful search', async () => {
+  const catalog = {
+    listProducts: async () => [product],
+    searchProducts: async () => [product],
+  };
+  const responses = [
+    {
+      output_text: '',
+      output: [{
+        type: 'function_call',
+        name: 'search_products',
+        call_id: 'call-search',
+        arguments: JSON.stringify({ category: 'home', query: 'appliance', maximumAmount: 100 }),
+      }],
+    },
+    {
+      output_text: JSON.stringify({
+        message: 'I could not find matching products.',
+        scope: null,
+        maximumAmount: null,
+        minimumScreenSize: null,
+        products: [],
+      }),
+      output: [],
+    },
+  ];
+  const client = {
+    responses: {
+      create: async () => {
+        const response = responses.shift();
+        if (!response) throw new Error('Unexpected OpenAI request.');
+        return response;
+      },
+    },
+  } as unknown as OpenAI;
+  const responder = new OpenAIShoppingResponder({ apiKey: 'test-key', model: 'test-model', client });
+
+  const result = await responder.respond({ message: 'Compra um eletrodoméstico de 100 reais.', catalog });
+
+  assert.deepEqual(result, {
+    kind: 'products',
+    message: 'I found 1 current catalog product matching your search.',
+    products: [{
+      slug: product.slug,
+      name: product.name,
+      description: product.description,
+      category: 'home',
+      price: 95,
+      currency: 'USD',
+    }],
+    activity: [{
+      type: 'catalog_search',
+      category: 'home',
+      query: 'appliance',
+      maximumAmount: 100,
+      resultSlugs: [product.slug],
+    }],
+  });
+});
+
 test('shopping responder follows a model-led search with an exact product comparison before answering', async () => {
   const catalog = {
     listProducts: async () => [product],

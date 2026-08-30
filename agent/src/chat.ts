@@ -39,6 +39,22 @@ const catalogActivitySchema = z.discriminatedUnion('type', [
   }),
 ]);
 type CatalogActivity = z.infer<typeof catalogActivitySchema>;
+type DiscoveredProduct = z.infer<typeof discoveredProductSchema>;
+
+interface CatalogToolExecution {
+  output: string;
+  activity: CatalogActivity;
+  products: DiscoveredProduct[];
+}
+
+function uniqueProducts(products: DiscoveredProduct[]): DiscoveredProduct[] {
+  return [...new Map(products.map((product) => [product.slug, product])).values()];
+}
+
+function catalogResultMessage(products: DiscoveredProduct[]): string {
+  return `I found ${products.length} current catalog ${products.length === 1 ? 'product' : 'products'} matching your search.`;
+}
+
 
 const responseActivitySchema = z.array(catalogActivitySchema).max(10);
 
@@ -200,12 +216,11 @@ function normalizeCategory(value: string | null): string | null {
   if (/eletronic|electronic/.test(normalized)) return 'electronics';
   return normalized;
 }
-
 async function executeCatalogTool(
   name: string,
   argumentsJson: string,
   catalog: ProductCatalogAdapter,
-): Promise<{ output: string; activity: CatalogActivity }> {
+): Promise<CatalogToolExecution> {
   if (name === 'list_product_categories') {
     const available = availableProducts(await catalog.listProducts());
     const categories = [...new Set(available.map((product) =>
@@ -213,6 +228,7 @@ async function executeCatalogTool(
     return {
       output: JSON.stringify({ categories }),
       activity: { type: 'category_list', categories },
+      products: [],
     };
   }
   if (name === 'compare_products') {
@@ -231,6 +247,7 @@ async function executeCatalogTool(
         requestedSlugs: slugs,
         resultSlugs: products.map((product) => product.slug),
       },
+      products,
     };
   }
   if (name === 'search_products') {
@@ -255,6 +272,7 @@ async function executeCatalogTool(
         maximumAmount: input.maximumAmount,
         resultSlugs: products.map((product) => product.slug),
       },
+      products,
     };
   }
   throw new AgentError('UNKNOWN_TOOL', `The model requested unsupported tool ${name}.`, 502);
@@ -283,6 +301,8 @@ export class OpenAIShoppingResponder implements ChatResponder {
   }): Promise<AgentChatResponse> {
     let outputText = '';
     let activity: CatalogActivity[] = [];
+    let catalogProducts: DiscoveredProduct[] = [];
+
     try {
       const instructions = [
         'Act as a capable shopping research assistant with tools for current catalog search, category discovery, and product comparison.',
@@ -341,9 +361,14 @@ export class OpenAIShoppingResponder implements ChatResponder {
             call_id: call.call_id,
             output: execution.output,
             activity: execution.activity,
+            products: execution.products,
           };
         }));
         activity = [...activity, ...toolExecutions.map((execution) => execution.activity)];
+        catalogProducts = uniqueProducts([
+          ...catalogProducts,
+          ...toolExecutions.flatMap((execution) => execution.products),
+        ]);
         modelInput = [
           ...(typeof modelInput === 'string' ? [] : modelInput),
           ...response.output,
@@ -368,11 +393,10 @@ export class OpenAIShoppingResponder implements ChatResponder {
 
     try {
       const proposal = modelProposalSchema.parse(JSON.parse(outputText));
+      const catalogProductsBySlug = new Map(catalogProducts.map((product) => [product.slug, product]));
       if (proposal.products.length > 0) {
-        const catalogResultSlugs = new Set(activity.flatMap((entry) =>
-          entry.type === 'category_list' ? [] : entry.resultSlugs));
-        if (catalogResultSlugs.size === 0 || proposal.products.some((product) =>
-          !catalogResultSlugs.has(product.slug))) {
+        const selectedProducts = proposal.products.map((product) => catalogProductsBySlug.get(product.slug));
+        if (selectedProducts.some((product) => !product)) {
           throw new AgentError(
             'MODEL_OUTPUT_INVALID',
             'The agent returned products that were not supplied by the catalog.',
@@ -382,7 +406,15 @@ export class OpenAIShoppingResponder implements ChatResponder {
         return chatResponseSchema.parse({
           kind: 'products',
           message: proposal.message,
-          products: proposal.products,
+          products: selectedProducts,
+          activity,
+        });
+      }
+      if (catalogProducts.length > 0) {
+        return chatResponseSchema.parse({
+          kind: 'products',
+          message: catalogResultMessage(catalogProducts),
+          products: catalogProducts,
           activity,
         });
       }

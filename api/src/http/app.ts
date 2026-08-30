@@ -1006,8 +1006,6 @@ export function createApp({
 
 
     if (request.method === 'POST' && pathname === '/v1/chat') {
-      const owner = await authenticatedOwner(request, sessionService, authenticateSupabaseUser);
-      if (!owner) return json({ error: 'authentication_required' }, 401);
       if (!backendChatService) return json({ error: 'chat_gateway_unavailable' }, 503);
       const body = await request.json().catch(() => null);
       if (
@@ -1022,8 +1020,10 @@ export function createApp({
       ) {
         return json({ error: 'message and optional conversationId are required' }, 400);
       }
+      const owner = await authenticatedOwner(request, sessionService, authenticateSupabaseUser);
+      const ownerId = owner?.userId ?? 'anon';
       try {
-        return json(await backendChatService.chat(owner.userId, {
+        return json(await backendChatService.chat(ownerId, {
           message: body.message.trim(),
           ...(typeof body.conversationId === 'string'
             ? { conversationId: body.conversationId.trim() }
@@ -1135,14 +1135,13 @@ export function createApp({
       }
     }
 
-    // Conversation routes. The account-authenticated owner owns every read and write.
+    // Conversation routes. Authenticated owners see their conversations;
+    // anonymous users share the 'anon' owner so every chat is persisted.
     if (conversationRepository && request.method === 'POST' && pathname === '/v1/conversations') {
       const owner = await authenticatedOwner(request, sessionService, authenticateSupabaseUser);
-      if (!owner) {
-        return json({ error: 'authentication_required' }, 401);
-      }
+      const ownerId = owner?.userId ?? 'anon';
       try {
-        const conversation = await conversationRepository.createConversation(owner.userId);
+        const conversation = await conversationRepository.createConversation(ownerId);
         return json({ conversation }, 201);
       } catch (error) {
         console.error('Conversation creation failed.', error instanceof Error ? error.message : 'Unknown error');
@@ -1152,11 +1151,9 @@ export function createApp({
 
     if (conversationRepository && request.method === 'GET' && pathname === '/v1/conversations') {
       const owner = await authenticatedOwner(request, sessionService, authenticateSupabaseUser);
-      if (!owner) {
-        return json({ error: 'authentication_required' }, 401);
-      }
+      const ownerId = owner?.userId ?? 'anon';
       try {
-        return json({ conversations: await conversationRepository.listConversations(owner.userId) });
+        return json({ conversations: await conversationRepository.listConversations(ownerId) });
       } catch {
         return json({ error: 'conversation_list_failed' }, 500);
       }
@@ -1168,15 +1165,13 @@ export function createApp({
       /^\/v1\/conversations\/[^/]+\/events$/.test(pathname)
     ) {
       const owner = await authenticatedOwner(request, sessionService, authenticateSupabaseUser);
-      if (!owner) {
-        return json({ error: 'authentication_required' }, 401);
-      }
+      const ownerId = owner?.userId ?? 'anon';
       const conversationId = pathname.split('/')[3];
       if (!conversationId) {
         return json({ error: 'conversation_id_required' }, 400);
       }
       const conversation = await conversationRepository.getConversation(conversationId);
-      if (!conversation || conversation.ownerId !== owner.userId) {
+      if (!conversation || conversation.ownerId !== ownerId) {
         return json({ error: 'conversation_not_found' }, 404);
       }
       const input = parseConversationEvent(await request.json().catch(() => null));
@@ -1185,7 +1180,7 @@ export function createApp({
       }
       try {
         const event = await conversationRepository.appendEvent({
-          ownerId: owner.userId,
+          ownerId,
           conversationId: conversation.id,
           ...input,
         });
@@ -1202,15 +1197,13 @@ export function createApp({
       (request.method === 'GET' || request.method === 'POST')
     ) {
       const owner = await authenticatedOwner(request, sessionService, authenticateSupabaseUser);
-      if (!owner) {
-        return json({ error: 'authentication_required' }, 401);
-      }
+      const ownerId = owner?.userId ?? 'anon';
       const conversationId = pathname.split('/')[3];
       if (!conversationId) {
         return json({ error: 'conversation_id_required' }, 400);
       }
       const conversation = await conversationRepository.getConversation(conversationId);
-      if (!conversation || conversation.ownerId !== owner.userId) {
+      if (!conversation || conversation.ownerId !== ownerId) {
         return json({ error: 'conversation_not_found' }, 404);
       }
       if (request.method === 'GET') {
@@ -1237,7 +1230,7 @@ export function createApp({
       }
       try {
         const message = await conversationRepository.appendMessage({
-          ownerId: owner.userId,
+          ownerId,
           conversationId: conversation.id,
           role: body.role,
           content,

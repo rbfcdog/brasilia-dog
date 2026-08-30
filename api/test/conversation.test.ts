@@ -195,11 +195,12 @@ test('does not expose a conversation transcript to another owner', async () => {
   assert.deepEqual(await response.json(), { error: 'conversation_not_found' });
 });
 
-test('requires a passkey session before creating a conversation', async () => {
+test('creates an anonymous conversation without authentication', async () => {
   const app = createApp({ paidHandler, conversationRepository: new MockConversationRepository() as unknown as ConversationRepository });
 
   const response = await app(new Request('http://localhost/v1/conversations', { method: 'POST' }));
 
-  assert.equal(response.status, 401);
-  assert.deepEqual(await response.json(), { error: 'authentication_required' });
+  assert.equal(response.status, 201);
+  const body = await response.json();
+  assert.ok(body.conversation.id);
 });

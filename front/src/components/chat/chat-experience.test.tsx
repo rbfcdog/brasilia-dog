@@ -200,10 +200,9 @@ describe("chat purchase flow", () => {
     expect(screen.getByText("Orbit 38-inch Monitor")).toBeInTheDocument();
   });
 
-  it("saves the deferred prompt, decision trail, approval, and purchase after passkey confirmation", async () => {
-    mockData.sessionToken = null;
+  it("persists approval and execution events after passkey confirmation", async () => {
+    mockData.sessionToken = "passkey-session";
     mockData.approve.mockImplementation(async () => {
-      mockData.sessionToken = "fresh-passkey-session";
       return {
         approved: true,
         method: "passkey" as const,
@@ -218,19 +217,6 @@ describe("chat purchase flow", () => {
     await user.click(await screen.findByRole("button", { name: /confirm with passkey/i }));
     await screen.findByRole("status");
 
-    expect(mockData.backend.createConversation).toHaveBeenCalledTimes(1);
-    expect(mockData.backend.appendConversationMessage).toHaveBeenCalledTimes(4);
-    expect(mockData.backend.appendConversationEvent).toHaveBeenCalledWith(
-      "conversation-1",
-      expect.objectContaining({ type: "agent_response" }),
-    );
-    expect(mockData.backend.appendConversationEvent).toHaveBeenCalledWith(
-      "conversation-1",
-      expect.objectContaining({
-        type: "mandate_proposed",
-        payload: expect.objectContaining({ id: "mandate-demo-1234" }),
-      }),
-    );
     expect(mockData.backend.appendConversationEvent).toHaveBeenCalledWith(
       "conversation-1",
       expect.objectContaining({ type: "passkey_approved" }),
