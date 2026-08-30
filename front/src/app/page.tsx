@@ -1,15 +1,14 @@
 import {
   ArrowRight,
-  Bot,
   CheckCircle2,
   Database,
   Fingerprint,
   Gauge,
   ShieldCheck,
   Sparkles,
-  Store,
 } from "lucide-react";
 import Link from "next/link";
+import { WorkspaceAuth } from "@/components/auth/workspace-auth";
 
 const principles = [
   { icon: Database, label: "Structured facts", detail: "Exact specs agents can query" },
@@ -34,8 +33,8 @@ export default function LandingPage() {
               <span className="mt-1.5 block font-mono text-[9px] uppercase leading-none tracking-[0.18em] text-muted">Agentic commerce</span>
             </span>
           </Link>
-          <Link href="/merchant/login" className="hidden items-center gap-2 rounded-xl border border-black/[0.08] bg-white/80 px-4 py-2.5 text-sm font-medium shadow-sm backdrop-blur transition hover:border-primary/25 hover:text-primary sm:inline-flex">
-            Merchant sign in <ArrowRight className="size-4" aria-hidden="true" />
+          <Link href="#workspace-auth" className="hidden items-center gap-2 rounded-xl border border-black/[0.08] bg-white/80 px-4 py-2.5 text-sm font-medium shadow-sm backdrop-blur transition hover:border-primary/25 hover:text-primary sm:inline-flex">
+            Sign in <ArrowRight className="size-4" aria-hidden="true" />
           </Link>
         </nav>
 
@@ -65,37 +64,10 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div className="relative mx-auto w-full max-w-xl">
+          <div id="workspace-auth" className="relative mx-auto w-full max-w-xl scroll-mt-6">
             <div className="absolute -inset-3 rotate-2 rounded-[28px] border border-primary/15 bg-primary/5" />
             <div className="relative rounded-[26px] border border-black/[0.08] bg-white p-3 shadow-[0_30px_90px_rgb(16_17_20/0.14)]">
-              <div className="rounded-[20px] bg-ink p-5 text-white md:p-6">
-                <div className="flex items-center justify-between">
-                  <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-white/45">Choose your workspace</p>
-                  <span className="flex items-center gap-2 font-mono text-[9px] text-success"><span className="size-1.5 rounded-full bg-success" /> LIVE</span>
-                </div>
-
-                <div className="mt-6 grid gap-3">
-                  <Link href="/assistant" className="group rounded-2xl bg-white p-5 text-ink transition hover:-translate-y-0.5 hover:shadow-xl motion-reduce:transform-none">
-                    <div className="flex items-start justify-between gap-4">
-                      <span className="grid size-11 place-items-center rounded-xl bg-primary-soft text-primary"><Bot className="size-5" aria-hidden="true" /></span>
-                      <ArrowRight className="size-5 text-muted transition group-hover:translate-x-1 group-hover:text-primary motion-reduce:transform-none" aria-hidden="true" />
-                    </div>
-                    <p className="mt-5 font-mono text-[9px] uppercase tracking-[0.15em] text-primary">Buyer</p>
-                    <h2 className="mt-2 text-2xl font-semibold tracking-[-0.045em]">Continue with your agent</h2>
-                    <p className="mt-2 text-sm leading-6 text-subtle">Search, compare, and approve purchases inside rules you control.</p>
-                  </Link>
-
-                  <Link href="/merchant/login" className="group rounded-2xl border border-white/12 bg-white/[0.07] p-5 transition hover:-translate-y-0.5 hover:bg-white/[0.11] motion-reduce:transform-none">
-                    <div className="flex items-start justify-between gap-4">
-                      <span className="grid size-11 place-items-center rounded-xl bg-primary text-white"><Store className="size-5" aria-hidden="true" /></span>
-                      <ArrowRight className="size-5 text-white/40 transition group-hover:translate-x-1 group-hover:text-success motion-reduce:transform-none" aria-hidden="true" />
-                    </div>
-                    <p className="mt-5 font-mono text-[9px] uppercase tracking-[0.15em] text-success">Merchant</p>
-                    <h2 className="mt-2 text-2xl font-semibold tracking-[-0.045em]">Operate your storefront</h2>
-                    <p className="mt-2 text-sm leading-6 text-white/55">Publish structured inventory and audit every agent-originated order.</p>
-                  </Link>
-                </div>
-              </div>
+              <WorkspaceAuth />
 
               <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-3 py-4 font-mono text-[9px] uppercase tracking-[0.1em] text-muted">
                 <span className="flex items-center gap-1.5"><CheckCircle2 className="size-3 text-success-ink" /> No auctions</span>
