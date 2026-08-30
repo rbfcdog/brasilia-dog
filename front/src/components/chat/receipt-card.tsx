@@ -3,7 +3,7 @@ import type { PurchaseReceipt } from "@/types/shopping";
 
 export function ReceiptCard({ receipt }: { receipt: PurchaseReceipt }) {
   return (
-    <article className="ml-10 max-w-xl overflow-hidden rounded-2xl border border-success/70 bg-white shadow-card">
+    <article className="max-w-xl overflow-hidden rounded-2xl border border-success/70 bg-white shadow-card sm:ml-10">
       <div className="flex items-center justify-between gap-4 bg-success px-5 py-4 text-success-ink">
         <div className="flex items-center gap-2">
           <span className="grid size-6 place-items-center rounded-full bg-white/70"><Check className="size-4" /></span>

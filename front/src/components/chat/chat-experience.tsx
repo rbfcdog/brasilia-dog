@@ -72,11 +72,11 @@ export function ChatExperience() {
 
   return (
     <section className="flex h-[calc(100dvh-4rem)] min-h-0 flex-col bg-canvas lg:h-dvh">
-      <header className="flex h-17 shrink-0 items-center justify-between gap-4 border-b border-line bg-white/90 px-4 backdrop-blur md:px-7">
+      <header className="flex h-17 shrink-0 items-center justify-between gap-4 border-b border-line bg-white/90 px-4 backdrop-blur-md md:px-7">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="font-semibold tracking-[-0.025em]">Shopping Agent</h1>
-            <span className="size-1.5 rounded-full bg-success-ink" aria-label="Online" />
+            <span className="relative flex size-2" aria-label="Online"><span className="absolute inline-flex size-full animate-ping rounded-full bg-success-ink/30 motion-reduce:animate-none" /><span className="relative inline-flex size-2 rounded-full bg-success-ink" /></span>
           </div>
           <p className="mt-0.5 text-xs text-subtle">Ready to search, compare, and purchase</p>
         </div>
@@ -109,7 +109,7 @@ export function ChatExperience() {
                   <button
                     key={suggestion.label}
                     onClick={() => void sendMessage(suggestion.prompt)}
-                    className="group rounded-xl border border-line bg-white p-4 transition hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-md motion-reduce:transform-none"
+                    className="group rounded-xl border border-line bg-white p-4 transition hover:-translate-y-0.5 hover:border-line-strong hover:shadow-md active:translate-y-0 motion-reduce:transform-none"
                   >
                     <span className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.12em] text-primary">
                       {suggestion.label === "Keep monitoring" ? <Clock3 className="size-3.5" /> : <Monitor className="size-3.5" />}
@@ -151,14 +151,14 @@ export function ChatExperience() {
               {state.scheduledPurchase ? <ScheduledResultCard purchase={state.scheduledPurchase} /> : null}
 
               {state.paymentChallenge ? (
-                <div role="alert" className="ml-10 max-w-xl rounded-xl border border-warning/30 bg-warning-soft p-4 text-sm text-warning-ink">
+                <div role="alert" className="sm:ml-10 max-w-xl rounded-xl border border-warning/30 bg-warning-soft p-4 text-sm text-warning-ink">
                   <div className="flex items-center gap-2 font-medium"><AlertTriangle className="size-4" /> Payment challenge intercepted</div>
                   <p className="mt-2 leading-6">{state.paymentChallenge.message} The challenge was logged without exposing credential details.</p>
                 </div>
               ) : null}
 
               {state.error ? (
-                <div role="alert" className="ml-10 max-w-xl rounded-xl border border-danger/25 bg-danger-soft p-4 text-sm text-danger">
+                <div role="alert" className="sm:ml-10 max-w-xl rounded-xl border border-danger/25 bg-danger-soft p-4 text-sm text-danger">
                   <div className="flex items-center gap-2 font-medium"><AlertTriangle className="size-4" /> Request interrupted</div>
                   <p className="mt-2 text-ink">{state.error}</p>
                 </div>

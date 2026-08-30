@@ -21,7 +21,7 @@ export function MandateCard({
         : "Approve mandate";
 
   return (
-    <article className="ml-10 max-w-xl overflow-hidden rounded-2xl border border-primary/15 bg-white shadow-card">
+    <article className="max-w-xl overflow-hidden rounded-2xl border border-primary/15 bg-white shadow-card sm:ml-10">
       <div className="border-b border-line bg-primary-soft/70 px-5 py-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-primary">

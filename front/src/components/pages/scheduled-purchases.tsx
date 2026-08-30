@@ -21,7 +21,7 @@ export function ScheduledPurchases() {
       title="Scheduled purchases"
       description="Your agent keeps looking until an eligible offer appears or the mandate expires. No purchase can exceed the scope shown here."
       actions={
-        <Link href="/" className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-ink px-4 font-mono text-[10px] uppercase tracking-[0.1em] text-white">
+        <Link href="/" className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 font-mono text-[10px] uppercase tracking-[0.1em] text-white shadow-sm transition hover:bg-primary-hover">
           New request <ArrowRight className="size-3.5" />
         </Link>
       }
