@@ -124,16 +124,16 @@ async function requestHeaders(request: Request, pathname: string): Promise<Heade
   const passkeyRoute = /^\/passkey\/(?:register|auth)\//.test(pathname);
   const chatRoute = pathname === "/v1/chat" || pathname === "/v1/conversations" || /^\/v1\/conversations\//.test(pathname);
 
-  // Chat turns belong to the active passkey session. Prefer its HttpOnly BFF
-  // cookie, preserve an explicit browser bearer, then fall back to the account
-  // token only when neither passkey credential is available.
+  // Chat and conversation routes: prefer Supabase account token, fall back to
+  // passkey session. The BFF is the sole authority for auth headers.
   if (chatRoute) {
+    const accessToken = await ensureFreshAccessToken(cookieStore);
+    if (!headers.has("authorization") && accessToken) {
+      headers.set("authorization", `Bearer ${accessToken}`);
+    }
     const passkeySession = cookieStore.get("nomad-passkey-session")?.value;
-    if (passkeySession) {
+    if (!headers.has("authorization") && !passkeyRoute && passkeySession) {
       headers.set("authorization", `Bearer ${passkeySession}`);
-    } else if (!headers.has("authorization")) {
-      const accessToken = await ensureFreshAccessToken(cookieStore);
-      if (accessToken) headers.set("authorization", `Bearer ${accessToken}`);
     }
   } else {
     const passkeySession = cookieStore.get("nomad-passkey-session")?.value;

@@ -22,4 +22,19 @@ describe("shopping agent client", () => {
       }),
     });
   });
+
+  it("sends anonymous chat through the same backend gateway", async () => {
+    apiFetch.mockResolvedValue({
+      kind: "clarification",
+      message: "What is your maximum budget?",
+      conversationId: "conversation-anon",
+    });
+
+    await shoppingService.analyze("I need a monitor.");
+
+    expect(apiFetch).toHaveBeenCalledWith("/api/backend/v1/chat", {
+      method: "POST",
+      body: JSON.stringify({ message: "I need a monitor." }),
+    });
+  });
 });

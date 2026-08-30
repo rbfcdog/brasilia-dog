@@ -9,7 +9,6 @@ const mocks = vi.hoisted(() => ({
   appendConversationMessage: vi.fn(),
   appendConversationEvent: vi.fn(),
   analyze: vi.fn(),
-  analyzeLocal: vi.fn(),
   execute: vi.fn(),
   addScheduledPurchase: vi.fn(),
   readMessages: vi.fn(),
@@ -34,7 +33,6 @@ vi.mock("@/services/backend-service", () => ({
 vi.mock("@/services/shopping-service", () => ({
   shoppingService: {
     analyze: mocks.analyze,
-    analyzeLocal: mocks.analyzeLocal,
     execute: mocks.execute,
   },
 }));
@@ -60,7 +58,6 @@ describe("live agent chat", () => {
     window.history.replaceState({}, "", "/");
     mocks.appendConversationMessage.mockResolvedValue({});
     mocks.appendConversationEvent.mockResolvedValue({});
-    mocks.analyzeLocal.mockResolvedValue({ kind: "clarification", message: "Local fallback response." });
     mocks.createConversation.mockResolvedValue({ conversation: { id: "conversation-created" } });
   });
 
@@ -82,7 +79,6 @@ describe("live agent chat", () => {
     });
 
     expect(mocks.analyze).toHaveBeenCalledWith("I need a monitor.", "conversation-123");
-    expect(mocks.analyzeLocal).not.toHaveBeenCalled();
     expect(result.current.state.status).toBe("clarification");
     expect(result.current.state.messages.at(-1)?.content).toBe("What is your maximum budget?");
     expect(result.current.state.storage).toBe("backend");
@@ -106,7 +102,6 @@ describe("live agent chat", () => {
     });
 
     expect(mocks.analyze).toHaveBeenCalledWith("Find appliances", undefined);
-    expect(mocks.analyzeLocal).not.toHaveBeenCalled();
     expect(result.current.state.storage).toBe("backend");
     expect(result.current.state.messages.at(-1)?.content).toBe("Tell me your budget.");
   });
@@ -174,7 +169,6 @@ describe("live agent chat", () => {
       await result.current.sendMessage("Find appliances");
     });
 
-    expect(mocks.analyzeLocal).not.toHaveBeenCalled();
     expect(result.current.state.error).toBe("The chat turn could not be committed.");
   });
 

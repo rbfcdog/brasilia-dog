@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef } from "react";
-import { ApiError, PaymentChallengeError } from "@/lib/api";
+import { PaymentChallengeError } from "@/lib/api";
 import { hasPasskeySession } from "@/lib/passkey-session";
 import { demoStorage } from "@/lib/demo-storage";
 import { passkeyBiometricProvider } from "@/services/biometric-provider";

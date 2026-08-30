@@ -17,12 +17,6 @@ export const shoppingService = {
     });
   },
 
-  analyzeLocal(message: string): Promise<AgentResponse> {
-    return apiFetch<AgentResponse>("/api/agent", {
-      method: "POST",
-      body: JSON.stringify({ message }),
-    });
-  },
 
   execute(mandate: Mandate, paymentMethod: PaymentMethod) {
     return apiFetch<PurchaseResponse>("/api/purchases", {

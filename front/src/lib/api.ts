@@ -1,4 +1,4 @@
-import { clearPasskeySessionToken, getPasskeySessionToken } from "@/lib/passkey-session";
+import { clearPasskeySessionToken } from "@/lib/passkey-session";
 import type { ApiEnvelope, PaymentChallenge } from "@/types/shopping";
 
 export class ApiError extends Error {
@@ -57,10 +57,8 @@ export async function apiFetch<T>(
     headers.set("Content-Type", "application/json");
   }
 
-  const sessionToken = getPasskeySessionToken();
-  if (sessionToken && !headers.has("Authorization")) {
-    headers.set("Authorization", `Bearer ${sessionToken}`);
-  }
+  // Auth is handled by the Next.js BFF via HttpOnly cookies.
+  // Do not inject client-side session tokens into Authorization headers.
 
   const response = await fetch(input, { ...init, headers });
   const authenticateHeader = response.headers.get("WWW-Authenticate");
