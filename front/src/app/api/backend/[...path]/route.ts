@@ -74,6 +74,10 @@ async function requestHeaders(request: Request, pathname: string): Promise<Heade
   }
   const cookieStore = await cookies();
   const passkeyRoute = /^\/passkey\/(?:register|auth)\//.test(pathname);
+  const passkeySession = cookieStore.get("nomad-passkey-session")?.value;
+  if (!headers.has("authorization") && !passkeyRoute && passkeySession) {
+    headers.set("authorization", `Bearer ${passkeySession}`);
+  }
   if (!headers.has("authorization") || passkeyRoute) {
     const accessToken = cookieStore.get("nomad-auth-access")?.value;
     if (accessToken) headers.set("authorization", `Bearer ${accessToken}`);
@@ -130,12 +134,21 @@ async function proxy(request: Request, context: RouteContext): Promise<Response>
       cache: "no-store",
     });
 
-    const response = new Response(await upstream.arrayBuffer(), {
+    const responseBody = await upstream.arrayBuffer();
+    const response = new Response(responseBody, {
       status: upstream.status,
       headers: responseHeaders(upstream),
     });
     if (upstream.ok && pathname === "/passkey/register/verify") {
       response.headers.append("Set-Cookie", "nomad-passkey-enrollment=; Max-Age=0; Path=/api/backend/passkey/register; HttpOnly; SameSite=Strict");
+    }
+    if (upstream.ok && pathname === "/passkey/auth/verify") {
+      const payload = JSON.parse(new TextDecoder().decode(responseBody)) as { sessionToken?: unknown };
+      if (typeof payload.sessionToken === "string" && payload.sessionToken.length > 0) {
+        const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+        response.headers.append("Set-Cookie", `nomad-passkey-session=${encodeURIComponent(payload.sessionToken)}; Max-Age=86400; Path=/api/backend; HttpOnly; SameSite=Strict${secure}`);
+        response.headers.append("Set-Cookie", `nomad-passkey-authenticated=1; Max-Age=86400; Path=/; SameSite=Strict${secure}`);
+      }
     }
     return response;
   } catch {

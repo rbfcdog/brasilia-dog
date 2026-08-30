@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useReducer, useRef } from "react";
 import { PaymentChallengeError } from "@/lib/api";
-import { getPasskeySessionToken } from "@/lib/passkey-session";
+import { hasPasskeySession } from "@/lib/passkey-session";
 import { demoStorage } from "@/lib/demo-storage";
 import { passkeyBiometricProvider } from "@/services/biometric-provider";
 import { shoppingService } from "@/services/shopping-service";
@@ -236,7 +236,7 @@ async function ensureBackendConversation(
   conversationIdRef: React.RefObject<string | null>,
 ): Promise<string | null> {
   if (conversationIdRef.current) return conversationIdRef.current;
-  if (!getPasskeySessionToken()) return null;
+  if (!hasPasskeySession()) return null;
 
   const { conversation } = await backendService.createConversation();
   conversationIdRef.current = conversation.id;
@@ -290,8 +290,7 @@ export function useAIShopping() {
 
   // Hydrate the selected backend conversation, or the most recent one.
   useEffect(() => {
-    const sessionToken = getPasskeySessionToken();
-    if (!sessionToken) {
+    if (!hasPasskeySession()) {
       dispatch({ type: "HYDRATE", messages: demoStorage.readMessages(), storage: "local" });
       return;
     }

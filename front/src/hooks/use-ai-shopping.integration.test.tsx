@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/passkey-session", () => ({
+  hasPasskeySession: () => Boolean(mocks.getPasskeySessionToken()),
   getPasskeySessionToken: mocks.getPasskeySessionToken,
 }));
 vi.mock("@/services/backend-service", () => ({
