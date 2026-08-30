@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import {
   clearPasskeySessionToken,
   getPasskeySessionToken,
@@ -50,6 +50,10 @@ function fromBase64url(value: string): ArrayBuffer {
 
 function isWebAuthnSupported(): boolean {
   return typeof window !== "undefined" && "credentials" in navigator;
+}
+
+function subscribeToWebAuthnSupport(): () => void {
+  return () => {};
 }
 
 /**
@@ -156,6 +160,11 @@ export async function authenticateEnrolledPasskey(): Promise<PasskeyVerification
 
 export function usePasskey() {
   const [state, setState] = useState<PasskeyState>(initialState);
+  const supported = useSyncExternalStore(
+    subscribeToWebAuthnSupport,
+    isWebAuthnSupported,
+    () => false,
+  );
 
   // On mount, check if a stored session token is still valid.
   useEffect(() => {

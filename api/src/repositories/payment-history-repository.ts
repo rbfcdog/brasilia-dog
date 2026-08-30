@@ -119,6 +119,16 @@ export class PaymentHistoryRepository {
     if (error) throw new Error('Could not mark payment as refunded.');
     return Boolean(data);
   }
+  async getPaymentAttemptByProof(proofId: string): Promise<PaymentAttemptRecord | null> {
+    const { data, error } = await this.client
+      .from('payment_attempts')
+      .select(PAYMENT_SELECT)
+      .eq('agent_execution_proof_id', proofId)
+      .maybeSingle();
+    if (error) throw new Error('Could not load the proof payment attempt.');
+    return data ? mapAttempt(data as PaymentAttemptRow) : null;
+  }
+
   async listAgentActivity(agentIdentityId: string, limit = 50): Promise<AgentActivityRecord[]> {
     const { data, error } = await this.client
       .from('agent_execution_proofs')

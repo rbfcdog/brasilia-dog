@@ -1,0 +1,88 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Dev: all",
+      "dependsOn": ["Dev: api", "Dev: agent", "Dev: front", "Dev: readiness"],
+      "dependsOrder": "parallel",
+      "group": { "kind": "build", "isDefault": true },
+      "runOptions": { "runOn": "folderOpen" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Dev: api",
+      "type": "shell",
+      "command": "npx tsx watch src/bootstrap/index.ts",
+      "options": {
+        "cwd": "${workspaceFolder}/api",
+        "env": { "PORT": "3000" }
+      },
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "group": "dev", "panel": "dedicated", "reveal": "always" }
+    },
+    {
+      "label": "Dev: agent",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": {
+        "cwd": "${workspaceFolder}/agent",
+        "env": { "PORT": "3001" }
+      },
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "group": "dev", "panel": "dedicated", "reveal": "always" }
+    },
+    {
+      "label": "Dev: front",
+      "type": "shell",
+      "command": "npm run dev -- --port 3002",
+      "options": {
+        "cwd": "${workspaceFolder}/front",
+        "env": {
+          "BACKEND_API_URL": "http://localhost:3000",
+          "AGENT_SERVICE_URL": "http://localhost:3001"
+        }
+      },
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "group": "dev", "panel": "dedicated", "reveal": "always" }
+    },
+    {
+      "label": "Dev: readiness",
+      "type": "shell",
+      "command": "node scripts/verify-local.mjs",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "group": "dev", "panel": "dedicated", "reveal": "always" }
+    },
+    {
+      "label": "Test: all",
+      "dependsOn": ["Test: api", "Test: agent", "Test: front"],
+      "dependsOrder": "sequence",
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Test: api",
+      "type": "shell",
+      "command": "npm test",
+      "options": { "cwd": "${workspaceFolder}/api" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Test: agent",
+      "type": "shell",
+      "command": "npm test",
+      "options": { "cwd": "${workspaceFolder}/agent" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Test: front",
+      "type": "shell",
+      "command": "npm test",
+      "options": { "cwd": "${workspaceFolder}/front" },
+      "problemMatcher": []
+    }
+  ]
+}

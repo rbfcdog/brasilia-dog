@@ -17,7 +17,6 @@ import { MandateCard } from "@/components/chat/mandate-card";
 import { MarketplaceListings } from "@/components/chat/marketplace-listings";
 import { ProductDiscovery } from "@/components/chat/product-discovery";
 import { ReceiptCard } from "@/components/chat/receipt-card";
-import { ScheduledResultCard } from "@/components/chat/scheduled-card";
 import { useAIShopping } from "@/hooks/use-ai-shopping";
 
 const suggestions = [
@@ -48,6 +47,7 @@ export function ChatExperience() {
     cancelApproval,
     reset,
     dismissToast,
+    resume,
   } = useAIShopping();
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -61,11 +61,12 @@ export function ChatExperience() {
     return () => window.clearTimeout(timer);
   }, [dismissToast, state.toast]);
 
-  const composerDisabled = [
+  const composerDisabled = !state.hydrated || [
     "analyzing",
     "mandate_ready",
     "biometric_confirmation",
     "searching",
+    "waiting_for_extension",
   ].includes(state.status);
   const composerPlaceholder = state.status === "mandate_ready"
     ? "Approve the mandate or start a new request"
@@ -84,7 +85,9 @@ export function ChatExperience() {
           <p className={`mt-0.5 text-xs ${state.storage === "unavailable" ? "text-danger" : "text-subtle"}`}>
             {state.storage === "backend"
               ? "Conversation saved to the backend"
-              : "Backend persistence unavailable"}
+              : state.storage === "unavailable"
+                ? "Backend persistence unavailable"
+                : "Passkey and backend required to start a run"}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -148,25 +151,17 @@ export function ChatExperience() {
                 </div>
               ))}
 
-              {state.status === "analyzing" || state.status === "searching" ? <AgentActivity status={state.status} /> : null}
+              {state.status === "analyzing" || state.status === "searching" || state.status === "waiting_for_extension" ? <AgentActivity status={state.status} run={state.run} /> : null}
 
               {state.mandate ? (
-                <MandateCard mandate={state.mandate} status={state.status} onApprove={requestApproval} onUpdate={updateMandate} />
+                <MandateCard mandate={state.mandate} status={state.status} onApprove={requestApproval} onUpdate={updateMandate} onResume={() => void resume()} />
               ) : null}
 
-              {state.discoveredProducts.length > 0 ? <ProductDiscovery products={state.discoveredProducts} activity={state.catalogActivity} /> : null}
+              {state.discoveredProducts.length > 0 ? <ProductDiscovery products={state.discoveredProducts} /> : null}
 
-              {state.listings.length > 0 ? <MarketplaceListings listings={state.listings} /> : null}
+              {state.run ? <MarketplaceListings products={state.run.candidates} selectedSlug={state.run.selectedProduct?.slug} /> : null}
 
-              {state.receipt ? <ReceiptCard receipt={state.receipt} /> : null}
-              {state.scheduledPurchase ? <ScheduledResultCard purchase={state.scheduledPurchase} /> : null}
-
-              {state.paymentChallenge ? (
-                <div role="alert" className="sm:ml-10 max-w-xl rounded-xl border border-warning/30 bg-warning-soft p-4 text-sm text-warning-ink">
-                  <div className="flex items-center gap-2 font-medium"><AlertTriangle className="size-4" /> Payment challenge intercepted</div>
-                  <p className="mt-2 leading-6">{state.paymentChallenge.message} The challenge was logged without exposing credential details.</p>
-                </div>
-              ) : null}
+              {state.run?.status === "completed" ? <ReceiptCard run={state.run} /> : null}
 
               {state.error ? (
                 <div role="alert" className="sm:ml-10 max-w-xl rounded-xl border border-danger/25 bg-danger-soft p-4 text-sm text-danger">

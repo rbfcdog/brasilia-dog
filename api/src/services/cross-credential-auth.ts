@@ -20,6 +20,8 @@ export interface CrossCredentialResult {
   proofId: Pick<AgentIdentity, 'id'> & { nonce: string; expiresAt: number };
 }
 
+export type AgentCredentialResult = Omit<CrossCredentialResult, 'session'>;
+
 export interface CrossCredentialInput {
   sessionToken: string;
   agentProof: {
@@ -54,7 +56,17 @@ export class CrossCredentialAuth {
       throw new Error('Invalid or expired passkey session.');
     }
 
-    // Step 2: Verify the agent Ed25519 proof
+    const agentAuthorization = await this.authorizeAgent(input);
+
+    // The interactive flow additionally proves that the owner authorized it.
+    if (agentAuthorization.agent.ownerId !== session.userId) {
+      throw new Error('Passkey session user does not own this agent.');
+    }
+
+    return { session, ...agentAuthorization };
+  }
+
+  async authorizeAgent(input: Omit<CrossCredentialInput, 'sessionToken'>): Promise<AgentCredentialResult> {
     const bodySha256 = createHash('sha256').update(input.body).digest('hex');
 
     // Look up the agent's active signing key
@@ -110,14 +122,11 @@ export class CrossCredentialAuth {
     if (mandate.agentIdentityId !== agent.id) {
       throw new Error('Mandate does not belong to this agent.');
     }
-
-    // Step 4: Verify the session user owns this agent
-    if (agent.ownerId !== session.userId) {
-      throw new Error('Passkey session user does not own this agent.');
+    if (mandate.ownerId !== agent.ownerId) {
+      throw new Error('Mandate owner does not match the agent owner.');
     }
 
     return {
-      session,
       agent,
       key,
       mandate,

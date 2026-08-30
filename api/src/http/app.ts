@@ -8,6 +8,7 @@ import type {
   ProductPaymentService,
   ProductCatalogRepository,
   ProductCatalogSearch,
+  MandateScope,
 } from '../domain/types.js';
 
 import type { PasskeyService } from '../services/passkey-service.js';
@@ -27,6 +28,8 @@ import { MerchantCommandError, type MerchantService } from '../services/merchant
 import type { UserAuthService } from '../services/user-auth-service.js';
 import type { PasskeyEnrollmentService } from '../services/passkey-enrollment-service.js';
 import { BackendChatError, type BackendChatService } from '../services/backend-chat-service.js';
+import type { MarketplaceAuthorityService } from '../services/marketplace-authority-service.js';
+import { parseMarketplaceScope } from '../services/marketplace-policy.js';
 
 
 function json(value: unknown, status = 200): Response {
@@ -68,6 +71,18 @@ function parseConversationEvent(body: unknown): {
   const serializedPayload = JSON.stringify(body.payload);
   if (serializedPayload.length > 16_000) return null;
   return { type: body.type, payload: body.payload, createdAt: body.createdAt };
+}
+
+function idempotencyKey(request: Request): string | null {
+  const value = request.headers.get('idempotency-key');
+  return value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+    ? value.toLowerCase()
+    : null;
+}
+
+function publicAgentJwk(value: unknown): JsonWebKey | null {
+  if (!isRecord(value) || value.kty !== 'OKP' || value.crv !== 'Ed25519' || typeof value.x !== 'string' || 'd' in value) return null;
+  return { kty: 'OKP', crv: 'Ed25519', x: value.x };
 }
 
 function parseProductCatalogSearch(value: unknown): ProductCatalogSearch | null {
@@ -492,6 +507,7 @@ interface AppDeps {
   authenticateSupabaseUser?: ((accessToken: string) => Promise<{ id: string; email?: string } | null>) | null;
   userAuthService?: UserAuthService | null;
   passkeyEnrollmentService?: PasskeyEnrollmentService | null;
+  marketplaceAuthorityService?: MarketplaceAuthorityService | null;
 }
 
 export function createApp({
@@ -517,6 +533,7 @@ export function createApp({
   authenticateSupabaseUser = null,
   userAuthService = null,
   passkeyEnrollmentService = null,
+  marketplaceAuthorityService = null,
 }: AppDeps): AppHandler {
   return async function app(request: Request): Promise<Response> {
     const { pathname } = new URL(request.url);
@@ -532,6 +549,29 @@ export function createApp({
     if (request.method === 'GET' && pathname === '/paid') {
       return paidHandler(request);
     }
+
+    if (agentIdentityRepository && request.method === 'POST' && pathname === '/v1/agents/ensure') {
+      const session = await authenticatedSession(request, sessionService);
+      if (!session) return json({ error: 'authentication_required' }, 401);
+      const body = await request.json().catch(() => null);
+      if (!isRecord(body)) return json({ error: 'invalid_agent_identity' }, 400);
+      const publicKeyJwk = publicAgentJwk(body.publicKeyJwk);
+      if (!publicKeyJwk || typeof body.fingerprint !== 'string') return json({ error: 'invalid_agent_identity' }, 400);
+      const fingerprint = createHash('sha256').update(canonicalJson(publicKeyJwk)).digest('hex');
+      if (fingerprint !== body.fingerprint) return json({ error: 'agent_fingerprint_mismatch' }, 400);
+      try {
+        const ensured = await agentIdentityRepository.ensureIdentity({
+          ownerId: session.userId,
+          displayName: typeof body.displayName === 'string' ? body.displayName : 'Marketplace Agent',
+          publicKeyJwk,
+          fingerprint,
+        });
+        return json(ensured);
+      } catch (error) {
+        return json({ error: 'agent_ensure_failed', detail: (error as Error).message }, 400);
+      }
+    }
+
 
     if (userAuthService && request.method === 'POST' && pathname === '/v1/auth/sign-in') {
       const body = await request.json().catch(() => null);
@@ -699,7 +739,7 @@ export function createApp({
       if (!session) {
         return json({ error: 'session_invalid' }, 401);
       }
-      return json({ valid: true, userId: session.userId, expiresAt: session.expiresAt });
+      return json({ valid: true, userId: session.userId, issuedAt: session.issuedAt, expiresAt: session.expiresAt });
     }
 
     if (sessionService && request.method === 'POST' && pathname === '/passkey/session/revoke') {
@@ -1073,6 +1113,60 @@ export function createApp({
       }
     }
 
+    if (
+      marketplaceAuthorityService && agentServiceToken && request.method === 'POST'
+      && /^\/v1\/agent\/mandates\/[^/]+\/candidates$/.test(pathname)
+    ) {
+      const authorization = request.headers.get('authorization');
+      if (authorization !== `Bearer ${agentServiceToken}`) return json({ error: 'agent_authentication_required' }, 401);
+      const mandateId = pathname.split('/')[4];
+      if (!mandateId) return json({ error: 'mandate_id_required' }, 400);
+      try {
+        return json(await marketplaceAuthorityService.candidates(mandateId));
+      } catch (error) {
+        const detail = (error as Error).message;
+        return json({ error: detail.includes('not found') ? 'mandate_not_found' : 'candidate_search_failed', detail }, detail.includes('not found') ? 404 : 400);
+      }
+    }
+
+    if (
+      purchaseService && paymentService && agentServiceToken && request.method === 'POST'
+      && /^\/v1\/agent\/products\/[^/]+\/purchase$/.test(pathname)
+    ) {
+      if (request.headers.get('authorization') !== `Bearer ${agentServiceToken}`) {
+        return json({ error: 'agent_authentication_required' }, 401);
+      }
+      if (!idempotencyKey(request)) return json({ error: 'valid_idempotency_key_required' }, 400);
+      const slug = pathname.split('/')[4];
+      const rawBody = await request.text();
+      let body: { intent?: unknown; agentProof?: PurchaseRequest['agentProof'] };
+      try {
+        body = JSON.parse(rawBody || '{}') as typeof body;
+      } catch {
+        return json({ error: 'invalid_json' }, 400);
+      }
+      if (!slug || body.intent === undefined || !isAgentProof(body.agentProof)) {
+        return json({ error: 'slug, intent, and agentProof are required' }, 400);
+      }
+      try {
+        const authorization = await purchaseService.authorizeAutonomousPurchase(
+          slug, request.method, pathname, canonicalJson(body.intent), body.agentProof,
+        );
+        const headers = new Headers(request.headers);
+        headers.set('x-agent-execution-proof-id', authorization.executionProofId);
+        const paymentRequest = new Request(request.url, { method: request.method, headers, body: rawBody });
+        const response = await paymentService.serve(authorization.endpoint, paymentRequest);
+        response.headers.set('x-agent-execution-proof-id', authorization.executionProofId);
+        return response;
+      } catch (error) {
+        const detail = (error as Error).message;
+        if (/proof|Agent identity|signing key/i.test(detail)) return json({ error: 'authorization_denied', detail }, 401);
+        if (/mandate|authorized|expired/i.test(detail)) return json({ error: 'mandate_violation', detail }, 403);
+        if (/not found|not enabled/i.test(detail)) return json({ error: 'product_endpoint_not_found', detail }, 404);
+        return json({ error: 'purchase_failed', detail }, 500);
+      }
+    }
+
     if (request.method === 'GET' && pathname === '/v1/agent/products') {
       if (!productRepository || !agentServiceToken) {
         return json({ error: 'agent_catalog_unavailable' }, 503);
@@ -1087,6 +1181,20 @@ export function createApp({
       } catch {
         return json({ error: 'product_catalog_unavailable' }, 500);
       }
+    }
+
+    if (
+      paymentHistoryRepository && agentServiceToken && request.method === 'GET'
+      && /^\/v1\/agent\/proofs\/[^/]+\/payment$/.test(pathname)
+    ) {
+      if (request.headers.get('authorization') !== `Bearer ${agentServiceToken}`) {
+        return json({ error: 'agent_authentication_required' }, 401);
+      }
+      const proofId = pathname.split('/')[4];
+      if (!proofId) return json({ error: 'proof_id_required' }, 400);
+      const paymentAttempt = await paymentHistoryRepository.getPaymentAttemptByProof(proofId);
+      if (!paymentAttempt) return json({ error: 'payment_attempt_not_found' }, 404);
+      return json({ paymentAttempt });
     }
 
     // Agent-accessible conversation read route. Authenticated by AGENT_SERVICE_TOKEN bearer.
@@ -1335,8 +1443,16 @@ export function createApp({
         currency?: string;
         expiresAt?: string;
       };
-      if (!body.agentIdentityId || !body.maxAmountMinor || !body.currency || !body.expiresAt) {
+      if (!body.agentIdentityId || !Number.isSafeInteger(body.maxAmountMinor) || (body.maxAmountMinor ?? 0) <= 0 || body.currency !== 'usd'
+        || !body.expiresAt || Number.isNaN(Date.parse(body.expiresAt)) || Date.parse(body.expiresAt) <= Date.now()) {
         return json({ error: 'agentIdentityId, maxAmountMinor, currency, and expiresAt are required' }, 400);
+      }
+      const requestIdempotencyKey = request.headers.has('idempotency-key') ? idempotencyKey(request) : undefined;
+      if (request.headers.has('idempotency-key') && !requestIdempotencyKey) {
+        return json({ error: 'valid_idempotency_key_required' }, 400);
+      }
+      if (requestIdempotencyKey && !parseMarketplaceScope(body.scope)) {
+        return json({ error: 'invalid_marketplace_scope' }, 400);
       }
       if (!agentIdentityRepository) {
         return json({ error: 'agent_identity_unavailable' }, 503);
@@ -1350,13 +1466,42 @@ export function createApp({
           ownerId: session.userId,
           agentIdentityId: body.agentIdentityId,
           scope: body.scope ?? {},
-          maxAmountMinor: body.maxAmountMinor,
+          maxAmountMinor: body.maxAmountMinor!,
           currency: body.currency,
           expiresAt: body.expiresAt,
+          ...(requestIdempotencyKey ? {
+            idempotencyKey: requestIdempotencyKey,
+            bodySha256: createHash('sha256').update(canonicalJson({
+              agentIdentityId: body.agentIdentityId,
+              scope: body.scope,
+              maxAmountMinor: body.maxAmountMinor,
+              currency: body.currency,
+            })).digest('hex'),
+          } : {}),
         });
         return json({ mandate });
       } catch (err) {
         return json({ error: 'mandate_creation_failed', detail: (err as Error).message }, 400);
+      }
+    }
+
+    if (mandateRepository && request.method === 'POST' && /^\/v1\/mandates\/[^/]+\/extend$/.test(pathname)) {
+      const session = await authenticatedSession(request, sessionService);
+      if (!session) return json({ error: 'authentication_required' }, 401);
+      const key = idempotencyKey(request);
+      const body = await request.json().catch(() => null);
+      const mandateId = pathname.split('/')[3];
+      if (!key || !isRecord(body) || typeof body.runId !== 'string' || !mandateId) {
+        return json({ error: 'runId and a valid Idempotency-Key are required' }, 400);
+      }
+      const mandate = await mandateRepository.getMandate(mandateId);
+      if (!mandate || mandate.ownerId !== session.userId) return json({ error: 'mandate_not_found' }, 404);
+      try {
+        const extension = await mandateRepository.extendForRun(session.userId, body.runId, key);
+        if (extension.mandateId !== mandateId) return json({ error: 'run_mandate_mismatch' }, 409);
+        return json({ extension });
+      } catch (error) {
+        return json({ error: 'mandate_extension_failed', detail: (error as Error).message }, 409);
       }
     }
 

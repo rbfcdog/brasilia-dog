@@ -40,27 +40,37 @@ export class MandateRepository {
     maxAmountMinor: number;
     currency: string;
     expiresAt: string;
+    idempotencyKey?: string;
+    bodySha256?: string;
   }): Promise<Mandate> {
-    // Get current max version for this agent to compute next version
-    const { data: existing } = await this.client
-      .from('mandates')
-      .select('version')
-      .eq('agent_identity_id', params.agentIdentityId)
-      .order('version', { ascending: false })
-      .limit(1);
-
-    const nextVersion = existing && existing.length > 0 ? (existing[0] as { version: number }).version + 1 : 1;
-
+    if (params.idempotencyKey) {
+      const { data, error } = await this.client
+        .from('mandates')
+        .select('id, owner_id, agent_identity_id, version, status, scope, max_amount_minor, currency, expires_at, created_at, creation_body_sha256')
+        .eq('owner_id', params.ownerId)
+        .eq('creation_idempotency_key', params.idempotencyKey)
+        .maybeSingle();
+      if (error) throw new Error('Could not check mandate idempotency.');
+      if (data) {
+        const existing = data as MandateRow & { creation_body_sha256: string | null };
+        if (!params.bodySha256 || existing.creation_body_sha256 !== params.bodySha256) {
+          throw new Error('The idempotency key was used with a different mandate.');
+        }
+        return mapMandate(existing);
+      }
+    }
     const { data, error } = await this.client
       .from('mandates')
       .insert({
         owner_id: params.ownerId,
         agent_identity_id: params.agentIdentityId,
-        version: nextVersion,
+        version: 1,
         scope: params.scope,
         max_amount_minor: params.maxAmountMinor,
         currency: params.currency,
         expires_at: params.expiresAt,
+        ...(params.idempotencyKey ? { creation_idempotency_key: params.idempotencyKey } : {}),
+        ...(params.bodySha256 ? { creation_body_sha256: params.bodySha256 } : {}),
       })
       .select('id, owner_id, agent_identity_id, version, status, scope, max_amount_minor, currency, expires_at, created_at')
       .single();
@@ -70,6 +80,21 @@ export class MandateRepository {
     }
 
     return mapMandate(data as MandateRow);
+  }
+
+  async extendForRun(ownerId: string, runId: string, idempotencyKey: string): Promise<{
+    extensionId: string;
+    mandateId: string;
+    version: number;
+    expiresAt: string;
+  }> {
+    const { data, error } = await this.client.rpc('extend_mandate_for_run', {
+      p_owner_id: ownerId,
+      p_run_id: runId,
+      p_idempotency_key: idempotencyKey,
+    });
+    if (error || !data || typeof data !== 'object') throw new Error(error?.message ?? 'Could not extend mandate.');
+    return data as { extensionId: string; mandateId: string; version: number; expiresAt: string };
   }
 
   async getMandate(mandateId: string): Promise<Mandate | null> {

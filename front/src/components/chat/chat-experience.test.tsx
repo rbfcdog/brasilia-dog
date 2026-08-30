@@ -1,238 +1,125 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { AIShoppingState } from "@/hooks/use-ai-shopping";
+
+const mocks = vi.hoisted(() => ({
+  requestApproval: vi.fn(),
+  resume: vi.fn(),
+  state: null as AIShoppingState | null,
+}));
+
+vi.mock("@/hooks/use-ai-shopping", () => ({
+  useAIShopping: () => ({
+    state: mocks.state,
+    sendMessage: vi.fn(),
+    requestApproval: mocks.requestApproval,
+    updateMandate: vi.fn(),
+    confirmApproval: vi.fn(),
+    cancelApproval: vi.fn(),
+    reset: vi.fn(),
+    dismissToast: vi.fn(),
+    resume: mocks.resume,
+  }),
+}));
+
 import { ChatExperience } from "@/components/chat/chat-experience";
-import { ShoppingProvider } from "@/components/providers/shopping-provider";
 
-const mockData = vi.hoisted(() => ({
-  mandate: {
-    id: "mandate-demo-1234",
-    scope: "34-inch ultrawide monitor",
-    maximumAmount: 300,
-    currency: "USD" as const,
-    minimumScreenSize: 34,
-    validUntil: "2026-09-01T00:00:00Z",
-    validityHours: 72,
-    paymentMethodId: "",
-    status: "pending" as const,
-    mockOutcome: "immediate" as const,
-  },
-  approve: vi.fn(),
-  analyze: vi.fn(),
-  execute: vi.fn(),
-  sessionToken: "passkey-session" as string | null,
-  backend: {
-    listConversations: vi.fn().mockResolvedValue({ conversations: [] }),
-    createConversation: vi.fn().mockResolvedValue({ conversation: { id: "conversation-1" } }),
-    conversationMessages: vi.fn().mockResolvedValue({ messages: [] }),
-    appendConversationEvent: vi.fn().mockResolvedValue({ event: {} }),
-    appendConversationMessage: vi.fn().mockResolvedValue({ message: {} }),
-  },
-}));
-
-vi.mock("@/lib/passkey-session", () => ({
-  getPasskeySessionToken: () => mockData.sessionToken,
-  hasPasskeySession: () => Boolean(mockData.sessionToken),
-  hasAccountSession: () => Boolean(mockData.sessionToken),
-  clearPasskeySessionToken: vi.fn(),
-  storePasskeySessionToken: vi.fn(),
-}));
-
-vi.mock("@/services/backend-service", () => ({
-  backendService: mockData.backend,
-}));
-vi.mock("@/services/shopping-service", () => ({
-  shoppingService: {
-    analyze: mockData.analyze,
-    execute: mockData.execute,
-  },
-}));
-vi.mock("@/services/biometric-provider", () => ({
-  passkeyBiometricProvider: { approve: mockData.approve },
-}));
-
-const purchaseResult = {
-  kind: "purchased" as const,
-  message: "Purchase complete.",
-  listings: [
-    {
-      id: "offer-aster",
-      merchant: "Northstar Displays",
-      item: "Aster 34-inch UWQHD Monitor",
-      price: 292.43,
-      currency: "USD" as const,
-      merchantVerified: true,
-      qualifies: true,
-      selected: true,
-    },
-    {
-      id: "offer-over-limit",
-      merchant: "Orbit Electronics",
-      item: "Orbit 38-inch Monitor",
-      price: 349,
-      currency: "USD" as const,
-      merchantVerified: true,
-      qualifies: false,
-      selected: false,
-    },
-  ],
-  receipt: {
-    id: "RCT-DEMO1234",
-    mandateId: mockData.mandate.id,
-    merchant: "Northstar Displays",
-    item: "Aster 34-inch UWQHD Monitor",
-    subtotal: 274,
-    taxes: 18.43,
-    total: 292.43,
-    currency: "USD" as const,
-    purchasedAt: "2026-08-29T00:00:00Z",
-    paymentMethod: { brand: "Visa", label: "Personal Visa", last4: "4242" },
-    status: "approved" as const,
+const mandate = {
+  id: "65f8dcea-5333-4f31-93cc-54f3dbb2e72c",
+  scope: "34-inch ultrawide monitor",
+  maximumAmount: 300,
+  currency: "USD" as const,
+  minimumScreenSize: 34,
+  validUntil: "2026-09-01T00:00:00Z",
+  status: "pending" as const,
+  marketplaceScope: {
+    query: "34-inch ultrawide monitor",
+    category: "electronics",
+    constraints: [{ field: "screen_size_inches", operator: "gte" as const, value: 34 }],
+    searchWindowSeconds: 60 as const,
   },
 };
 
-function renderChat() {
-  render(
-    <ShoppingProvider>
-      <ChatExperience />
-    </ShoppingProvider>,
-  );
-}
+const baseState: AIShoppingState = {
+  status: "mandate_ready",
+  messages: [{ id: "m1", role: "assistant", content: "Review the scope before approval.", createdAt: "2026-08-30T00:00:00Z" }],
+  mandate,
+  run: null,
+  discoveredProducts: [],
+  error: null,
+  hydrated: true,
+  storage: "backend",
+  toast: null,
+};
 
-describe("chat purchase flow", () => {
+describe("real agent-run presentation", () => {
   beforeEach(() => {
-    window.localStorage.clear();
-    mockData.approve.mockReset();
-    mockData.execute.mockReset();
-    mockData.analyze.mockReset();
-    mockData.backend.createConversation.mockClear();
-    mockData.backend.appendConversationMessage.mockClear();
-    mockData.backend.appendConversationEvent.mockClear();
-    mockData.sessionToken = "passkey-session";
-    mockData.approve.mockResolvedValue({
-      approved: true,
-      method: "passkey",
-      approvedAt: "2026-08-29T00:00:00Z",
-    });
-    mockData.analyze.mockResolvedValue({
-      kind: "mandate",
-      message: "Review the scope before approval.",
-      mandate: mockData.mandate,
-      conversationId: "conversation-1",
-    });
-    mockData.execute.mockResolvedValue(purchaseResult);
+    vi.clearAllMocks();
+    mocks.state = baseState;
   });
 
-  it("accepts a shopping prompt before asking for passkey confirmation", async () => {
-    mockData.sessionToken = null;
-    const user = userEvent.setup();
-    renderChat();
+  it("keeps the composer disabled until backend conversation hydration finishes", () => {
+    mocks.state = {
+      ...baseState,
+      status: "idle",
+      messages: [],
+      mandate: null,
+      hydrated: false,
+      storage: "unavailable",
+    };
 
-    await user.click(await screen.findByRole("button", { name: /buy now/i }));
+    render(<ChatExperience />);
 
-    expect(await screen.findByText("34-inch ultrawide monitor")).toBeInTheDocument();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(mockData.approve).not.toHaveBeenCalled();
-
-    await user.click(screen.getByRole("button", { name: /approve search mandate/i }));
-    expect(await screen.findByRole("dialog")).toHaveTextContent("Confirm your identity");
+    expect(screen.getByLabelText("Describe what you want to buy")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Send request" })).toBeDisabled();
   });
 
-  it("shows the agent's catalog-search evidence beside prompt-led product results", async () => {
-    mockData.analyze.mockResolvedValue({
-      kind: "products",
-      message: "These are the catalog matches.",
-      products: [{
-        slug: "air-purifier-room-index",
-        name: "Air purifier room index",
-        description: "Current clean-air delivery and filter comparison.",
-        category: "home",
-        price: 95,
-        currency: "USD" as const,
-      }],
-      activity: [{
-        type: "catalog_search",
-        category: "home",
-        query: "air purifier",
-        maximumAmount: 100,
-        resultSlugs: ["air-purifier-room-index"],
-      }],
-    });
-    const user = userEvent.setup();
-    renderChat();
-
-    await user.click(await screen.findByRole("button", { name: /buy now/i }));
-
-    expect(await screen.findByRole("article", { name: "Air purifier room index" })).toBeInTheDocument();
-    expect(screen.getByText(/air purifier · up to \$100\.00/i)).toBeInTheDocument();
+  it("requests passkey approval for the structured mandate", async () => {
+    render(<ChatExperience />);
+    await userEvent.click(screen.getByRole("button", { name: /approve search mandate/i }));
+    expect(mocks.requestApproval).toHaveBeenCalledOnce();
+    expect(screen.getByText("34-inch ultrawide monitor")).toBeInTheDocument();
+    expect(screen.getByText("60 seconds per authorization")).toBeInTheDocument();
   });
 
-  it("executes a mandate only after a verified native passkey approval", async () => {
-    const user = userEvent.setup();
-    renderChat();
+  it("renders the selected product, proof and settled attempt only from the completed run", () => {
+    const product = {
+      id: "8895d249-c8b5-42fa-bf76-c2bd87cb4ba2",
+      slug: "aster-34",
+      name: "Aster 34-inch UWQHD Monitor",
+      description: "Ultrawide monitor",
+      metadata: { category: "electronics", screen_size_inches: 34 },
+      merchant: { id: "99b5b776-b5fc-4c55-8d7a-5425b34e861f", businessName: "Northstar Displays", status: "active" as const },
+      offering: { id: "76114bed-b048-45eb-a677-c849a688cd15", amountMinor: 29243, currency: "usd" as const, scale: 2, active: true as const },
+    };
+    mocks.state = {
+      ...baseState,
+      status: "purchased",
+      toast: "Purchase settled by Stripe within the mandate.",
+      run: {
+        runId: "62f05ca2-eb34-482b-b738-ed57658af699",
+        ownerId: "c5e435f9-a672-4766-baf4-e0f621e83657",
+        status: "completed",
+        goal: "Buy an ultrawide monitor",
+        mandateId: mandate.id,
+        createdAt: "2026-08-30T00:00:00Z",
+        updatedAt: "2026-08-30T00:00:03Z",
+        events: [{ sequence: 1, type: "payment_settled", occurredAt: "2026-08-30T00:00:03Z", data: {} }],
+        candidates: [product],
+        selectedProduct: product,
+        authorityChecks: [{ name: "marketplace_policy", passed: true, checkedAt: "2026-08-30T00:00:02Z" }],
+        proofId: "proof-real-1",
+        paymentAttempt: { id: "attempt-real-1", status: "settled", amountMinor: 29243, currency: "usd", providerPaymentId: "pi_test_123" },
+        receipt: { method: "stripe", reference: "receipt-real-1", status: "settled" },
+      },
+    };
 
-    await user.click(await screen.findByRole("button", { name: /buy now/i }));
-    expect(await screen.findByText("34-inch ultrawide monitor")).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: /approve search mandate/i }));
-    expect(await screen.findByRole("dialog")).toHaveTextContent("Confirm your identity");
-
-    await user.click(screen.getByRole("button", { name: /confirm with passkey/i }));
-    await screen.findByRole("status");
-    expect(mockData.approve).toHaveBeenCalledWith({
-      ...mockData.mandate,
-      paymentMethodId: "payment-visa-4242",
-    });
-    expect((await screen.findAllByText("Aster 34-inch UWQHD Monitor")).length).toBeGreaterThan(0);
-    expect(screen.getAllByText("$292.43").length).toBeGreaterThan(0);
-    expect(screen.getByRole("status")).toHaveTextContent("Purchase completed within your mandate");
-    expect(screen.getByRole("tab", { name: "Qualifying" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.queryByText("Orbit 38-inch Monitor")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("tab", { name: "All offers" }));
-    expect(screen.getByText("Orbit 38-inch Monitor")).toBeInTheDocument();
-  });
-
-  it("persists approval and execution events after passkey confirmation", async () => {
-    mockData.sessionToken = "passkey-session";
-    mockData.approve.mockImplementation(async () => {
-      return {
-        approved: true,
-        method: "passkey" as const,
-        approvedAt: "2026-08-29T00:00:00Z",
-      };
-    });
-    const user = userEvent.setup();
-    renderChat();
-
-    await user.click(await screen.findByRole("button", { name: /buy now/i }));
-    await user.click(screen.getByRole("button", { name: /approve search mandate/i }));
-    await user.click(await screen.findByRole("button", { name: /confirm with passkey/i }));
-    await screen.findByRole("status");
-
-    expect(mockData.backend.appendConversationEvent).toHaveBeenCalledWith(
-      "conversation-1",
-      expect.objectContaining({ type: "passkey_approved" }),
-    );
-    expect(mockData.backend.appendConversationEvent).toHaveBeenCalledWith(
-      "conversation-1",
-      expect.objectContaining({ type: "payment_executed" }),
-    );
-  });
-
-  it("does not execute when the native passkey approval is rejected", async () => {
-    mockData.approve.mockResolvedValue({
-      approved: false,
-      method: "passkey",
-      approvedAt: "2026-08-29T00:00:00Z",
-    });
-    const user = userEvent.setup();
-    renderChat();
-
-    await user.click(await screen.findByRole("button", { name: /buy now/i }));
-    await user.click(screen.getByRole("button", { name: /approve search mandate/i }));
-    await user.click(await screen.findByRole("button", { name: /confirm with passkey/i }));
-
-    expect(mockData.execute).not.toHaveBeenCalled();
-    expect(await screen.findByText(/Native passkey verification is required/i)).toBeInTheDocument();
+    render(<ChatExperience />);
+    expect(screen.getAllByText("Aster 34-inch UWQHD Monitor").length).toBeGreaterThan(0);
+    expect(screen.getByText("proof-real-1")).toBeInTheDocument();
+    expect(screen.getByText("attempt-real-1")).toBeInTheDocument();
+    expect(screen.getByText(/29243 USD minor units/i)).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Purchase settled by Stripe");
   });
 });

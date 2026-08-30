@@ -9,8 +9,6 @@ const mocks = vi.hoisted(() => ({
   appendConversationMessage: vi.fn(),
   appendConversationEvent: vi.fn(),
   analyze: vi.fn(),
-  execute: vi.fn(),
-  addScheduledPurchase: vi.fn(),
 }));
 
 vi.mock("@/lib/passkey-session", () => ({
@@ -30,11 +28,10 @@ vi.mock("@/services/backend-service", () => ({
 vi.mock("@/services/shopping-service", () => ({
   shoppingService: {
     analyze: mocks.analyze,
-    execute: mocks.execute,
+    startRun: vi.fn(),
+    getRun: vi.fn(),
+    resumeRun: vi.fn(),
   },
-}));
-vi.mock("@/components/providers/shopping-provider", () => ({
-  useShoppingStore: () => ({ addScheduledPurchase: mocks.addScheduledPurchase, paymentMethods: [], preferredPaymentMethodId: "" }),
 }));
 vi.mock("@/services/biometric-provider", () => ({
   passkeyBiometricProvider: { approve: vi.fn() },

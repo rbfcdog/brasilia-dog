@@ -7,22 +7,11 @@ export type ChatFlowState =
   | "mandate_ready"
   | "biometric_confirmation"
   | "searching"
+  | "waiting_for_extension"
   | "purchased"
   | "scheduled"
   | "payment_challenge"
   | "error";
-
-export type MockPurchaseOutcome = "immediate" | "scheduled";
-
-export type PaymentBrand = "Visa" | "Mastercard" | "Amex";
-
-export interface PaymentMethod {
-  id: string;
-  brand: PaymentBrand;
-  label: string;
-  last4: string;
-  expiry: string;
-}
 
 export interface ChatMessage {
   id: string;
@@ -38,49 +27,69 @@ export interface Mandate {
   currency: "USD";
   minimumScreenSize?: number;
   validUntil: string;
-  validityHours: number;
-  paymentMethodId: string;
   status: "pending" | "active";
-  mockOutcome: MockPurchaseOutcome;
+  marketplaceScope?: MarketplaceScope;
 }
 
-export interface MarketplaceListing {
-  id: string;
-  merchant: string;
-  item: string;
-  price: number;
-  currency: "USD";
-  merchantVerified: boolean;
-  qualifies: boolean;
-  selected: boolean;
+export interface MarketplaceScope {
+  query: string;
+  category: string;
+  constraints: Array<{
+    field: string;
+    operator: "eq" | "gte" | "lte";
+    value: string | number | boolean;
+  }>;
+  searchWindowSeconds: 60;
 }
 
-export interface PurchaseReceipt {
+export interface AgentRunProduct {
   id: string;
+  slug: string;
+  name: string;
+  description: string;
+  metadata: Record<string, unknown>;
+  merchant: { id: string; businessName: string; status: "active" };
+  offering: { id: string; amountMinor: number; currency: "usd"; scale: number; active: true };
+}
+
+export interface PublicAgentRun {
+  runId: string;
+  ownerId: string;
+  status: "queued" | "running" | "monitoring" | "waiting_for_extension" | "completed" | "rejected" | "failed";
+  goal: string;
   mandateId: string;
-  merchant: string;
-  item: string;
-  subtotal: number;
-  taxes: number;
-  total: number;
-  currency: "USD";
-  purchasedAt: string;
-  paymentMethod: Pick<PaymentMethod, "brand" | "label" | "last4">;
-  status: "approved";
-}
-
-export interface ScheduledPurchase {
-  id: string;
-  mandateId: string;
-  scope: string;
-  maximumAmount: number;
-  currency: "USD";
+  conversationId?: string;
   createdAt: string;
-  validUntil: string;
-  validityHours: number;
-  paymentMethod: Pick<PaymentMethod, "brand" | "label" | "last4">;
-  status: "searching" | "revoked";
-  revokedAt?: string;
+  updatedAt: string;
+  nextPollAt?: string;
+  events: Array<{ sequence: number; type: string; occurredAt: string; data: Record<string, unknown> }>;
+  mandate?: {
+    id: string;
+    version: number;
+    status: "active" | "revoked" | "expired";
+    scope: MarketplaceScope;
+    maxAmountMinor: number;
+    currency: "usd";
+    expiresAt: string;
+  };
+  candidates: AgentRunProduct[];
+  selectedProduct?: AgentRunProduct;
+  authorityChecks: Array<{ name: string; passed: boolean; checkedAt: string }>;
+  extensionRequest?: { mandateId: string; expiredAt: string; requestedAt: string };
+  extensionId?: string;
+  proofId?: string;
+  paymentAttempt?: {
+    id?: string;
+    status?: string;
+    amountMinor?: number;
+    currency?: string;
+    scale?: number;
+    providerPaymentId?: string | null;
+    agentExecutionProofId?: string | null;
+    receipt?: Record<string, unknown> | null;
+  };
+  receipt?: { method?: string; reference?: string; externalId?: string; status?: string; timestamp?: string };
+  result?: Record<string, unknown>;
 }
 
 export interface DiscoveredProduct {
@@ -129,20 +138,6 @@ export type AgentResponse =
       activity?: AgentActivity[];
     };
 
-export type PurchaseResponse =
-  | {
-      kind: "purchased";
-      message: string;
-      listings: MarketplaceListing[];
-      receipt: PurchaseReceipt;
-    }
-  | {
-      kind: "scheduled";
-      message: string;
-      listings: MarketplaceListing[];
-      scheduledPurchase: ScheduledPurchase;
-    };
-
 export interface PaymentChallenge {
   scheme: "Payment";
   status: 402;
@@ -167,7 +162,7 @@ export type ApiEnvelope<T> = ApiSuccess<T> | ApiFailure;
 
 export interface BiometricApprovalResult {
   approved: boolean;
-  method: "simulated" | "passkey";
+  method: "passkey";
   approvedAt: string;
 }
 

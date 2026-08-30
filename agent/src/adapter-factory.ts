@@ -32,6 +32,6 @@ export function createAgentAdapters({
     signer: demo,
     purchases: demo,
     conversations: backend,
-    products: backend,
+    products: demo,
   };
 }

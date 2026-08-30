@@ -33,6 +33,13 @@ export interface Product {
   name: string;
   description: string;
   metadata?: Record<string, unknown>;
+  merchant?: MerchantSummary | null;
+}
+
+export interface MerchantSummary {
+  id: string;
+  businessName: string;
+  status: 'active' | 'suspended';
 }
 
 export interface ProductOffering {
@@ -170,6 +177,23 @@ export interface MandateScope {
   allowedPaths?: string[];
   guidelines?: string[];
   sellerPriceDisclosure?: SellerPriceDisclosure;
+  query?: string;
+  category?: string;
+  constraints?: MarketplaceConstraint[];
+  searchWindowSeconds?: number;
+}
+
+export interface MarketplaceConstraint {
+  field: string;
+  operator: 'eq' | 'gte' | 'lte';
+  value: string | number | boolean;
+}
+
+export interface MarketplaceScope {
+  query: string;
+  category: string;
+  constraints: MarketplaceConstraint[];
+  searchWindowSeconds: 60;
 }
 
 export interface SellerQuoteRequestRecord {

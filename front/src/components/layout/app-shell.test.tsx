@@ -12,9 +12,6 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/",
   useRouter: () => ({ push: mocks.push }),
 }));
-vi.mock("@/components/providers/shopping-provider", () => ({
-  useShoppingStore: () => ({ scheduledPurchases: [] }),
-}));
 vi.mock("@/services/backend-service", () => ({
   backendService: {
     listConversations: mocks.listConversations,
@@ -48,7 +45,7 @@ describe("recent conversations", () => {
     const conversation = await screen.findByRole("button", { name: "Find household appliances under $100" });
     await userEvent.click(conversation);
 
-    await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/?conversation=conversation-123"));
+    await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/assistant?conversation=conversation-123"));
     expect(opened).toHaveBeenCalledOnce();
     window.removeEventListener("nomad:open-conversation", opened);
   });

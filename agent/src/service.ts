@@ -97,10 +97,14 @@ export class AgentService {
   }
 
   resume(runId: string, idempotencyKey: string, request: ResumeRunRequest): PublicRun {
-    const resume = this.store.beginResume(runId, idempotencyKey, request.approvalResolutionId);
+    if (!request.approvalResolutionId) {
+      throw new AgentError('INVALID_REQUEST', 'An approval resolution is required for the demo graph.', 400);
+    }
+    const approvalResolutionId = request.approvalResolutionId;
+    const resume = this.store.beginResume(runId, idempotencyKey, approvalResolutionId);
     if (!resume.replay) {
       this.schedule(async () => {
-        await this.executeResume(runId, idempotencyKey, request.approvalResolutionId);
+        await this.executeResume(runId, idempotencyKey, approvalResolutionId);
       });
     }
     return resume.run;

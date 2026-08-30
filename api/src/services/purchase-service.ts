@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
-import type { CrossCredentialAuth, CrossCredentialResult } from './cross-credential-auth.js';
+import type { AgentCredentialResult, CrossCredentialAuth, CrossCredentialResult } from './cross-credential-auth.js';
+import { endpointIsAuthorized } from './marketplace-policy.js';
 import type { ProductRepository } from '../repositories/product-repository.js';
 import type { ProductEndpoint } from '../domain/types.js';
 
@@ -99,8 +100,42 @@ export class PurchaseService {
     };
   }
 
+  async authorizeAutonomousPurchase(
+    slug: string,
+    method: string,
+    path: string,
+    canonicalIntent: string,
+    agentProof: PurchaseRequest['agentProof'],
+  ): Promise<AuthorizedPurchase> {
+    const auth = await this.crossCredentialAuth.authorizeAgent({
+      agentProof,
+      method,
+      path,
+      body: canonicalIntent,
+    });
+    const endpoint = await this.productRepository.findEnabledEndpoint('GET', `/v1/products/${slug}/mpp`);
+    if (!endpoint || endpoint.product.slug !== slug) {
+      throw new Error('Product endpoint not found or not enabled.');
+    }
+    if (!endpointIsAuthorized(auth.mandate, endpoint)) {
+      throw new Error('Product is not authorized by the marketplace mandate.');
+    }
+    const executionProofId = await this.recordAgentProof(auth, method, path, canonicalIntent, agentProof);
+    return { agentId: auth.agent.id, mandateId: auth.mandate.id, executionProofId, endpoint };
+  }
+
   async recordProofForAuthorization(
     auth: CrossCredentialResult,
+    method: string,
+    path: string,
+    canonicalIntent: string,
+    agentProof: PurchaseRequest['agentProof'],
+  ): Promise<string> {
+    return this.recordAgentProof(auth, method, path, canonicalIntent, agentProof);
+  }
+
+  private async recordAgentProof(
+    auth: AgentCredentialResult,
     method: string,
     path: string,
     canonicalIntent: string,

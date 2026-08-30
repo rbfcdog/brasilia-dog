@@ -53,7 +53,7 @@ Use `.env.example` as a reference and set every required variable in the process
 
 The selected MVP model is `gpt-5.4-mini`: the offer-selection task is narrow but benefits from the reliability of the strongest current mini tier. It supports the Responses API and Structured Outputs. The slug remains an explicit environment value—there is no runtime default—so it can be changed and evaluated without a code release.
 
-`ADAPTER_MODE=demo` uses the fixed VuelaYa catalog and a deterministic in-process authority while still using the real OpenAI selector. When both backend variables are configured and a run includes `conversationId`, demo mode reads the persisted backend transcript as untrusted selector context. The demo data is limited to a Córdoba mandate for USD 150 and offers at USD 130 and USD 300.
+`ADAPTER_MODE=demo` uses the fixed VuelaYa flight catalog, an in-memory shopping product catalog, and a deterministic in-process authority while still using the real OpenAI selector. When both backend variables are configured and a run includes `conversationId`, demo mode reads the persisted backend transcript as untrusted selector context. The flight demo data is limited to a Córdoba mandate for USD 150 and offers at USD 130 and USD 300. Use `ADAPTER_MODE=http` with a configured Supabase backend to exercise the database-backed product catalog.
 
 Start from TypeScript during development:
 

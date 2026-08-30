@@ -1,0 +1,5 @@
+.env
+.DS_Store
+.agent-signing-private.jwk
+front/test-results/
+front/playwright-report/

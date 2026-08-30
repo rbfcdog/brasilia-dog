@@ -24,7 +24,15 @@ async function startAgentServer(backend: AgentAdapters = new DemoBackend()): Pro
     selector: new FakeFlightSelector(),
     logger: silentStepLogger,
   });
-  const server = createServer(createApp({ service, serviceToken }));
+  const server = createServer(createApp({
+    service: Object.assign(service, {
+      identity: () => ({
+        publicKeyJwk: { kty: 'OKP', crv: 'Ed25519', x: 'public-key-material' },
+        fingerprint: 'a'.repeat(64),
+      }),
+    }),
+    serviceToken,
+  }));
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
   if (!address || typeof address === 'string') {
@@ -66,13 +74,21 @@ async function pollRun(baseUrl: string, runId: string, status: string): Promise<
   throw new Error(`Run ${runId} did not reach ${status}.`);
 }
 
-test('health is public while all v1 routes require bearer authentication', async (t) => {
+test('health and public-only agent identity are public while operational v1 routes require bearer authentication', async (t) => {
   const { baseUrl, server } = await startAgentServer();
   t.after(() => closeServer(server));
 
   const health = await fetch(`${baseUrl}/health`);
   assert.equal(health.status, 200);
   assert.deepEqual(await readJson(health), { status: 'ok' });
+
+  const identity = await fetch(`${baseUrl}/v1/identity`);
+  assert.equal(identity.status, 200);
+  const identityBody = await readJson(identity);
+  assert.deepEqual(identityBody.data.publicKeyJwk, {
+    kty: 'OKP', crv: 'Ed25519', x: 'public-key-material',
+  });
+  assert.equal(identityBody.data.publicKeyJwk.d, undefined);
 
   const missing = await fetch(`${baseUrl}/v1/agent-runs/unknown`);
   assert.equal(missing.status, 401);
