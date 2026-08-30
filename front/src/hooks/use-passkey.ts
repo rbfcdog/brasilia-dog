@@ -148,6 +148,12 @@ export async function authenticatePasskey(): Promise<PasskeyVerificationResult> 
   });
 }
 
+// An enrollment grant authorizes the same account-bound assertion flow as
+// authenticatePasskey(). The BFF supplies the grant via its HttpOnly cookie.
+export async function authenticateEnrolledPasskey(): Promise<PasskeyVerificationResult> {
+  return authenticatePasskey();
+}
+
 export function usePasskey() {
   const [state, setState] = useState<PasskeyState>(initialState);
 

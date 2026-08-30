@@ -4,7 +4,7 @@ import { Fingerprint, Loader2, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
-import { registerEnrolledPasskey } from "@/hooks/use-passkey";
+import { authenticateEnrolledPasskey, registerEnrolledPasskey } from "@/hooks/use-passkey";
 
 export function PasskeyEnrollment({ initialError }: { initialError?: string }) {
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">(initialError ? "error" : "idle");
@@ -18,8 +18,24 @@ export function PasskeyEnrollment({ initialError }: { initialError?: string }) {
       const result = await registerEnrolledPasskey();
       if (!result.verified) throw new Error("Passkey registration was not verified.");
       setStatus("success");
-      setMessage("Passkey registered for the user who issued this QR. You can close this page.");
+      setMessage("A new passkey was registered for this user. You can close this page.");
     } catch (error) {
+      const isExistingPasskey = typeof error === "object" && error !== null
+        && "name" in error
+        && error.name === "InvalidStateError";
+      if (isExistingPasskey) {
+        try {
+          const result = await authenticateEnrolledPasskey();
+          if (!result.verified) throw new Error("Existing passkey verification was not successful.");
+          setStatus("success");
+          setMessage("An existing synced passkey was verified for this user. You can close this page.");
+          return;
+        } catch (authenticationError) {
+          setStatus("error");
+          setMessage(authenticationError instanceof Error ? authenticationError.message : "Existing passkey verification failed.");
+          return;
+        }
+      }
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "Passkey registration failed.");
     }

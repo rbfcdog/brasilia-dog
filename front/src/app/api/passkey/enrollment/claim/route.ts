@@ -21,7 +21,7 @@ export async function GET(request: Request): Promise<Response> {
     httpOnly: true,
     sameSite: "strict",
     secure: process.env.NODE_ENV === "production",
-    path: "/api/backend/passkey/register",
+    path: "/api/backend/passkey",
     maxAge: 5 * 60,
   });
   return response;

@@ -640,7 +640,7 @@ export function createApp({
       /^\/passkey\/(?:register|auth)\/(?:options|verify)$/.test(pathname)
     ) {
       const enrollmentToken = request.headers.get('x-passkey-enrollment');
-      const enrollment = enrollmentToken && passkeyEnrollmentService && pathname.startsWith('/passkey/register/')
+      const enrollment = enrollmentToken && passkeyEnrollmentService && /^\/passkey\/(?:register|auth)\//.test(pathname)
         ? await passkeyEnrollmentService.resolve(enrollmentToken)
         : null;
       const accessToken = request.headers.get('authorization')?.match(/^Bearer (.+)$/)?.[1];
@@ -678,7 +678,12 @@ export function createApp({
       }
       if (!body.response) return json({ error: 'response is required' }, 400);
       try {
-        return json(await passkeyService.verifyAuthentication(user.id, body.response));
+        const result = await passkeyService.verifyAuthentication(user.id, body.response);
+        if (enrollmentToken && passkeyEnrollmentService) {
+          const consumed = await passkeyEnrollmentService.consume(enrollmentToken, user.id);
+          if (!consumed) return json({ error: 'enrollment_invalid_or_consumed' }, 401);
+        }
+        return json(result);
       } catch (err) {
         return json({ error: 'authentication_failed', detail: (err as Error).message }, 400);
       }

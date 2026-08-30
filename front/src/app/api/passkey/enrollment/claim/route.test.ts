@@ -22,7 +22,7 @@ describe("passkey enrollment QR claim", () => {
     expect(response.headers.get("set-cookie")).toContain("nomad-passkey-enrollment=");
     expect(response.headers.get("set-cookie")).toContain("HttpOnly");
     expect(response.headers.get("set-cookie")?.toLowerCase()).toContain("samesite=strict");
-    expect(response.headers.get("set-cookie")).toContain("Path=/api/backend/passkey/register");
+    expect(response.headers.get("set-cookie")).toContain("Path=/api/backend/passkey");
     expect(response.headers.get("location")).not.toContain("token=");
   });
 

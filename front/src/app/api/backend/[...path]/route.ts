@@ -145,7 +145,7 @@ async function requestHeaders(request: Request, pathname: string): Promise<Heade
       if (accessToken) headers.set("authorization", `Bearer ${accessToken}`);
     }
   }
-  if (pathname.startsWith("/passkey/register/")) {
+  if (/^\/passkey\/(?:register|auth)\//.test(pathname)) {
     const enrollmentToken = cookieStore.get("nomad-passkey-enrollment")?.value;
     if (enrollmentToken) {
       headers.delete("authorization");
@@ -228,8 +228,8 @@ async function proxy(request: Request, context: RouteContext): Promise<Response>
       status: upstream.status,
       headers: responseHeaders(upstream),
     });
-    if (upstream.ok && pathname === "/passkey/register/verify") {
-      response.headers.append("Set-Cookie", "nomad-passkey-enrollment=; Max-Age=0; Path=/api/backend/passkey/register; HttpOnly; SameSite=Strict");
+    if (upstream.ok && /^\/passkey\/(?:register|auth)\/verify$/.test(pathname)) {
+      response.headers.append("Set-Cookie", "nomad-passkey-enrollment=; Max-Age=0; Path=/api/backend/passkey; HttpOnly; SameSite=Strict");
     }
     if (upstream.ok && pathname === "/passkey/auth/verify") {
       const payload = JSON.parse(new TextDecoder().decode(responseBody)) as { sessionToken?: unknown };
