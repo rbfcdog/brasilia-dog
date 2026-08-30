@@ -55,6 +55,13 @@ export function WorkspaceAuth() {
   }, [completeAccess]);
 
   useEffect(() => {
+    if (!pendingEnrollment || enrollment) return;
+    void backendService.createPasskeyEnrollment()
+      .then(setEnrollment)
+      .catch(() => setMessage("Secure-device enrollment is unavailable right now."));
+  }, [pendingEnrollment, enrollment]);
+
+  useEffect(() => {
     if (!enrollment) return;
     void QRCode.toDataURL(enrollment.enrollmentUrl, {
       color: { dark: "#0A1120", light: "#FFFFFF" },

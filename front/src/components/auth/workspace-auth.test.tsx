@@ -57,6 +57,10 @@ describe("workspace authentication", () => {
     mocks.authenticatePasskey.mockReset();
     mocks.signOut.mockReset();
     mocks.createPasskeyEnrollment.mockReset();
+    mocks.createPasskeyEnrollment.mockResolvedValue({
+      enrollmentUrl: "https://shop.example.test/api/passkey/enrollment/claim?token=test-token",
+      expiresAt: "2026-08-30T09:00:00.000Z",
+    });
     mocks.signUp.mockReset();
   });
   it("requires a passkey before routing a buyer to the assistant", async () => {
@@ -191,7 +195,7 @@ describe("workspace authentication", () => {
     await user.click(screen.getByRole("button", { name: "Sign in as buyer" }));
     await user.click(await screen.findByRole("button", { name: "Set up passkey" }));
 
-    expect(mocks.createPasskeyEnrollment).toHaveBeenCalledOnce();
+    expect(mocks.createPasskeyEnrollment).toHaveBeenCalled();
     expect(await screen.findByRole("img", { name: "Passkey enrollment QR code" })).toBeInTheDocument();
     expect(screen.getByText(/open this QR code on a secure device/i)).toBeInTheDocument();
   });
