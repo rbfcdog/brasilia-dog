@@ -1,4 +1,4 @@
-# Nomad
+# Vero
 
 **Agentic commerce for buyers and sellers.** A fixed-price commerce operating system where people set the rules and AI agents execute with proof.
 
