@@ -199,7 +199,8 @@ export class InMemoryConversationRepository implements ConversationStore {
 
   async appendMessage(input: ConversationMessageInput): Promise<ConversationMessage> {
     const conversation = this.ownedConversation(input.conversationId, input.ownerId);
-    const message = { id: randomUUID(), ...input };
+    const { ownerId: _ownerId, ...messageInput } = input;
+    const message = { id: randomUUID(), ...messageInput };
     this.messages.get(input.conversationId)!.push(message);
     conversation.updatedAt = this.latest(conversation.updatedAt, input.createdAt);
     return { ...message };

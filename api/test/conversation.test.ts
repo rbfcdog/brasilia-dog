@@ -254,9 +254,15 @@ test('sandbox conversation storage keeps an owner-scoped transcript in memory', 
 
   assert.equal((await repository.listConversations('user-1')).length, 1);
   assert.equal((await repository.listConversations('user-2')).length, 0);
-  assert.deepEqual((await repository.listMessages(conversation.id)).map(({ role, content }) => ({ role, content })), [
-    { role: 'user', content: 'Show available products.' },
-  ]);
+  const [message] = await repository.listMessages(conversation.id);
+  assert.deepEqual(message, {
+    id: message?.id,
+    conversationId: conversation.id,
+    role: 'user',
+    content: 'Show available products.',
+    createdAt,
+  });
+  assert.equal('ownerId' in (message as unknown as Record<string, unknown>), false);
   await assert.rejects(repository.appendMessage({
     conversationId: conversation.id,
     ownerId: 'user-2',

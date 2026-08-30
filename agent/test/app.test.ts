@@ -180,6 +180,20 @@ test('run creation, polling, and start idempotency follow the public contract', 
     'purchase_completed',
   ]);
 
+  const listedResponse = await fetch(`${baseUrl}/v1/agent-runs?ownerId=${request.ownerId}`, {
+    headers: authenticatedHeaders(),
+  });
+  assert.equal(listedResponse.status, 200);
+  const listed = await readJson(listedResponse);
+  assert.equal(listed.data.runs.length, 1);
+  assert.equal(listed.data.runs[0].runId, first.data.runId);
+
+  const otherOwnerResponse = await fetch(`${baseUrl}/v1/agent-runs?ownerId=${randomUUID()}`, {
+    headers: authenticatedHeaders(),
+  });
+  assert.equal(otherOwnerResponse.status, 200);
+  assert.deepEqual((await readJson(otherOwnerResponse)).data.runs, []);
+
   const conflict = await fetch(`${baseUrl}/v1/agent-runs`, {
     method: 'POST',
     headers: authenticatedHeaders(idempotencyKey),

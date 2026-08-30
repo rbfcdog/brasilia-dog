@@ -57,6 +57,14 @@ function signedOutResponse(): Response {
   return Response.json({ user: null }, { headers: { "Cache-Control": "no-store" } });
 }
 
+function isExistingAccount(payload: unknown): boolean {
+  if (!payload || typeof payload !== "object") return false;
+  const failure = payload as { error?: unknown; detail?: unknown };
+  return [failure.error, failure.detail]
+    .filter((value): value is string => typeof value === "string")
+    .some((value) => value.toLowerCase().includes("already registered"));
+}
+
 export async function GET(_request: Request, context: { params: Promise<{ action: string }> }): Promise<Response> {
   const { action } = await context.params;
   if (action !== "session") return Response.json({ error: "not_found" }, { status: 404 });
@@ -103,12 +111,25 @@ export async function POST(request: Request, context: { params: Promise<{ action
     return Response.json({ error: "not_found" }, { status: 404 });
   }
   const body = await request.text();
-  const response = await upstream(`v1/auth/${action}`, {
+  let response = await upstream(`v1/auth/${action}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body,
   });
-  const payload = await response.json().catch(() => null);
+  let payload = await response.json().catch(() => null);
+
+  // Demo sign-up can be submitted twice by fast clicks or a retry after a
+  // successful response was lost. Treat the known duplicate-account result as
+  // an idempotent sign-in with the same credentials instead of surfacing a 400.
+  if (action === "sign-up" && response.status === 400 && isExistingAccount(payload)) {
+    response = await upstream("v1/auth/sign-in", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+    });
+    payload = await response.json().catch(() => null);
+  }
+
   if (response.ok && payload && typeof payload === "object" && "session" in payload) {
     await storeSession(payload);
   }

@@ -101,6 +101,10 @@ export class AgentService {
     return this.store.require(runId);
   }
 
+  list(ownerId: string): PublicRun[] {
+    return this.store.list(ownerId);
+  }
+
   resume(runId: string, idempotencyKey: string, request: ResumeRunRequest): PublicRun {
     if (!request.approvalResolutionId) {
       throw new AgentError('INVALID_REQUEST', 'An approval resolution is required for the demo graph.', 400);

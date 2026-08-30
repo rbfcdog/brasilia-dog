@@ -85,6 +85,13 @@ export class RunStore {
     return run ? this.toPublic(run) : undefined;
   }
 
+  list(ownerId: string): PublicRun[] {
+    return [...this.runs.values()]
+      .filter((run) => run.ownerId === ownerId)
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+      .map((run) => this.toPublic(run));
+  }
+
   require(runId: string): PublicRun {
     return this.toPublic(this.requireInternal(runId));
   }
