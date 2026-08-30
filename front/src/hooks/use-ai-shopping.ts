@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef } from "react";
-import { getPasskeySessionToken } from "@/lib/passkey-session";
 import { passkeyBiometricProvider } from "@/services/biometric-provider";
 import { shoppingService } from "@/services/shopping-service";
 import { backendService } from "@/services/backend-service";
@@ -78,7 +77,6 @@ function createMessage(role: ChatMessage["role"], content: string): ChatMessage 
 
 async function ensureBackendConversation(ref: React.RefObject<string | null>): Promise<string> {
   if (ref.current) return ref.current;
-  if (!getPasskeySessionToken()) throw new Error("Authenticate with a passkey in Profile before starting a governed run.");
   const { conversation } = await backendService.createConversation();
   ref.current = conversation.id;
   return conversation.id;
@@ -103,19 +101,15 @@ export function useAIShopping() {
   }, []);
 
   useEffect(() => {
-    if (!getPasskeySessionToken()) {
-      dispatch({ type: "HYDRATE", messages: [], storage: "unavailable" });
-      return;
-    }
+    window.localStorage.removeItem("nomad:chat:v1");
+  }, []);
+
+  useEffect(() => {
     const selectedId = new URLSearchParams(window.location.search).get("conversation");
     void backendService.listConversations().then(async ({ conversations }) => {
       const selected = selectedId ? conversations.find((item) => item.id === selectedId) : conversations[0];
       if (selected) await loadConversation(selected.id);
-      else {
-        const { conversation } = await backendService.createConversation();
-        conversationIdRef.current = conversation.id;
-        dispatch({ type: "HYDRATE", messages: [], storage: "backend" });
-      }
+      else dispatch({ type: "HYDRATE", messages: [], storage: "backend" });
     }).catch(() => dispatch({ type: "HYDRATE", messages: [], storage: "unavailable" }));
   }, [loadConversation]);
 
@@ -153,14 +147,9 @@ export function useAIShopping() {
     const userMessage = createMessage("user", trimmed);
     dispatch({ type: "SUBMIT", message: userMessage });
     try {
-      try {
-        await persistMessage(conversationIdRef, userMessage);
-      } catch {
-        dispatch({ type: "SET_STORAGE", storage: "unavailable" });
-        throw new Error("This conversation could not be saved to the backend.");
-      }
-      dispatch({ type: "SET_STORAGE", storage: "backend" });
       const response = await shoppingService.analyze(trimmed, conversationIdRef.current ?? undefined);
+      conversationIdRef.current = response.conversationId;
+      dispatch({ type: "SET_STORAGE", storage: "backend" });
       const assistant = createMessage("assistant", response.message);
       if (response.kind === "clarification") dispatch({ type: "CLARIFICATION", message: assistant });
       else if (response.kind === "products") dispatch({ type: "PRODUCT_RESULTS", message: assistant, products: response.products });
