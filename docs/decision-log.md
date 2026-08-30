@@ -1,10 +1,10 @@
-# Nomad technical decision log
+# Vero technical decision log
 
 _Code-freeze record for the NextWave Hackathon 2026 — Challenge 01, “The Buyer Who Isn’t Human.”_
 
 ## Decision-making principle
 
-Nomad was built in 24 hours to answer one narrow question well: **how can a merchant accept an AI-originated purchase without letting the AI define its own authority?**
+Vero was built in 24 hours to answer one narrow question well: **how can a merchant accept an AI-originated purchase without letting the AI define its own authority?**
 
 We did not optimize for feature count or claim that a hackathon deployment is ready for millions of users. We optimized for a trust model that can be demonstrated, tested, and explained under adversarial questioning. The resulting rule is simple: the model may discover and propose; deterministic services decide whether money is authorized to move.
 
@@ -34,7 +34,7 @@ These counts support the behaviors covered by the tests. They are not a substitu
 
 ### 1. Governed agentic commerce over a general shopping agent
 
-**Decision:** Build Nomad as an authorization control plane for a constrained purchase, not as a general autonomous assistant with arbitrary browsing, tools, merchants, and payment methods.
+**Decision:** Build Vero as an authorization control plane for a constrained purchase, not as a general autonomous assistant with arbitrary browsing, tools, merchants, and payment methods.
 
 **Context:** In a 24-hour build, breadth would have made the most important claim harder to prove. The challenge is not whether an LLM can recommend a product; it is whether a non-human buyer can present limited, revocable authority that a merchant can verify at decision time.
 
