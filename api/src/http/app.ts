@@ -1167,7 +1167,10 @@ export function createApp({
       }
     }
 
-    if (productRepository && agentServiceToken && request.method === 'GET' && pathname === '/v1/agent/products') {
+    if (request.method === 'GET' && pathname === '/v1/agent/products') {
+      if (!productRepository || !agentServiceToken) {
+        return json({ error: 'agent_catalog_unavailable' }, 503);
+      }
       const authorization = request.headers.get('authorization');
       const match = authorization?.match(/^Bearer (.+)$/);
       if (!match || match[1] !== agentServiceToken) {

@@ -112,7 +112,10 @@ test('chat remains available when a demo agent has no conversation context adapt
     message: 'What is your budget?',
     activity: [],
   });
-  assert.deepEqual(responderInputs, [{ message: 'Find appliances.' }]);
+  assert.equal(responderInputs.length, 1);
+  const [demoResponderInput] = responderInputs as [{ message: string; conversationContext?: unknown }];
+  assert.equal(demoResponderInput.message, 'Find appliances.');
+  assert.equal(demoResponderInput.conversationContext, undefined);
 });
 
 test('the authenticated chat endpoint returns the agent response envelope', async (t) => {
