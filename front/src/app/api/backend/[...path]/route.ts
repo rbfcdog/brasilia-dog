@@ -69,7 +69,17 @@ function backendUrl(pathname: string, search: string): URL | null {
 
 async function ensureFreshAccessToken(cookieStore: Awaited<ReturnType<typeof cookies>>): Promise<string | null> {
   const accessToken = cookieStore.get("nomad-auth-access")?.value;
-  if (accessToken) return accessToken;
+  if (accessToken) {
+    // Verify it works by checking if it's likely still valid (has JWT structure and not expired)
+    try {
+      const payload = JSON.parse(atob(accessToken.split(".")[1] ?? ""));
+      if (payload.exp && payload.exp * 1000 > Date.now()) return accessToken;
+    } catch {
+      // Not a JWT or can't parse, use it anyway
+      return accessToken;
+    }
+  }
+  // Token missing or expired, try refresh
   const refreshToken = cookieStore.get("nomad-auth-refresh")?.value;
   if (!refreshToken) return null;
   const base = process.env.BACKEND_API_URL?.trim();
@@ -83,8 +93,22 @@ async function ensureFreshAccessToken(cookieStore: Awaited<ReturnType<typeof coo
       signal: AbortSignal.timeout(5_000),
     });
     if (!response.ok) return null;
-    const payload = await response.json() as { session?: { accessToken?: string } };
-    return payload.session?.accessToken ?? null;
+    const payload = await response.json() as { session?: { accessToken?: string; refreshToken?: string } };
+    const newAccess = payload.session?.accessToken;
+    const newRefresh = payload.session?.refreshToken;
+    if (newAccess) {
+      cookieStore.set("nomad-auth-access", newAccess, {
+        httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production",
+        path: "/", maxAge: 3600,
+      });
+    }
+    if (newRefresh) {
+      cookieStore.set("nomad-auth-refresh", newRefresh, {
+        httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production",
+        path: "/", maxAge: 30 * 24 * 3600,
+      });
+    }
+    return newAccess ?? null;
   } catch {
     return null;
   }
@@ -104,12 +128,13 @@ async function requestHeaders(request: Request, pathname: string): Promise<Heade
   // Payment and mandate routes use the passkey session for biometric authorization.
   if (chatRoute) {
     const accessToken = await ensureFreshAccessToken(cookieStore);
-    if (!headers.has("authorization") && accessToken) {
+    if (accessToken) {
       headers.set("authorization", `Bearer ${accessToken}`);
-    }
-    const passkeySession = cookieStore.get("nomad-passkey-session")?.value;
-    if (!headers.has("authorization") && !passkeyRoute && passkeySession) {
-      headers.set("authorization", `Bearer ${passkeySession}`);
+    } else {
+      const passkeySession = cookieStore.get("nomad-passkey-session")?.value;
+      if (!passkeyRoute && passkeySession) {
+        headers.set("authorization", `Bearer ${passkeySession}`);
+      }
     }
   } else {
     const passkeySession = cookieStore.get("nomad-passkey-session")?.value;
@@ -145,6 +170,7 @@ function responseHeaders(upstream: Response): Headers {
 async function proxy(request: Request, context: RouteContext): Promise<Response> {
   const { path } = await context.params;
   const pathname = `/${path.map(encodeURIComponent).join("/")}`;
+  const chatRoute = pathname === "/v1/chat" || pathname === "/v1/conversations" || /^\/v1\/conversations\//.test(pathname);
 
   if (!isAllowedPath(pathname)) {
     return NextResponse.json({ error: "backend_path_not_allowed" }, { status: 404 });
@@ -163,15 +189,32 @@ async function proxy(request: Request, context: RouteContext): Promise<Response>
   if (!target) {
     return NextResponse.json({ error: "backend_unavailable" }, { status: 503 });
   }
-
   try {
     const hasBody = request.method !== "GET" && request.method !== "HEAD";
-    const upstream = await fetch(target, {
+    const bodyBuffer = hasBody ? await request.arrayBuffer() : null;
+    const headers = await requestHeaders(request, pathname);
+
+    let upstream = await fetch(target, {
       method: request.method,
-      headers: await requestHeaders(request, pathname),
-      ...(hasBody ? { body: await request.arrayBuffer() } : {}),
+      headers,
+      ...(hasBody ? { body: bodyBuffer } : {}),
       cache: "no-store",
     });
+
+    // If chat route returns 401, try refreshing the token and retry once
+    if (upstream.status === 401 && chatRoute) {
+      const cookieStore = await cookies();
+      const freshToken = await ensureFreshAccessToken(cookieStore);
+      if (freshToken) {
+        headers.set("authorization", `Bearer ${freshToken}`);
+        upstream = await fetch(target, {
+          method: request.method,
+          headers,
+          ...(hasBody ? { body: bodyBuffer } : {}),
+          cache: "no-store",
+        });
+      }
+    }
 
     const responseBody = await upstream.arrayBuffer();
     const response = new Response(responseBody, {
