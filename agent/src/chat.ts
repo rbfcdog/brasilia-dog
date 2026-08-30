@@ -279,6 +279,7 @@ function normalizeCategory(value: string | null): string | null {
   const normalized = value.trim().toLowerCase();
   if (/eletrodom|electrodom|appliance|household/.test(normalized)) return 'home';
   if (/eletronic|electronic/.test(normalized)) return 'electronics';
+  if (/shoe|footwear|sneaker/.test(normalized)) return 'shoes';
   return normalized;
 }
 async function executeCatalogTool(
@@ -326,7 +327,7 @@ async function executeCatalogTool(
         ? null
         : Math.round(input.maximumAmount * 100),
       slugs: [],
-      limit: 10,
+      limit: 3,
     })).map(productProjection);
     return {
       output: JSON.stringify({ products }),
@@ -470,7 +471,7 @@ export class OpenAIShoppingResponder implements ChatResponder {
     try {
       const proposal = modelProposalSchema.parse(JSON.parse(outputText));
       const catalogProductsBySlug = new Map(catalogProducts.map((product) => [product.slug, product]));
-      if (proposal.products.length > 0) {
+      if (proposal.products.length > 0 && catalogProducts.length < 3) {
         const selectedProducts = proposal.products.map((product) => catalogProductsBySlug.get(product.slug));
         if (selectedProducts.some((product) => !product)) {
           throw new AgentError(

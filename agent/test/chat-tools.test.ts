@@ -91,7 +91,7 @@ test('shopping responder executes a ranked backend category search and returns e
     category: 'home',
     maximumAmountMinor: 10_000,
     slugs: [],
-    limit: 10,
+    limit: 3,
   }]);
   assert.equal(requests.length, 2);
   assert.deepEqual(requests[0]?.tool_choice, { type: 'function', name: 'search_products' });
@@ -459,7 +459,7 @@ test('shopping responder executes a deterministic backend search when a forced m
     category: null,
     maximumAmountMinor: 30_000,
     slugs: [],
-    limit: 10,
+    limit: 3,
   }]);
   assert.equal(result.kind, 'products');
   assert.deepEqual(result.products, [{
