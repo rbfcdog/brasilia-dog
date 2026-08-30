@@ -114,11 +114,10 @@ export class AgentService {
     const conversationContext = request.conversationId
       ? await this.loadConversationContextForChat(request.conversationId)
       : undefined;
-    const products = this.products ? await this.products.listProducts() : undefined;
     return this.responder.respond({
       message: request.message,
       ...(conversationContext ? { conversationContext } : {}),
-      ...(products ? { products } : {}),
+      ...(this.products ? { catalog: this.products } : {}),
     });
   }
 

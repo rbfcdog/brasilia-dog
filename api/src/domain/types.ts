@@ -64,8 +64,17 @@ export interface ProductCatalogEntry extends Product {
   };
 }
 
+export interface ProductCatalogSearch {
+  query: string | null;
+  category: string | null;
+  maximumAmountMinor: number | null;
+  slugs: string[];
+  limit: number;
+}
+
 export interface ProductCatalogRepository {
   listCatalog(): Promise<ProductCatalogEntry[]>;
+  searchCatalog(input: ProductCatalogSearch): Promise<ProductCatalogEntry[]>;
 }
 
 export interface PaymentReceiptSummary extends Record<string, unknown> {

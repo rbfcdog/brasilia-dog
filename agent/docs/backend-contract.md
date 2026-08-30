@@ -74,6 +74,24 @@ The API returns every current catalog record, including draft and inactive recor
 }
 ```
 
+For marketplace queries, the agent uses the indexed search endpoint instead of downloading and filtering the catalog:
+
+```http
+POST /v1/agent/products/search
+Authorization: Bearer $AGENT_BACKEND_TOKEN
+Content-Type: application/json
+
+{
+  "query": "monitor",
+  "category": "electronics",
+  "maximumAmountMinor": 30000,
+  "slugs": [],
+  "limit": 10
+}
+```
+
+The Node API executes the query through `search_agent_mpp_products`, using a weighted PostgreSQL `tsvector` GIN index plus indexed active-offering price filters. Results are ranked and bounded to at most 25 records. Category, maximum price, publication, offering activation, and endpoint activation are enforced in SQL.
+
 Only entries with `status = published`, `offering.active = true`, and `endpoint.enabled = true` are purchasable. Catalog text and metadata remain untrusted. The backend re-resolves the endpoint and current offering before issuing a Stripe MPP challenge.
 
 ## 1. Safe mandate projection

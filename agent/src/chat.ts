@@ -4,7 +4,7 @@ import OpenAI from 'openai';
 import { z } from 'zod';
 
 import { AgentError } from './errors.js';
-import type { CatalogProduct } from './adapters.js';
+import type { CatalogProduct, ProductCatalogAdapter } from './adapters.js';
 
 const MAXIMUM_AMOUNT = 100_000;
 const MANDATE_VALIDITY_MS = 72 * 60 * 60 * 1_000;
@@ -175,9 +175,13 @@ function normalizeCategory(value: string | null): string | null {
   return normalized;
 }
 
-function executeCatalogTool(name: string, argumentsJson: string, products: CatalogProduct[]): string {
-  const available = availableProducts(products);
+async function executeCatalogTool(
+  name: string,
+  argumentsJson: string,
+  catalog: ProductCatalogAdapter,
+): Promise<string> {
   if (name === 'list_product_categories') {
+    const available = availableProducts(await catalog.listProducts());
     return JSON.stringify({
       categories: [...new Set(available.map((product) =>
         typeof product.metadata.category === 'string' ? product.metadata.category : 'uncategorized'))].sort(),
@@ -186,24 +190,27 @@ function executeCatalogTool(name: string, argumentsJson: string, products: Catal
   if (name === 'compare_products') {
     const { slugs } = compareToolArgumentsSchema.parse(JSON.parse(argumentsJson));
     return JSON.stringify({
-      products: available.filter((product) => slugs.includes(product.slug)).map(productProjection),
+      products: (await catalog.searchProducts({
+        query: null,
+        category: null,
+        maximumAmountMinor: null,
+        slugs,
+        limit: slugs.length,
+      })).map(productProjection),
     });
   }
   if (name === 'search_products') {
     const input = searchToolArgumentsSchema.parse(JSON.parse(argumentsJson));
-    const query = input.query?.trim().toLowerCase();
-    const category = normalizeCategory(input.category);
     return JSON.stringify({
-      products: available
-        .filter((product) => {
-          const projected = productProjection(product);
-          const text = `${projected.name} ${projected.description} ${projected.category}`.toLowerCase();
-          return (!query || text.includes(query))
-            && (!category || projected.category.toLowerCase().includes(category))
-            && (input.maximumAmount === null || projected.price <= input.maximumAmount);
-        })
-        .slice(0, 10)
-        .map(productProjection),
+      products: (await catalog.searchProducts({
+        query: input.query?.trim() || null,
+        category: normalizeCategory(input.category),
+        maximumAmountMinor: input.maximumAmount === null
+          ? null
+          : Math.round(input.maximumAmount * 100),
+        slugs: [],
+        limit: 10,
+      })).map(productProjection),
     });
   }
   throw new AgentError('UNKNOWN_TOOL', `The model requested unsupported tool ${name}.`, 502);
@@ -228,7 +235,7 @@ export class OpenAIShoppingResponder implements ChatResponder {
   async respond(input: {
     message: string;
     conversationContext?: string;
-    products?: CatalogProduct[];
+    catalog?: ProductCatalogAdapter;
   }): Promise<AgentChatResponse> {
     let outputText: string;
     try {
@@ -272,11 +279,15 @@ export class OpenAIShoppingResponder implements ChatResponder {
       if (functionCalls.length === 0) {
         outputText = firstResponse.output_text;
       } else {
-        const toolOutputs = functionCalls.map((call) => ({
+        if (!input.catalog) {
+          throw new AgentError('PRODUCT_CATALOG_UNAVAILABLE', 'Marketplace search is not configured.', 503);
+        }
+        const catalog = input.catalog;
+        const toolOutputs = await Promise.all(functionCalls.map(async (call) => ({
           type: 'function_call_output' as const,
           call_id: call.call_id,
-          output: executeCatalogTool(call.name, call.arguments, input.products ?? []),
-        }));
+          output: await executeCatalogTool(call.name, call.arguments, catalog),
+        })));
         const finalResponse = await this.client.responses.create({
           model: this.model,
           store: false,

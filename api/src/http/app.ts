@@ -7,6 +7,7 @@ import type {
   ProductCatalog,
   ProductPaymentService,
   ProductCatalogRepository,
+  ProductCatalogSearch,
 } from '../domain/types.js';
 
 import type { PasskeyService } from '../services/passkey-service.js';
@@ -30,6 +31,29 @@ function json(value: unknown, status = 200): Response {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+function parseProductCatalogSearch(value: unknown): ProductCatalogSearch | null {
+  if (!isRecord(value)) return null;
+  const query = value.query;
+  const category = value.category;
+  const maximumAmountMinor = value.maximumAmountMinor;
+  const slugs = value.slugs;
+  const limit = value.limit;
+  if ((query !== null && typeof query !== 'string')
+    || (category !== null && typeof category !== 'string')
+    || (maximumAmountMinor !== null
+      && (typeof maximumAmountMinor !== 'number' || !Number.isSafeInteger(maximumAmountMinor) || maximumAmountMinor < 0))
+    || !Array.isArray(slugs)
+    || slugs.length > 5
+    || !slugs.every((slug) => typeof slug === 'string' && slug.length > 0)
+    || typeof limit !== 'number'
+    || !Number.isInteger(limit)
+    || limit < 1
+    || limit > 25) {
+    return null;
+  }
+  return { query, category, maximumAmountMinor, slugs, limit };
 }
 
 function isAgentProof(value: unknown): value is PurchaseRequest['agentProof'] {
@@ -315,6 +339,16 @@ const OPENAPI_DOCUMENT = Object.freeze({
         summary: 'List the complete Stripe MPP product catalog for the agent service',
         responses: {
           '200': { description: 'Current products, offerings, and MPP endpoint state' },
+          '401': { description: 'Agent service token is required' },
+        },
+      },
+    },
+    '/v1/agent/products/search': {
+      post: {
+        summary: 'Run a ranked, bounded marketplace query for the agent service',
+        responses: {
+          '200': { description: 'Ranked active Stripe MPP products' },
+          '400': { description: 'Invalid search filters' },
           '401': { description: 'Agent service token is required' },
         },
       },
@@ -705,6 +739,23 @@ export function createApp({
       return json({ valid });
     }
 
+
+    if (productRepository && agentServiceToken && request.method === 'POST' && pathname === '/v1/agent/products/search') {
+      const authorization = request.headers.get('authorization');
+      const match = authorization?.match(/^Bearer (.+)$/);
+      if (!match || match[1] !== agentServiceToken) {
+        return json({ error: 'agent_authentication_required' }, 401);
+      }
+      const input = parseProductCatalogSearch(await request.json().catch(() => null));
+      if (!input) {
+        return json({ error: 'invalid_product_search' }, 400);
+      }
+      try {
+        return json({ products: await productRepository.searchCatalog(input) });
+      } catch {
+        return json({ error: 'product_search_unavailable' }, 500);
+      }
+    }
 
     if (productRepository && agentServiceToken && request.method === 'GET' && pathname === '/v1/agent/products') {
       const authorization = request.headers.get('authorization');

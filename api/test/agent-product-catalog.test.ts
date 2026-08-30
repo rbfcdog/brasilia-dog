@@ -33,7 +33,7 @@ test('agent service token can fetch the complete current product catalog', async
   const app = createApp({
     paidHandler,
     agentServiceToken: 'agent-backend-token',
-    productRepository: { listCatalog: async () => [entry] },
+    productRepository: { listCatalog: async () => [entry], searchCatalog: async () => [entry] },
   });
 
   const response = await app(new Request('http://localhost/v1/agent/products', {
@@ -48,11 +48,51 @@ test('product catalog rejects callers without the agent service token', async ()
   const app = createApp({
     paidHandler,
     agentServiceToken: 'agent-backend-token',
-    productRepository: { listCatalog: async () => [entry] },
+    productRepository: { listCatalog: async () => [entry], searchCatalog: async () => [entry] },
   });
 
   const response = await app(new Request('http://localhost/v1/agent/products'));
 
   assert.equal(response.status, 401);
   assert.deepEqual(await response.json(), { error: 'agent_authentication_required' });
+});
+
+test('agent can run a bounded ranked marketplace query in the backend', async () => {
+  const searches: unknown[] = [];
+  const app = createApp({
+    paidHandler,
+    agentServiceToken: 'agent-backend-token',
+    productRepository: {
+      listCatalog: async () => [entry],
+      searchCatalog: async (input) => {
+        searches.push(input);
+        return [entry];
+      },
+    },
+  });
+
+  const response = await app(new Request('http://localhost/v1/agent/products/search', {
+    method: 'POST',
+    headers: {
+      authorization: 'Bearer agent-backend-token',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      query: 'monitor',
+      category: 'electronics',
+      maximumAmountMinor: 30_000,
+      slugs: [],
+      limit: 10,
+    }),
+  }));
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(searches, [{
+    query: 'monitor',
+    category: 'electronics',
+    maximumAmountMinor: 30_000,
+    slugs: [],
+    limit: 10,
+  }]);
+  assert.deepEqual(await response.json(), { products: [entry] });
 });

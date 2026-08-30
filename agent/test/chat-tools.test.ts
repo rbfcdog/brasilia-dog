@@ -28,9 +28,20 @@ const product: CatalogProduct = {
     enabled: true,
   },
 };
+interface CapturedRequest {
+  input?: Array<{ type: string; output?: string }>;
+}
 
-test('shopping responder executes category search and returns exact tool-backed products', async () => {
-  const requests: unknown[] = [];
+test('shopping responder executes a ranked backend category search and returns exact products', async () => {
+  const searches: unknown[] = [];
+  const catalog = {
+    listProducts: async () => [product],
+    searchProducts: async (input: unknown) => {
+      searches.push(input);
+      return [product];
+    },
+  };
+  const requests: CapturedRequest[] = [];
   const responses = [
     {
       output_text: '',
@@ -61,7 +72,7 @@ test('shopping responder executes category search and returns exact tool-backed 
   ];
   const client = {
     responses: {
-      create: async (request: unknown) => {
+      create: async (request: CapturedRequest) => {
         requests.push(request);
         const response = responses.shift();
         if (!response) throw new Error('Unexpected OpenAI request.');
@@ -71,11 +82,17 @@ test('shopping responder executes category search and returns exact tool-backed 
   } as unknown as OpenAI;
   const responder = new OpenAIShoppingResponder({ apiKey: 'test-key', model: 'test-model', client });
 
-  const result = await responder.respond({ message: 'Show home products under $100', products: [product] });
+  const result = await responder.respond({ message: 'Show home products under $100', catalog });
 
+  assert.deepEqual(searches, [{
+    query: null,
+    category: 'home',
+    maximumAmountMinor: 10_000,
+    slugs: [],
+    limit: 10,
+  }]);
   assert.equal(requests.length, 2);
-  const secondInput = (requests[1] as { input: Array<{ type: string; output?: string }> }).input;
-  const toolOutput = secondInput.find((item) => item.type === 'function_call_output');
+  const toolOutput = requests[1]?.input?.find((item) => item.type === 'function_call_output');
   assert.deepEqual(JSON.parse(toolOutput?.output ?? '{}'), {
     products: [{
       slug: product.slug,

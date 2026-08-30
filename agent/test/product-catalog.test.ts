@@ -50,3 +50,35 @@ test('HTTP backend adapter fetches and validates all current products', async (t
 
   assert.deepEqual(await adapter.listProducts(), products);
 });
+
+test('HTTP backend adapter delegates bounded marketplace search to the API', async (t) => {
+  const requests: string[] = [];
+  const server = createServer(async (request, response) => {
+    assert.equal(request.method, 'POST');
+    assert.equal(request.url, '/v1/agent/products/search');
+    assert.equal(request.headers.authorization, `Bearer ${backendToken}`);
+    const chunks: Buffer[] = [];
+    for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    requests.push(Buffer.concat(chunks).toString('utf8'));
+    response.writeHead(200, { 'content-type': 'application/json' });
+    response.end(JSON.stringify({ products }));
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise<void>((resolve) => server.close(() => resolve())));
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('Server did not bind.');
+  const adapter = new HttpBackendAdapter({
+    baseUrl: `http://127.0.0.1:${address.port}`,
+    token: backendToken,
+  });
+  const input = {
+    query: 'monitor',
+    category: 'electronics',
+    maximumAmountMinor: 30_000,
+    slugs: [],
+    limit: 10,
+  };
+
+  assert.deepEqual(await adapter.searchProducts(input), products);
+  assert.deepEqual(requests.map((body) => JSON.parse(body)), [input]);
+});

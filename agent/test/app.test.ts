@@ -114,7 +114,7 @@ test('authenticated product route exposes the backend catalog harness', async (t
     catalog: demo,
     signer: demo,
     purchases: demo,
-    products: { listProducts: async () => products },
+    products: { listProducts: async () => products, searchProducts: async () => products },
   });
   t.after(() => closeServer(server));
 

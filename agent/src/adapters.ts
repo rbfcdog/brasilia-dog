@@ -86,8 +86,17 @@ export const catalogProductSchema = z.strictObject({
 
 export type CatalogProduct = z.infer<typeof catalogProductSchema>;
 
+export interface ProductSearchInput {
+  query: string | null;
+  category: string | null;
+  maximumAmountMinor: number | null;
+  slugs: string[];
+  limit: number;
+}
+
 export interface ProductCatalogAdapter {
   listProducts(): Promise<CatalogProduct[]>;
+  searchProducts(input: ProductSearchInput): Promise<CatalogProduct[]>;
 }
 
 export interface AgentAdapters {
@@ -205,6 +214,14 @@ export class HttpBackendAdapter implements
   async listProducts(): Promise<CatalogProduct[]> {
     const body = await this.requestRaw('v1/agent/products', { method: 'GET' });
     return this.parseResponse(productCatalogSchema, body, 'product catalog').products;
+  }
+
+  async searchProducts(input: ProductSearchInput): Promise<CatalogProduct[]> {
+    const body = await this.requestRaw('v1/agent/products/search', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+    return this.parseResponse(productCatalogSchema, body, 'marketplace search').products;
   }
 
   private presentationHeaders(input: SignedPresentation): HeadersInit {

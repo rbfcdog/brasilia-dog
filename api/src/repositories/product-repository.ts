@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import type { ProductCatalogEntry, ProductEndpoint, ProductMethod, ProductRail } from '../domain/types.js';
+import type { ProductCatalogEntry, ProductCatalogSearch, ProductEndpoint, ProductMethod, ProductRail } from '../domain/types.js';
 
 const ENDPOINT_SELECT = 'id,method,path,response_status,response_body,offering:product_payment_offerings!inner(id,rail,amount_minor,currency,scale,network_id,product:products!inner(id,slug,name,description))';
 const CATALOG_SELECT = 'id,method,path,enabled,offering:product_payment_offerings!inner(id,rail,amount_minor,currency,scale,network_id,active,product:products!inner(id,slug,name,description,status,metadata))';
@@ -126,5 +126,21 @@ export class ProductRepository {
     }
 
     return (data as unknown as CatalogRow[]).map(mapCatalogEntry);
+  }
+
+  async searchCatalog(input: ProductCatalogSearch): Promise<ProductCatalogEntry[]> {
+    const { data, error } = await this.client.rpc('search_agent_mpp_products', {
+      p_query: input.query,
+      p_category: input.category,
+      p_maximum_amount_minor: input.maximumAmountMinor,
+      p_slugs: input.slugs,
+      p_limit: input.limit,
+    });
+
+    if (error || !Array.isArray(data)) {
+      throw new Error('Could not search the product catalog.');
+    }
+
+    return data as ProductCatalogEntry[];
   }
 }
