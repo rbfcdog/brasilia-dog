@@ -12,6 +12,8 @@ const mockData = vi.hoisted(() => ({
     currency: "USD" as const,
     minimumScreenSize: 34,
     validUntil: "2026-09-01T00:00:00Z",
+    validityHours: 72,
+    paymentMethodId: "",
     status: "pending" as const,
     mockOutcome: "immediate" as const,
   },
@@ -49,6 +51,7 @@ const purchaseResult = {
     total: 292.43,
     currency: "USD" as const,
     purchasedAt: "2026-08-29T00:00:00Z",
+    paymentMethod: { brand: "Visa", label: "Personal Visa", last4: "4242" },
     status: "approved" as const,
   },
 };
@@ -85,7 +88,10 @@ describe("chat purchase flow", () => {
     expect(await screen.findByRole("dialog")).toHaveTextContent("Confirm your identity");
 
     await user.click(screen.getByRole("button", { name: /confirm with passkey/i }));
-    expect(mockData.approve).toHaveBeenCalledWith(mockData.mandate);
+    expect(mockData.approve).toHaveBeenCalledWith({
+      ...mockData.mandate,
+      paymentMethodId: "payment-visa-4242",
+    });
     expect(await screen.findByText("Aster 34-inch UWQHD Monitor")).toBeInTheDocument();
     expect(screen.getAllByText("$292.43").length).toBeGreaterThan(0);
     expect(screen.getByRole("status")).toHaveTextContent("Purchase completed within your mandate");

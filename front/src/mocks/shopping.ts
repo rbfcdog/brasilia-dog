@@ -3,6 +3,7 @@ import type {
   ChatMessage,
   Mandate,
   MockPurchaseOutcome,
+  PaymentMethod,
   PurchaseResponse,
 } from "@/types/shopping";
 
@@ -39,6 +40,8 @@ function makeMandate(message: string, context: ChatMessage[]): Mandate {
       ? Number(screenSizeMatch?.[1] ?? 34)
       : undefined,
     validUntil: new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString(),
+    validityHours: 72,
+    paymentMethodId: "",
     status: "pending",
     mockOutcome,
   };
@@ -77,24 +80,30 @@ export async function analyzeMockRequest(
 }
 
 export async function executeMockPurchase(
-  mandateId: string,
-  outcome: MockPurchaseOutcome,
+  mandate: Mandate,
+  paymentMethod: PaymentMethod,
 ): Promise<PurchaseResponse> {
   await delay(1_150);
 
-  if (outcome === "scheduled") {
+  if (mandate.mockOutcome === "scheduled" || mandate.maximumAmount < 292.43) {
     return {
       kind: "scheduled",
       message:
         "No qualifying offer is available yet. Your mandate is active and I will keep monitoring.",
       scheduledPurchase: {
-        id: `SCH-${mandateId.slice(0, 8).toUpperCase()}`,
-        mandateId,
-        scope: "34-inch ultrawide monitor",
-        maximumAmount: 220,
+        id: `SCH-${mandate.id.slice(0, 8).toUpperCase()}`,
+        mandateId: mandate.id,
+        scope: mandate.scope,
+        maximumAmount: mandate.maximumAmount,
         currency: "USD",
         createdAt: new Date().toISOString(),
-        validUntil: new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString(),
+        validUntil: mandate.validUntil,
+        validityHours: mandate.validityHours,
+        paymentMethod: {
+          brand: paymentMethod.brand,
+          label: paymentMethod.label,
+          last4: paymentMethod.last4,
+        },
         status: "searching",
       },
     };
@@ -105,8 +114,8 @@ export async function executeMockPurchase(
     message:
       "Purchase complete. The selected offer passed every mandate and merchant check.",
     receipt: {
-      id: `RCT-${mandateId.slice(0, 8).toUpperCase()}`,
-      mandateId,
+      id: `RCT-${mandate.id.slice(0, 8).toUpperCase()}`,
+      mandateId: mandate.id,
       merchant: "Northstar Displays",
       item: "Aster 34-inch UWQHD Monitor",
       subtotal: 274,
@@ -114,6 +123,11 @@ export async function executeMockPurchase(
       total: 292.43,
       currency: "USD",
       purchasedAt: new Date().toISOString(),
+      paymentMethod: {
+        brand: paymentMethod.brand,
+        label: paymentMethod.label,
+        last4: paymentMethod.last4,
+      },
       status: "approved",
     },
   };

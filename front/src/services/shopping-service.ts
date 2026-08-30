@@ -2,6 +2,7 @@ import { apiFetch } from "@/lib/api";
 import type {
   AgentResponse,
   Mandate,
+  PaymentMethod,
   PurchaseResponse,
 } from "@/types/shopping";
 
@@ -16,12 +17,12 @@ export const shoppingService = {
     });
   },
 
-  execute(mandate: Mandate) {
+  execute(mandate: Mandate, paymentMethod: PaymentMethod) {
     return apiFetch<PurchaseResponse>("/api/purchases", {
       method: "POST",
       body: JSON.stringify({
-        mandateId: mandate.id,
-        mockOutcome: mandate.mockOutcome,
+        mandate,
+        paymentMethod,
       }),
     });
   },

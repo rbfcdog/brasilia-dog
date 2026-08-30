@@ -14,6 +14,16 @@ export type ChatFlowState =
 
 export type MockPurchaseOutcome = "immediate" | "scheduled";
 
+export type PaymentBrand = "Visa" | "Mastercard" | "Amex";
+
+export interface PaymentMethod {
+  id: string;
+  brand: PaymentBrand;
+  label: string;
+  last4: string;
+  expiry: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: ChatRole;
@@ -28,6 +38,8 @@ export interface Mandate {
   currency: "USD";
   minimumScreenSize?: number;
   validUntil: string;
+  validityHours: number;
+  paymentMethodId: string;
   status: "pending" | "active";
   mockOutcome: MockPurchaseOutcome;
 }
@@ -42,6 +54,7 @@ export interface PurchaseReceipt {
   total: number;
   currency: "USD";
   purchasedAt: string;
+  paymentMethod: Pick<PaymentMethod, "brand" | "label" | "last4">;
   status: "approved";
 }
 
@@ -53,7 +66,10 @@ export interface ScheduledPurchase {
   currency: "USD";
   createdAt: string;
   validUntil: string;
-  status: "searching";
+  validityHours: number;
+  paymentMethod: Pick<PaymentMethod, "brand" | "label" | "last4">;
+  status: "searching" | "revoked";
+  revokedAt?: string;
 }
 
 export type AgentResponse =

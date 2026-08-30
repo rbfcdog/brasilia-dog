@@ -28,7 +28,7 @@ export function ReceiptCard({ receipt }: { receipt: PurchaseReceipt }) {
         </dl>
         <div className="mt-5 grid gap-2 sm:grid-cols-2">
           <p className="flex items-center gap-2 rounded-lg bg-canvas px-3 py-2.5 text-xs text-subtle"><ShieldCheck className="size-4 text-primary" /> Mandate verified</p>
-          <p className="flex items-center gap-2 rounded-lg bg-canvas px-3 py-2.5 text-xs text-subtle"><CreditCard className="size-4 text-primary" /> Visa •••• 4242</p>
+          <p className="flex items-center gap-2 rounded-lg bg-canvas px-3 py-2.5 text-xs text-subtle"><CreditCard className="size-4 text-primary" /> {receipt.paymentMethod.brand} •••• {receipt.paymentMethod.last4}</p>
         </div>
         <button className="mt-4 flex items-center gap-2 text-xs font-medium text-primary">
           <ReceiptText className="size-4" /> View authorization record <ExternalLink className="size-3" />

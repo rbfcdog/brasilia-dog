@@ -37,6 +37,8 @@ describe("passkey biometric provider", () => {
       maximumAmount: 300,
       currency: "USD",
       validUntil: "2026-09-02T00:00:00.000Z",
+      validityHours: 72,
+      paymentMethodId: "payment-visa-4242",
       status: "pending",
       mockOutcome: "scheduled",
     });
