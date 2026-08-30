@@ -87,4 +87,26 @@ describe("passkey BFF session continuity", () => {
     const init = mocks.fetch.mock.calls[0]?.[1] as RequestInit;
     expect((init.headers as Headers).get("authorization")).toBe("Bearer cookie-session");
   });
+
+  it("keeps the browser's passkey bearer for chat when an account cookie is also present", async () => {
+    process.env.BACKEND_API_URL = "https://api.example.test";
+    mocks.cookies.set("nomad-auth-access", "account-token");
+    mocks.fetch.mockResolvedValue(new Response(JSON.stringify({
+      ok: true,
+      data: { kind: "clarification", message: "What is your budget?" },
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    vi.stubGlobal("fetch", mocks.fetch);
+
+    await POST(new Request("https://shop.example.test/api/backend/v1/chat", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer browser-passkey-session",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ message: "Show me appliances" }),
+    }), { params: Promise.resolve({ path: ["v1", "chat"] }) });
+
+    const init = mocks.fetch.mock.calls[0]?.[1] as RequestInit;
+    expect((init.headers as Headers).get("authorization")).toBe("Bearer browser-passkey-session");
+  });
 });

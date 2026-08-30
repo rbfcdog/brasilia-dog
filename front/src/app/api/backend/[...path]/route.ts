@@ -124,17 +124,16 @@ async function requestHeaders(request: Request, pathname: string): Promise<Heade
   const passkeyRoute = /^\/passkey\/(?:register|auth)\//.test(pathname);
   const chatRoute = pathname === "/v1/chat" || pathname === "/v1/conversations" || /^\/v1\/conversations\//.test(pathname);
 
-  // Chat and conversation routes use the Supabase account token for persistence.
-  // Payment and mandate routes use the passkey session for biometric authorization.
+  // Chat turns belong to the active passkey session. Prefer its HttpOnly BFF
+  // cookie, preserve an explicit browser bearer, then fall back to the account
+  // token only when neither passkey credential is available.
   if (chatRoute) {
-    const accessToken = await ensureFreshAccessToken(cookieStore);
-    if (accessToken) {
-      headers.set("authorization", `Bearer ${accessToken}`);
-    } else {
-      const passkeySession = cookieStore.get("nomad-passkey-session")?.value;
-      if (!passkeyRoute && passkeySession) {
-        headers.set("authorization", `Bearer ${passkeySession}`);
-      }
+    const passkeySession = cookieStore.get("nomad-passkey-session")?.value;
+    if (passkeySession) {
+      headers.set("authorization", `Bearer ${passkeySession}`);
+    } else if (!headers.has("authorization")) {
+      const accessToken = await ensureFreshAccessToken(cookieStore);
+      if (accessToken) headers.set("authorization", `Bearer ${accessToken}`);
     }
   } else {
     const passkeySession = cookieStore.get("nomad-passkey-session")?.value;

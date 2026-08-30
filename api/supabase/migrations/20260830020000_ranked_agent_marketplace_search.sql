@@ -66,8 +66,6 @@ as $$
       on endpoints.offering_id = offerings.id
     where products.status = 'published'
       and offerings.rail = 'stripe_mpp'
-      and offerings.active
-      and endpoints.enabled
       and (nullif(btrim(p_query), '') is null
         or products.search_document @@ websearch_to_tsquery('simple', p_query))
       and (nullif(btrim(p_category), '') is null

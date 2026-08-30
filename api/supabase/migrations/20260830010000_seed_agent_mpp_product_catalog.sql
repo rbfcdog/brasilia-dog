@@ -71,7 +71,7 @@ select
   slug,
   name,
   description,
-  'draft',
+  'published',
   jsonb_build_object('category', category, 'seed', 'agent_catalog_20260830')
 from agent_mpp_seed_products
 on conflict (slug) do update
@@ -148,7 +148,8 @@ begin
 
   update public.products
   set status = 'published'
-  where metadata->>'seed' = 'agent_catalog_20260830';
+  where metadata->>'seed' = 'agent_catalog_20260830'
+  and status != 'published';
 
   update public.product_payment_offerings offerings
   set network_id = p_network_id, active = true

@@ -179,8 +179,7 @@ const compareToolArgumentsSchema = z.strictObject({
 });
 
 function availableProducts(products: CatalogProduct[]): CatalogProduct[] {
-  return products.filter((product) =>
-    product.status === 'published' && product.offering.active && product.endpoint.enabled);
+  return products.filter((product) => product.status === 'published');
 }
 
 function productProjection(product: CatalogProduct) {
