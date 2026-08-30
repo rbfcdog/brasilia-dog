@@ -2,6 +2,7 @@
 
 import { Bell, Fingerprint, KeyRound, Loader2, LockKeyhole, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
+import { PaymentSettings } from "@/components/pages/payment-settings";
 import { ApiError } from "@/lib/api";
 import {
   clearPasskeySessionToken,
@@ -31,8 +32,8 @@ export function ProfileSettings() {
 
     const sessionToken = getPasskeySessionToken();
     if (!sessionToken) {
-      queueMicrotask(() => setSessionState({ kind: "signed_out" }));
-      return;
+      const frame = window.requestAnimationFrame(() => setSessionState({ kind: "signed_out" }));
+      return () => window.cancelAnimationFrame(frame);
     }
 
     void backendService
@@ -48,33 +49,32 @@ export function ProfileSettings() {
       });
   }, []);
 
-  // Sync passkeyState session changes with sessionState display
-  useEffect(() => {
-    if (passkeyState.status === "success" && passkeyState.sessionToken && passkeyState.userId) {
-      setSessionState({ kind: "authenticated", userId: passkeyState.userId });
-    }
-  }, [passkeyState.status, passkeyState.sessionToken, passkeyState.userId]);
+  const displayedSessionState: SessionState =
+    passkeyState.status === "success" && passkeyState.sessionToken && passkeyState.userId
+      ? { kind: "authenticated", userId: passkeyState.userId }
+      : sessionState;
 
   const authLabel =
-    sessionState.kind === "checking"
+    displayedSessionState.kind === "checking"
       ? "Checking session"
-      : sessionState.kind === "authenticated"
+      : displayedSessionState.kind === "authenticated"
         ? "Authenticated"
-        : sessionState.kind === "expired"
+        : displayedSessionState.kind === "expired"
           ? "Session expired"
           : "Signed out";
 
-  const authenticated = sessionState.kind === "authenticated";
+  const authenticated = displayedSessionState.kind === "authenticated";
   const identityLabel = authenticated
-    ? sessionState.userId
+    ? displayedSessionState.userId
     : "No active passkey session";
 
   const testUserId = "test-user-local";
   const testUsername = "Test User";
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      <article className="h-full rounded-2xl border border-line bg-white p-5 shadow-sm">
+    <div className="space-y-4">
+      <div className="grid gap-4 lg:grid-cols-2">
+        <article className="h-full rounded-2xl border border-line bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex items-center gap-4">
               <div className="grid size-12 place-items-center rounded-full bg-ink text-sm font-semibold text-white">HL</div>
@@ -93,9 +93,9 @@ export function ProfileSettings() {
               Backend: {backendStatus}
             </p>
           </div>
-      </article>
+        </article>
 
-      <article className="h-full rounded-2xl border border-primary/15 bg-primary-soft p-5 text-ink shadow-sm">
+        <article className="h-full rounded-2xl border border-primary/15 bg-primary-soft p-5 text-ink shadow-sm">
           <ShieldCheck className="size-5 text-primary" aria-hidden="true" />
           <h2 className="mt-4 text-lg font-semibold tracking-[-0.025em]">Security boundary</h2>
           <p className="mt-2 text-sm leading-6 text-subtle">The browser can request actions and read permitted projections. It cannot mutate mandates or execute payments directly.</p>
@@ -104,9 +104,9 @@ export function ProfileSettings() {
             <p className="flex items-center gap-2"><LockKeyhole className="size-3.5 text-primary" aria-hidden="true" /> No raw payment credentials</p>
             <p className="flex items-center gap-2"><LockKeyhole className="size-3.5 text-primary" aria-hidden="true" /> RLS-ready reads only</p>
           </div>
-      </article>
+        </article>
 
-      <article className="h-full rounded-2xl border border-line bg-white p-5 shadow-sm">
+        <article className="h-full rounded-2xl border border-line bg-white p-5 shadow-sm">
           <div className="flex items-center gap-3"><Fingerprint className="size-5 text-primary" aria-hidden="true" /><div><h2 className="font-semibold">Approval methods</h2><p className="mt-0.5 text-xs text-muted">Controls for high-trust account actions</p></div></div>
           <div className="mt-5 space-y-4">
             <div className="rounded-xl border border-line p-4">
@@ -136,7 +136,10 @@ export function ProfileSettings() {
                 {authenticated && (
                   <button
                     type="button"
-                    onClick={signOut}
+                    onClick={() => {
+                      signOut();
+                      setSessionState({ kind: "signed_out" });
+                    }}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-white px-3 py-1.5 text-xs font-medium text-muted transition hover:bg-canvas"
                   >
                     Sign out
@@ -154,16 +157,18 @@ export function ProfileSettings() {
               <span className="rounded-full bg-success/40 px-2.5 py-1 font-mono text-[9px] uppercase text-success-ink">Active</span>
             </div>
           </div>
-      </article>
+        </article>
 
-      <article className="h-full rounded-2xl border border-line bg-white p-5 shadow-sm">
+        <article className="h-full rounded-2xl border border-line bg-white p-5 shadow-sm">
           <div className="flex items-center gap-3"><Bell className="size-5 text-primary" aria-hidden="true" /><div><h2 className="font-semibold">Notifications</h2><p className="mt-0.5 text-xs text-muted">Purchase and mandate updates</p></div></div>
           <div className="mt-5 space-y-3 text-sm">
             <label className="flex items-center justify-between gap-4"><span>Mandate activity</span><input type="checkbox" name="mandateActivity" defaultChecked className="size-4 accent-primary" /></label>
             <label className="flex items-center justify-between gap-4"><span>Purchase receipts</span><input type="checkbox" name="purchaseReceipts" defaultChecked className="size-4 accent-primary" /></label>
             <label className="flex items-center justify-between gap-4"><span>Blocked attempts</span><input type="checkbox" name="blockedAttempts" defaultChecked className="size-4 accent-primary" /></label>
           </div>
-      </article>
+        </article>
+      </div>
+      <PaymentSettings />
     </div>
   );
 }

@@ -85,9 +85,9 @@ function SidebarContent({ closeMenu }: { closeMenu?: () => void }) {
               >
                 <Icon className="size-4" strokeWidth={1.8} aria-hidden="true" />
                 <span>{item.label}</span>
-                {item.href === "/scheduled" && scheduledPurchases.length > 0 ? (
+                {item.href === "/scheduled" && scheduledPurchases.some((purchase) => purchase.status === "searching") ? (
                   <span className="ml-auto rounded-full bg-success px-2 py-0.5 font-mono text-[9px] text-success-ink">
-                    {scheduledPurchases.length}
+                    {scheduledPurchases.filter((purchase) => purchase.status === "searching").length}
                   </span>
                 ) : null}
               </Link>

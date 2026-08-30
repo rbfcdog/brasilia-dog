@@ -41,6 +41,7 @@ export function ChatExperience() {
     state,
     sendMessage,
     requestApproval,
+    updateMandate,
     confirmApproval,
     cancelApproval,
     reset,
@@ -144,7 +145,7 @@ export function ChatExperience() {
               {state.status === "analyzing" || state.status === "searching" ? <AgentActivity status={state.status} /> : null}
 
               {state.mandate ? (
-                <MandateCard mandate={state.mandate} status={state.status} onApprove={requestApproval} />
+                <MandateCard mandate={state.mandate} status={state.status} onApprove={requestApproval} onUpdate={updateMandate} />
               ) : null}
 
               {state.receipt ? <ReceiptCard receipt={state.receipt} /> : null}

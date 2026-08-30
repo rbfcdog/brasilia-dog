@@ -34,6 +34,7 @@ export type AIShoppingAction =
   | { type: "SUBMIT"; message: ChatMessage }
   | { type: "CLARIFICATION"; message: ChatMessage }
   | { type: "MANDATE_READY"; message: ChatMessage; mandate: Mandate }
+  | { type: "UPDATE_MANDATE"; mandate: Mandate }
   | { type: "REQUEST_APPROVAL" }
   | { type: "CANCEL_APPROVAL" }
   | { type: "SEARCHING"; message: ChatMessage }
@@ -88,6 +89,8 @@ export function aiShoppingReducer(
         messages: [...state.messages, action.message],
         mandate: action.mandate,
       };
+    case "UPDATE_MANDATE":
+      return state.status === "mandate_ready" ? { ...state, mandate: action.mandate } : state;
     case "REQUEST_APPROVAL":
       return { ...state, status: "biometric_confirmation" };
     case "CANCEL_APPROVAL":
@@ -164,7 +167,11 @@ async function persistMessage(
 
 export function useAIShopping() {
   const [state, dispatch] = useReducer(aiShoppingReducer, initialAIShoppingState);
-  const { addScheduledPurchase } = useShoppingStore();
+  const {
+    addScheduledPurchase: schedulePurchase,
+    paymentMethods,
+    preferredPaymentMethodId,
+  } = useShoppingStore();
   const conversationIdRef = useRef<string | null>(null);
 
   // On mount: hydrate from backend if a passkey session exists, else from demoStorage.
@@ -253,7 +260,7 @@ export function useAIShopping() {
         dispatch({
           type: "MANDATE_READY",
           message: assistantMessage,
-          mandate: response.mandate,
+          mandate: { ...response.mandate, paymentMethodId: preferredPaymentMethodId },
         });
         void persistMessage(conversationIdRef, assistantMessage);
       } catch (error) {
@@ -267,7 +274,7 @@ export function useAIShopping() {
         });
       }
     },
-    [state.messages, state.status],
+    [preferredPaymentMethodId, state.messages, state.status],
   );
 
   const requestApproval = useCallback(() => {
@@ -288,13 +295,15 @@ export function useAIShopping() {
       dispatch({ type: "SEARCHING", message: searchingMessage });
       void persistMessage(conversationIdRef, searchingMessage);
 
-      const result = await shoppingService.execute(state.mandate);
+      const paymentMethod = paymentMethods.find((method) => method.id === state.mandate?.paymentMethodId);
+      if (!paymentMethod) throw new Error("Select a payment method before approving this mandate.");
+      const result = await shoppingService.execute(state.mandate, paymentMethod);
       const assistantMessage = createMessage("assistant", result.message);
 
       if (result.kind === "purchased") {
         dispatch({ type: "PURCHASED", message: assistantMessage, receipt: result.receipt });
       } else {
-        addScheduledPurchase(result.scheduledPurchase);
+        schedulePurchase(result.scheduledPurchase);
         dispatch({
           type: "SCHEDULED",
           message: assistantMessage,
@@ -312,12 +321,13 @@ export function useAIShopping() {
         message: error instanceof Error ? error.message : "Approval could not be completed.",
       });
     }
-  }, [addScheduledPurchase, state.mandate]);
+  }, [paymentMethods, schedulePurchase, state.mandate]);
 
   return {
     state,
     sendMessage,
     requestApproval,
+    updateMandate: (mandate: Mandate) => dispatch({ type: "UPDATE_MANDATE", mandate }),
     cancelApproval: () => dispatch({ type: "CANCEL_APPROVAL" }),
     confirmApproval,
     reset,
