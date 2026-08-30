@@ -154,7 +154,7 @@ const catalogToolDefinitions = [
   {
     type: 'function',
     name: 'search_products',
-    description: 'Search the current backend product catalog by category, text, and optional maximum price.',
+    description: 'Search authoritative current catalog listings. Use for any request to buy, find, show, browse, or locate products. Pass concise product terms only, the exact category only when known, and the stated price ceiling only when provided.',
     strict: true,
     parameters: {
       type: 'object',
@@ -170,7 +170,7 @@ const catalogToolDefinitions = [
   {
     type: 'function',
     name: 'list_product_categories',
-    description: 'List categories available in the current backend product catalog.',
+    description: 'List authoritative catalog categories. Use only when the user asks which categories are available without naming a product type.',
     strict: true,
     parameters: {
       type: 'object',
@@ -182,7 +182,7 @@ const catalogToolDefinitions = [
   {
     type: 'function',
     name: 'compare_products',
-    description: 'Load exact current catalog records for up to five product slugs for comparison.',
+    description: 'Load authoritative current records for two to five exact hyphenated product slugs. Use only when the user supplies those exact slugs and requests a comparison.',
     strict: true,
     parameters: {
       type: 'object',
@@ -208,9 +208,15 @@ function requiresCatalogSearch(message: string): boolean {
   return /\b(?:buy|find|show|search|browse|available|looking for|need|want|compare|product|products|catalog|offer|offers|comprar|encontrar|mostrar|buscar|procurar|pesquisar|navegar|dispon[ií]vel|produto|produtos|cat[aá]logo|oferta|ofertas|preciso|quero|comparar)\b/i.test(message);
 }
 
-function initialCatalogTool(message: string): 'list_product_categories' | 'search_products' | null {
+type InitialCatalogTool = 'list_product_categories' | 'search_products' | 'compare_products';
+
+function initialCatalogTool(message: string): InitialCatalogTool | null {
   if (/\b(?:categories|categorias)\b/i.test(message)) {
     return 'list_product_categories';
+  }
+  const requestedSlugs = message.match(/\b[a-z0-9]+(?:-[a-z0-9]+)+\b/gi) ?? [];
+  if (/\b(?:compare|comparar)\b/i.test(message) && requestedSlugs.length >= 2) {
+    return 'compare_products';
   }
   return requiresCatalogSearch(message) ? 'search_products' : null;
 }
@@ -229,6 +235,13 @@ function forcedSearchArguments(message: string): string {
     query: query || null,
     maximumAmount: Number.isFinite(maximumAmount) ? maximumAmount : null,
   });
+}
+
+function forcedToolArguments(tool: InitialCatalogTool, message: string): string {
+  if (tool === 'search_products') return forcedSearchArguments(message);
+  if (tool === 'list_product_categories') return '{}';
+  const slugs = message.match(/\b[a-z0-9]+(?:-[a-z0-9]+)+\b/gi) ?? [];
+  return JSON.stringify({ slugs: [...new Set(slugs)].slice(0, 5) });
 }
 
 
@@ -359,8 +372,7 @@ export class OpenAIShoppingResponder implements ChatResponder {
       const instructions = [
         'Act as a capable shopping research assistant with tools for current catalog search, category discovery, and product comparison.',
         'Use catalog tools whenever the user asks what is available, asks for products in a category, asks to buy or find a product, or asks to compare products. Never invent catalog results.',
-        'For a request to buy, find, show, search, browse, or locate a product, search the current catalog before responding.',
-        'You may browse and explain products without requiring a budget. Product browsing is read-only and does not authorize selection or purchase.',
+        'Product browsing is read-only and does not authorize selection or purchase.',
         'Help the user prepare a non-executable autonomous shopping mandate proposal when they provide a search category and spending cap.',
         'The mandate authorizes search constraints, not a preselected product, seller, or listing.',
         'After approval, a separate workflow may choose the best qualifying offer and request MPP execution within the mandate.',
@@ -369,6 +381,10 @@ export class OpenAIShoppingResponder implements ChatResponder {
         'For product discovery, put exact tool-returned products in products and leave scope and maximumAmount null.',
         'For a mandate proposal, leave products empty and provide a category-level scope and maximumAmount.',
         'For a mandate proposal, category must be the exact normalized catalog category used by the merchant metadata.',
+        'Tool-call policy: before any prose, call search_products for a product request; call list_product_categories only for an unscoped category question; call compare_products only when two or more exact product slugs are supplied.',
+        'For search_products, send concise product terms in query, category only when it exactly matches merchant metadata, and maximumAmount only when the user stated a ceiling. Never put instructions, seller names, or a budget in query.',
+        'Do not ask a clarification question when the request already names a product or category. Search first, then report the authoritative result or that no current listing qualifies.',
+        'Treat tool results as the only catalog truth. Return only exact tool-result slugs and prices; never invent or infer a listing.',
       ].join(' ');
       const initialTool = initialCatalogTool(input.message);
       let modelInput: string | unknown[] = JSON.stringify({
@@ -404,8 +420,8 @@ export class OpenAIShoppingResponder implements ChatResponder {
         } => item.type === 'function_call');
         if (functionCalls.length === 0) {
           outputText = response.output_text;
-          if (round === 0 && initialTool === 'search_products' && input.catalog) {
-            const execution = await executeCatalogTool('search_products', forcedSearchArguments(input.message), input.catalog);
+          if (round === 0 && initialTool && input.catalog) {
+            const execution = await executeCatalogTool(initialTool, forcedToolArguments(initialTool, input.message), input.catalog);
             activity = [...activity, execution.activity];
             catalogProducts = uniqueProducts([...catalogProducts, ...execution.products]);
           }

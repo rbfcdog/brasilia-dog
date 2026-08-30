@@ -471,3 +471,30 @@ test('shopping responder executes a deterministic backend search when a forced m
     currency: 'USD',
   }]);
 });
+
+test('shopping responder forces exact-slug comparison only for explicit comparison requests', async () => {
+  const requests: CapturedRequest[] = [];
+  const client = {
+    responses: {
+      create: async (request: CapturedRequest) => {
+        requests.push(request);
+        return {
+          output_text: JSON.stringify({
+            message: 'I need current catalog data.',
+            scope: null,
+            maximumAmount: null,
+            minimumScreenSize: null,
+            category: null,
+            products: [],
+          }),
+          output: [],
+        };
+      },
+    },
+  } as unknown as OpenAI;
+  const responder = new OpenAIShoppingResponder({ apiKey: 'test-key', model: 'test-model', client });
+
+  await responder.respond({ message: 'Compare air-purifier-room-index and robot-vacuum-navigation-report.' });
+
+  assert.deepEqual(requests[0]?.tool_choice, { type: 'function', name: 'compare_products' });
+});
