@@ -9,12 +9,6 @@ const baseSchema = z.object({
   ADAPTER_MODE: z.enum(['demo', 'http']),
   BACKEND_BASE_URL: z.url().optional(),
   AGENT_BACKEND_TOKEN: z.string().min(16).optional(),
-  SUPABASE_URL: z.url().optional(),
-  SUPABASE_SECRET_KEY: z.string().min(1).optional(),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
-  STRIPE_SECRET_KEY: z.string().startsWith('sk_test_').optional(),
-  AGENT_SIGNING_PRIVATE_JWK: z.string().optional(),
-  AGENT_SIGNING_KEY_PATH: z.string().optional(),
 });
 
 export interface AgentConfig {
@@ -25,11 +19,6 @@ export interface AgentConfig {
   adapterMode: 'demo' | 'http';
   backendBaseUrl?: string;
   backendToken?: string;
-  supabaseUrl?: string;
-  supabaseKey?: string;
-  stripeSecretKey?: string;
-  signingPrivateJwk?: string;
-  signingKeyPath: string;
 }
 
 export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AgentConfig {
@@ -46,7 +35,6 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AgentC
       'BACKEND_BASE_URL and AGENT_BACKEND_TOKEN are required when ADAPTER_MODE=http.',
     );
   }
-  const supabaseKey = value.SUPABASE_SECRET_KEY ?? value.SUPABASE_SERVICE_ROLE_KEY;
 
   return {
     port: value.PORT,
@@ -56,10 +44,5 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AgentC
     adapterMode: value.ADAPTER_MODE,
     ...(value.BACKEND_BASE_URL ? { backendBaseUrl: value.BACKEND_BASE_URL } : {}),
     ...(backendToken ? { backendToken } : {}),
-    ...(value.SUPABASE_URL ? { supabaseUrl: value.SUPABASE_URL } : {}),
-    ...(supabaseKey ? { supabaseKey } : {}),
-    ...(value.STRIPE_SECRET_KEY ? { stripeSecretKey: value.STRIPE_SECRET_KEY } : {}),
-    ...(value.AGENT_SIGNING_PRIVATE_JWK ? { signingPrivateJwk: value.AGENT_SIGNING_PRIVATE_JWK } : {}),
-    signingKeyPath: value.AGENT_SIGNING_KEY_PATH ?? '.agent-signing-private.jwk',
   };
 }

@@ -32,3 +32,20 @@ test('HTTP mode requires its backend URL and service token', () => {
   });
   assert.equal(config.backendBaseUrl, 'https://backend.example.test');
 });
+
+test('agent configuration excludes direct database and payment credentials', () => {
+  const config = loadConfig({
+    ...baseEnvironment,
+    ADAPTER_MODE: 'http',
+    BACKEND_BASE_URL: 'https://backend.example.test',
+    AGENT_BACKEND_TOKEN: 'backend-service-token-12345',
+    SUPABASE_URL: 'https://project.supabase.co',
+    SUPABASE_SECRET_KEY: 'service-role-secret',
+    SUPABASE_SERVICE_ROLE_KEY: 'legacy-service-role-secret',
+    STRIPE_SECRET_KEY: 'sk_test_secret',
+  });
+
+  assert.equal('supabaseUrl' in config, false);
+  assert.equal('supabaseKey' in config, false);
+  assert.equal('stripeSecretKey' in config, false);
+});
