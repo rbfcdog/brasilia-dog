@@ -124,7 +124,7 @@ const app = createApp({
   sellerAgentVerificationService,
   sellerQuoteRepository,
   sessionService,
-  demoPasskeyEnabled: config.mode === 'sandbox',
+  demoPasskeyEnabled: true,
   agentServiceToken: config.agentServiceToken,
   merchantService,
   authenticateSupabaseUser: supabase
