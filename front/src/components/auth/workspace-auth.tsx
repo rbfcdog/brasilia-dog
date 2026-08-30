@@ -66,7 +66,7 @@ export function WorkspaceAuth() {
   function shouldOfferEnrollmentFallback(error: unknown): boolean {
     if (!(error instanceof Error)) return false;
     return error.name === "SecurityError"
-      || /\b(insecure|secure context|operation is insecure)\b/i.test(error.message);
+      || /\b(insecure|secure context|operation is insecure|passkey_registration_unavailable|could not save passkey challenge)\b/i.test(error.message);
   }
   async function registerFirstPasskey() {
     if (!pendingEnrollment) return;
