@@ -1,10 +1,22 @@
+// Two distinct shared secrets exist and both are named AGENT_SERVICE_TOKEN from
+// their own side's perspective. This script needs both:
+//   AGENT_SERVICE_TOKEN  — the AGENT service's accepted token (what the front
+//                          BFF presents to the agent).
+//   AGENT_BACKEND_TOKEN  — what the agent presents to the api (the api's inbound
+//                          AGENT_SERVICE_TOKEN).
 const agentServiceToken = process.env.AGENT_SERVICE_TOKEN?.trim();
+const apiInboundToken = process.env.AGENT_BACKEND_TOKEN?.trim();
 if (!agentServiceToken) {
-  console.error("AGENT_SERVICE_TOKEN is required for the local readiness checks.");
+  console.error("AGENT_SERVICE_TOKEN (the agent service's accepted token) is required for the local readiness checks.");
+  process.exit(1);
+}
+if (!apiInboundToken) {
+  console.error("AGENT_BACKEND_TOKEN (the api's inbound agent token) is required for the local readiness checks.");
   process.exit(1);
 }
 
 const agentAuthorization = { Authorization: `Bearer ${agentServiceToken}` };
+const apiAuthorization = { Authorization: `Bearer ${apiInboundToken}` };
 const checks = [
   {
     name: "api",
@@ -29,7 +41,7 @@ const checks = [
   {
     name: "api -> Supabase",
     url: "http://127.0.0.1:3000/v1/agent/products",
-    init: { headers: agentAuthorization },
+    init: { headers: apiAuthorization },
     validate: async (response) => Array.isArray((await response.json()).products),
   },
   {
