@@ -10,6 +10,7 @@ import { MandateRepository } from '../repositories/mandate-repository.js';
 import { PaymentHistoryRepository } from '../repositories/payment-history-repository.js';
 import { SellerQuoteRepository } from '../repositories/seller-quote-repository.js';
 import { ConversationRepository } from '../repositories/conversation-repository.js';
+import { SupabasePasskeyStore, SupabaseSessionStore } from '../repositories/passkey-repository.js';
 import { createExpressApp } from '../http/server.js';
 import { ProductCatalogService } from '../services/product-catalog-service.js';
 import { PaymentService } from '../services/payment-service.js';
@@ -42,15 +43,15 @@ const sellerQuoteRepository = supabase ? new SellerQuoteRepository(supabase) : n
 const conversationRepository = supabase ? new ConversationRepository(supabase) : null;
 const merchantService = supabase ? new MerchantService(supabase, config.stripeProfileId) : null;
 
-const sessionStore = new InMemorySessionStore();
-const sessionService = new SessionService({ secret: config.sessionSecret, store: sessionStore });
+const sessionStore = supabase ? new SupabaseSessionStore(supabase) : new InMemorySessionStore();
+const sessionService = new SessionService({ secret: config.sessionSecret, store: sessionStore, ttlSeconds: 86_400 });
 const sellerAgentVerificationService = new SellerAgentVerificationService(config.sessionSecret);
 
 const passkeyService = new PasskeyService({
   rpName: config.passkey.rpName,
   rpId: config.passkey.rpId,
   origin: config.passkey.origin,
-  store: new InMemoryPasskeyStore(),
+  store: supabase ? new SupabasePasskeyStore(supabase) : new InMemoryPasskeyStore(),
   sessionService,
 });
 
@@ -106,6 +107,13 @@ const app = createApp({
   sessionService,
   agentServiceToken: config.agentServiceToken,
   merchantService,
+  authenticateSupabaseUser: supabase
+    ? async (accessToken) => {
+        const { data, error } = await supabase.auth.getUser(accessToken);
+        if (error || !data.user) return null;
+        return { id: data.user.id, ...(data.user.email ? { email: data.user.email } : {}) };
+      }
+    : null,
 });
 const server = createExpressApp(app).listen(config.port, '0.0.0.0', () => {
   console.log(`Stripe MPP ${config.mode} service listening on http://0.0.0.0:${config.port}`);

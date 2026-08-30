@@ -1,6 +1,8 @@
 "use client";
 
-import { Bell, Fingerprint, KeyRound, Loader2, LockKeyhole, ShieldCheck } from "lucide-react";
+import { Bell, Fingerprint, KeyRound, Loader2, LockKeyhole, LogIn, QrCode, ShieldCheck } from "lucide-react";
+import QRCode from "qrcode";
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { PaymentSettings } from "@/components/pages/payment-settings";
 import { ApiError } from "@/lib/api";
@@ -10,6 +12,7 @@ import {
 } from "@/lib/passkey-session";
 import { backendService } from "@/services/backend-service";
 import { usePasskey } from "@/hooks/use-passkey";
+import { createMerchantBrowserClient } from "@/lib/supabase/client";
 
 type SessionState =
   | { kind: "checking" }
@@ -23,6 +26,11 @@ export function ProfileSettings() {
   const [sessionState, setSessionState] = useState<SessionState>({ kind: "checking" });
   const [backendStatus, setBackendStatus] = useState<BackendStatus>("checking");
   const { state: passkeyState, test, signOut, supported } = usePasskey();
+  const [supabaseUser, setSupabaseUser] = useState<{ id: string; email: string; accessToken: string } | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [qrCode, setQrCode] = useState<string | null>(null);
 
   useEffect(() => {
     void backendService
@@ -49,6 +57,56 @@ export function ProfileSettings() {
       });
   }, []);
 
+  useEffect(() => {
+    let supabase;
+    try {
+      supabase = createMerchantBrowserClient();
+    } catch {
+      return;
+    }
+    void supabase.auth.getSession().then(({ data }) => {
+      const session = data.session;
+      setSupabaseUser(session?.user
+        ? { id: session.user.id, email: session.user.email ?? session.user.id, accessToken: session.access_token }
+        : null);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSupabaseUser(session?.user
+        ? { id: session.user.id, email: session.user.email ?? session.user.id, accessToken: session.access_token }
+        : null);
+      if (!session) setQrCode(null);
+    });
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!supabaseUser) return;
+    const enrollmentUrl = `${window.location.origin}/profile?enroll=passkey`;
+    void QRCode.toDataURL(enrollmentUrl, { width: 220, margin: 2 }).then(setQrCode);
+  }, [supabaseUser]);
+
+  async function signInToSupabase() {
+    setAuthError(null);
+    try {
+      const supabase = createMerchantBrowserClient();
+      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      if (error) throw error;
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Supabase sign-in failed.");
+    }
+  }
+
+  async function signUpToSupabase() {
+    setAuthError(null);
+    try {
+      const supabase = createMerchantBrowserClient();
+      const { error } = await supabase.auth.signUp({ email: email.trim(), password });
+      if (error) throw error;
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Supabase sign-up failed.");
+    }
+  }
+
   const displayedSessionState: SessionState =
     passkeyState.status === "success" && passkeyState.sessionToken && passkeyState.userId
       ? { kind: "authenticated", userId: passkeyState.userId }
@@ -64,12 +122,9 @@ export function ProfileSettings() {
           : "Signed out";
 
   const authenticated = displayedSessionState.kind === "authenticated";
-  const identityLabel = authenticated
-    ? displayedSessionState.userId
-    : "No active passkey session";
-
-  const testUserId = "test-user-local";
-  const testUsername = "Test User";
+  const identityLabel = supabaseUser?.email ?? "No Supabase user";
+  const passkeyUserId = supabaseUser?.id ?? null;
+  const passkeyAccessToken = supabaseUser?.accessToken ?? null;
 
   return (
     <div className="space-y-4">
@@ -78,7 +133,7 @@ export function ProfileSettings() {
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex items-center gap-4">
               <div className="grid size-12 place-items-center rounded-full bg-ink text-sm font-semibold text-white">HL</div>
-              <div><h2 className="font-semibold tracking-[-0.02em]">Henrique Lacerda</h2><p className="mt-1 text-sm text-subtle">{identityLabel}</p></div>
+              <div><h2 className="font-semibold tracking-[-0.02em]">{supabaseUser?.email ?? "Buyer account"}</h2><p className="mt-1 text-sm text-subtle">{identityLabel}</p></div>
             </div>
             <span className={`rounded-full px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.1em] ${authenticated ? "bg-success/40 text-success-ink" : "bg-canvas text-subtle"}`}>{authLabel}</span>
           </div>
@@ -107,6 +162,36 @@ export function ProfileSettings() {
         </article>
 
         <article className="h-full rounded-2xl border border-line bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-3"><LogIn className="size-5 text-primary" /><div><h2 className="font-semibold">Supabase account</h2><p className="mt-0.5 text-xs text-muted">Passkeys and conversations are owned by this user</p></div></div>
+          {supabaseUser ? (
+            <div className="mt-5">
+              <p className="text-sm text-subtle">Signed in as <strong className="text-ink">{supabaseUser.email}</strong></p>
+              <button type="button" onClick={() => void createMerchantBrowserClient().auth.signOut()} className="mt-3 rounded-lg border border-line px-3 py-1.5 text-xs">Sign out of Supabase</button>
+            </div>
+          ) : (
+            <div className="mt-5 space-y-3">
+              <input aria-label="Email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" className="h-10 w-full rounded-lg border border-line px-3 text-sm" />
+              <input aria-label="Password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Password" className="h-10 w-full rounded-lg border border-line px-3 text-sm" />
+              <div className="flex gap-2">
+                <button type="button" onClick={() => void signInToSupabase()} className="rounded-lg bg-ink px-3 py-2 text-xs font-medium text-white">Sign in</button>
+                <button type="button" onClick={() => void signUpToSupabase()} className="rounded-lg border border-line px-3 py-2 text-xs font-medium">Create account</button>
+              </div>
+              {authError ? <p role="alert" className="text-xs text-danger">{authError}</p> : null}
+            </div>
+          )}
+        </article>
+
+        <article className="h-full rounded-2xl border border-line bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-3"><QrCode className="size-5 text-primary" /><div><h2 className="font-semibold">Enroll another device</h2><p className="mt-0.5 text-xs text-muted">Open the secure Profile enrollment page on your phone</p></div></div>
+          {qrCode ? (
+            <div className="mt-4 flex items-center gap-4">
+              <Image src={qrCode} width={144} height={144} unoptimized alt="QR code linking to passkey enrollment on this site" className="size-36 rounded-lg border border-line" />
+              <p className="text-xs leading-5 text-subtle">Scan with your phone, sign into the same Supabase account, then create a passkey on that device. The QR contains only this site&apos;s Profile URL, never a session or credential.</p>
+            </div>
+          ) : <p className="mt-4 text-sm text-subtle">Sign into Supabase to generate the enrollment QR code.</p>}
+        </article>
+
+        <article className="h-full rounded-2xl border border-line bg-white p-5 shadow-sm">
           <div className="flex items-center gap-3"><Fingerprint className="size-5 text-primary" aria-hidden="true" /><div><h2 className="font-semibold">Approval methods</h2><p className="mt-0.5 text-xs text-muted">Controls for high-trust account actions</p></div></div>
           <div className="mt-5 space-y-4">
             <div className="rounded-xl border border-line p-4">
@@ -114,9 +199,11 @@ export function ProfileSettings() {
                 <div>
                   <p className="text-sm font-medium">Native WebAuthn biometrics</p>
                   <p className="mt-1 text-xs leading-5 text-subtle">
-                    {supported
-                      ? "Test device biometric verification. The first test registers a passkey; later tests authenticate with it."
-                      : "WebAuthn is not supported in this browser."}
+                    {!supabaseUser
+                      ? "Sign into Supabase first. The passkey will be associated with that user."
+                      : supported
+                        ? "Create or authenticate a passkey associated with your signed-in Supabase user."
+                        : "WebAuthn is not supported in this browser."}
                   </p>
                 </div>
                 <span className={`rounded-full px-2.5 py-1 font-mono text-[9px] uppercase ${authenticated ? "bg-success/40 text-success-ink" : "bg-canvas text-subtle"}`}>
@@ -126,12 +213,14 @@ export function ProfileSettings() {
               <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => void test(testUserId, testUsername)}
-                  disabled={!supported || passkeyState.status === "loading"}
+                  onClick={() => passkeyUserId && passkeyAccessToken
+                    ? void test(passkeyUserId, passkeyAccessToken)
+                    : undefined}
+                  disabled={!supported || !passkeyUserId || !passkeyAccessToken || passkeyState.status === "loading"}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-white px-3 py-1.5 text-xs font-medium text-ink transition hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {passkeyState.status === "loading" ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <Fingerprint className="size-3.5" aria-hidden="true" />}
-                  Test biometry
+                  {passkeyState.status === "loading" ? "Working…" : authenticated ? "Verify passkey" : "Create passkey"}
                 </button>
                 {authenticated && (
                   <button

@@ -21,6 +21,20 @@ const mockData = vi.hoisted(() => ({
   execute: vi.fn(),
 }));
 
+vi.mock("@/lib/passkey-session", () => ({
+  getPasskeySessionToken: () => "passkey-session",
+  clearPasskeySessionToken: vi.fn(),
+  storePasskeySessionToken: vi.fn(),
+}));
+
+vi.mock("@/services/backend-service", () => ({
+  backendService: {
+    listConversations: vi.fn().mockResolvedValue({ conversations: [] }),
+    createConversation: vi.fn().mockResolvedValue({ conversation: { id: "conversation-1" } }),
+    conversationMessages: vi.fn().mockResolvedValue({ messages: [] }),
+    appendConversationMessage: vi.fn().mockResolvedValue({ message: {} }),
+  },
+}));
 vi.mock("@/services/biometric-provider", () => ({
   passkeyBiometricProvider: {
     approve: mockData.approve,

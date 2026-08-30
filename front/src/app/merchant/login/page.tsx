@@ -10,7 +10,9 @@ function safeNext(value: string | string[] | undefined): string {
 
 export default async function MerchantLoginPage({
   searchParams,
-}: PageProps<"/merchant/login">) {
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const params = await searchParams;
   const error = Array.isArray(params.error) ? params.error[0] : params.error;
   return (

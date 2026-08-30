@@ -74,31 +74,35 @@ export const backendService = {
     return apiFetch<BackendHealth>(backendPath("/health"));
   },
 
-  passkeyRegisterOptions(userId: string, username: string): Promise<PasskeyRegistrationOptions> {
+  passkeyRegisterOptions(accessToken: string): Promise<PasskeyRegistrationOptions> {
     return apiFetch<PasskeyRegistrationOptions>(backendPath("/passkey/register/options"), {
       method: "POST",
-      body: JSON.stringify({ userId, username }),
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({}),
     });
   },
 
-  passkeyRegisterVerify(userId: string, response: unknown): Promise<PasskeyVerificationResult> {
+  passkeyRegisterVerify(accessToken: string, response: unknown): Promise<PasskeyVerificationResult> {
     return apiFetch<PasskeyVerificationResult>(backendPath("/passkey/register/verify"), {
       method: "POST",
-      body: JSON.stringify({ userId, response }),
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ response }),
     });
   },
 
-  passkeyAuthOptions(userId: string): Promise<PasskeyAuthOptions> {
+  passkeyAuthOptions(accessToken: string): Promise<PasskeyAuthOptions> {
     return apiFetch<PasskeyAuthOptions>(backendPath("/passkey/auth/options"), {
       method: "POST",
-      body: JSON.stringify({ userId }),
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({}),
     });
   },
 
-  passkeyAuthVerify(userId: string, response: unknown): Promise<PasskeyVerificationResult> {
+  passkeyAuthVerify(accessToken: string, response: unknown): Promise<PasskeyVerificationResult> {
     return apiFetch<PasskeyVerificationResult>(backendPath("/passkey/auth/verify"), {
       method: "POST",
-      body: JSON.stringify({ userId, response }),
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ response }),
     });
   },
 

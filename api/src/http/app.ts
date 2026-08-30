@@ -426,6 +426,7 @@ interface AppDeps {
   sessionService?: SessionService | null;
   agentServiceToken?: string | null;
   merchantService?: MerchantService | null;
+  authenticateSupabaseUser?: ((accessToken: string) => Promise<{ id: string; email?: string } | null>) | null;
 }
 
 export function createApp({
@@ -447,6 +448,7 @@ export function createApp({
   sessionService = null,
   agentServiceToken = null,
   merchantService = null,
+  authenticateSupabaseUser = null,
 }: AppDeps): AppHandler {
   return async function app(request: Request): Promise<Response> {
     const { pathname } = new URL(request.url);
@@ -464,45 +466,35 @@ export function createApp({
     }
 
     // Passkey routes
-    if (passkeyService && request.method === 'POST' && pathname === '/passkey/register/options') {
-      const body = await request.json().catch(() => ({})) as { userId?: string; username?: string };
-      if (!body.userId || !body.username) {
-        return json({ error: 'userId and username are required' }, 400);
-      }
-      const options = await passkeyService.generateRegistration(body.userId, body.username);
-      return json(options);
-    }
+    if (
+      passkeyService &&
+      authenticateSupabaseUser &&
+      request.method === 'POST' &&
+      /^\/passkey\/(?:register|auth)\/(?:options|verify)$/.test(pathname)
+    ) {
+      const accessToken = request.headers.get('authorization')?.match(/^Bearer (.+)$/)?.[1];
+      const user = accessToken ? await authenticateSupabaseUser(accessToken) : null;
+      if (!user) return json({ error: 'supabase_authentication_required' }, 401);
+      const body = await request.json().catch(() => ({})) as { response?: unknown };
 
-    if (passkeyService && request.method === 'POST' && pathname === '/passkey/register/verify') {
-      const body = await request.json().catch(() => ({})) as { userId?: string; response?: unknown };
-      if (!body.userId || !body.response) {
-        return json({ error: 'userId and response are required' }, 400);
+      if (pathname === '/passkey/register/options') {
+        return json(await passkeyService.generateRegistration(user.id, user.email ?? user.id));
       }
+      if (pathname === '/passkey/register/verify') {
+        if (!body.response) return json({ error: 'response is required' }, 400);
+        try {
+          const result = await passkeyService.verifyRegistration(user.id, body.response);
+          return json({ verified: result.verified, ...(result.credentialId ? { credentialId: result.credentialId } : {}) });
+        } catch (err) {
+          return json({ error: 'registration_failed', detail: (err as Error).message }, 400);
+        }
+      }
+      if (pathname === '/passkey/auth/options') {
+        return json(await passkeyService.generateAuthentication(user.id));
+      }
+      if (!body.response) return json({ error: 'response is required' }, 400);
       try {
-        const result = await passkeyService.verifyRegistration(body.userId, body.response);
-        return json({ verified: result.verified, ...(result.credentialId ? { credentialId: result.credentialId } : {}) });
-      } catch (err) {
-        return json({ error: 'registration_failed', detail: (err as Error).message }, 400);
-      }
-    }
-
-    if (passkeyService && request.method === 'POST' && pathname === '/passkey/auth/options') {
-      const body = await request.json().catch(() => ({})) as { userId?: string };
-      if (!body.userId) {
-        return json({ error: 'userId is required' }, 400);
-      }
-      const options = await passkeyService.generateAuthentication(body.userId);
-      return json(options);
-    }
-
-    if (passkeyService && request.method === 'POST' && pathname === '/passkey/auth/verify') {
-      const body = await request.json().catch(() => ({})) as { userId?: string; response?: unknown };
-      if (!body.userId || !body.response) {
-        return json({ error: 'userId and response are required' }, 400);
-      }
-      try {
-        const result = await passkeyService.verifyAuthentication(body.userId, body.response);
-        return json(result);
+        return json(await passkeyService.verifyAuthentication(user.id, body.response));
       } catch (err) {
         return json({ error: 'authentication_failed', detail: (err as Error).message }, 400);
       }

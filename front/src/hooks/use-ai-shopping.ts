@@ -298,6 +298,13 @@ export function useAIShopping() {
     async (content: string) => {
       const trimmed = content.trim();
       if (!trimmed || state.status === "analyzing" || state.status === "searching") return;
+      if (!getPasskeySessionToken()) {
+        dispatch({
+          type: "ERROR",
+          message: "Sign into Supabase and verify a passkey in Profile before using chat.",
+        });
+        return;
+      }
 
       const userMessage = createMessage("user", trimmed);
       dispatch({ type: "SUBMIT", message: userMessage });

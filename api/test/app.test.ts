@@ -3,6 +3,8 @@ import test from 'node:test';
 
 import { createApp } from '../src/http/app.js';
 import type { ProductEndpoint } from '../src/domain/types.js';
+import { PasskeyService } from '../src/services/passkey-service.js';
+import { InMemoryPasskeyStore } from '../src/services/passkey-store.js';
 
 test('reports service health without touching the payment handler', async () => {
   const app = createApp({
@@ -122,4 +124,59 @@ test('serves an OpenAPI discovery document with payment info at /openapi.json', 
   assert.ok(body.paths['/v1/seller/quote-requests']);
   assert.ok(body.paths['/v1/seller/quote-requests/{id}']);
   assert.ok(body.paths['/v1/seller/quote-requests/{id}/verify']);
+});
+
+test('derives passkey registration ownership from the authenticated Supabase user', async () => {
+  const authenticatedTokens: string[] = [];
+  const passkeyService = new PasskeyService({
+    rpName: 'Test Marketplace',
+    rpId: 'localhost',
+    origin: 'http://localhost',
+    store: new InMemoryPasskeyStore(),
+  });
+  const app = createApp({
+    paidHandler: async () => new Response('unexpected'),
+    passkeyService,
+    authenticateSupabaseUser: async (token) => {
+      authenticatedTokens.push(token);
+      return token === 'supabase-access-token'
+        ? { id: '4b13bca5-73ee-47f4-a22e-abe8a936c5ff', email: 'buyer@example.com' }
+        : null;
+    },
+  });
+
+  const response = await app(new Request('http://localhost/passkey/register/options', {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer supabase-access-token',
+      'Content-Type': 'application/json',
+    },
+    body: '{}',
+  }));
+
+  assert.equal(response.status, 200);
+  const body = await response.json() as { user: { name: string } };
+  assert.equal(body.user.name, 'buyer@example.com');
+  assert.deepEqual(authenticatedTokens, ['supabase-access-token']);
+});
+
+test('rejects passkey enrollment without Supabase authentication', async () => {
+  const app = createApp({
+    paidHandler: async () => new Response('unexpected'),
+    passkeyService: new PasskeyService({
+      rpName: 'Test Marketplace',
+      rpId: 'localhost',
+      origin: 'http://localhost',
+      store: new InMemoryPasskeyStore(),
+    }),
+    authenticateSupabaseUser: async () => null,
+  });
+
+  const response = await app(new Request('http://localhost/passkey/register/options', {
+    method: 'POST',
+    body: '{}',
+  }));
+
+  assert.equal(response.status, 401);
+  assert.deepEqual(await response.json(), { error: 'supabase_authentication_required' });
 });

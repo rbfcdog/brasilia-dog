@@ -56,8 +56,8 @@ function isWebAuthnSupported(): boolean {
  * Initiates WebAuthn registration (create) using the browser PublicKeyCredential API
  * and verifies the result with the backend.
  */
-async function registerPasskey(userId: string, username: string): Promise<PasskeyVerificationResult> {
-  const options: PasskeyRegistrationOptions = await backendService.passkeyRegisterOptions(userId, username);
+async function registerPasskey(accessToken: string): Promise<PasskeyVerificationResult> {
+  const options: PasskeyRegistrationOptions = await backendService.passkeyRegisterOptions(accessToken);
 
   const publicKey: PublicKeyCredentialCreationOptions = {
     challenge: fromBase64url(options.challenge),
@@ -91,7 +91,7 @@ async function registerPasskey(userId: string, username: string): Promise<Passke
     : null;
   const clientDataJSON = response.clientDataJSON ? toBase64url(response.clientDataJSON) : null;
 
-  return backendService.passkeyRegisterVerify(userId, {
+  return backendService.passkeyRegisterVerify(accessToken, {
     id: pkCredential.id,
     rawId: toBase64url(pkCredential.rawId),
     type: pkCredential.type,
@@ -107,8 +107,8 @@ async function registerPasskey(userId: string, username: string): Promise<Passke
  * Initiates WebAuthn authentication (get) using the browser PublicKeyCredential API
  * and verifies the assertion with the backend, which returns a session token.
  */
-export async function authenticatePasskey(userId: string): Promise<PasskeyVerificationResult> {
-  const options: PasskeyAuthOptions = await backendService.passkeyAuthOptions(userId);
+export async function authenticatePasskey(accessToken: string): Promise<PasskeyVerificationResult> {
+  const options: PasskeyAuthOptions = await backendService.passkeyAuthOptions(accessToken);
 
   const publicKey: PublicKeyCredentialRequestOptions = {
     challenge: fromBase64url(options.challenge),
@@ -135,7 +135,7 @@ export async function authenticatePasskey(userId: string): Promise<PasskeyVerifi
   const clientDataJSON = response.clientDataJSON ? toBase64url(response.clientDataJSON) : null;
   const signature = response.signature ? toBase64url(response.signature) : null;
 
-  return backendService.passkeyAuthVerify(userId, {
+  return backendService.passkeyAuthVerify(accessToken, {
     id: pkAssertion.id,
     rawId: toBase64url(pkAssertion.rawId),
     type: pkAssertion.type,
@@ -179,14 +179,14 @@ export function usePasskey() {
 
   const registrationKey = (userId: string) => `brasilia-dog.passkey-registered.${userId}`;
 
-  const register = useCallback(async (userId: string, username: string) => {
+  const register = useCallback(async (userId: string, accessToken: string) => {
     if (!isWebAuthnSupported()) {
       setState({ status: "error", message: "WebAuthn is not supported in this browser.", sessionToken: null, userId: null });
       return;
     }
-    setState({ status: "loading", message: "Waiting for biometric prompt...", sessionToken: null, userId: null });
+    setState({ status: "loading", message: "Waiting for passkey creation...", sessionToken: null, userId: null });
     try {
-      const result = await registerPasskey(userId, username);
+      const result = await registerPasskey(accessToken);
       if (result.verified) {
         window.sessionStorage.setItem(registrationKey(userId), "true");
         setState({
@@ -208,14 +208,14 @@ export function usePasskey() {
     }
   }, []);
 
-  const authenticate = useCallback(async (userId: string) => {
+  const authenticate = useCallback(async (userId: string, accessToken: string) => {
     if (!isWebAuthnSupported()) {
       setState({ status: "error", message: "WebAuthn is not supported in this browser.", sessionToken: null, userId: null });
       return;
     }
-    setState({ status: "loading", message: "Waiting for biometric prompt...", sessionToken: null, userId: null });
+    setState({ status: "loading", message: "Waiting for passkey verification...", sessionToken: null, userId: null });
     try {
-      const result = await authenticatePasskey(userId);
+      const result = await authenticatePasskey(accessToken);
       if (result.verified && result.sessionToken) {
         storePasskeySessionToken(result.sessionToken);
         setState({
@@ -238,12 +238,12 @@ export function usePasskey() {
   }, []);
 
   const test = useCallback(
-    async (userId: string, username: string) => {
+    async (userId: string, accessToken: string) => {
       if (window.sessionStorage.getItem(registrationKey(userId)) === "true") {
-        await authenticate(userId);
+        await authenticate(userId, accessToken);
         return;
       }
-      await register(userId, username);
+      await register(userId, accessToken);
     },
     [authenticate, register],
   );
