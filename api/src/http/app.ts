@@ -711,7 +711,7 @@ export function createApp({
       }
     }
 
-    if (sessionService && demoPasskeyEnabled && request.method === 'POST' && pathname === '/passkey/demo/verify') {
+    if (sessionService && request.method === 'POST' && pathname === '/passkey/demo/verify') {
       // Demo approval may be used by an existing account or as a standalone
       // demo. Preserve the account owner when a valid Supabase session exists.
       const accessToken = request.headers.get('authorization')?.match(/^Bearer (.+)$/)?.[1];
