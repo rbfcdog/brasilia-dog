@@ -13,7 +13,7 @@ The agent reads persisted conversation history and the complete Stripe MPP produ
 ## Implemented conversation context
 
 ```http
-GET /v1/conversations/:id/messages
+GET /v1/agent/conversations/:id/messages
 Authorization: Bearer $AGENT_BACKEND_TOKEN
 ```
 

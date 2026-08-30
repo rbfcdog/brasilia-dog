@@ -33,7 +33,7 @@ test('HTTP adapter reads an agent-authorized conversation transcript from the ba
   ];
   const server = createServer((request, response) => {
     assert.equal(request.method, 'GET');
-    assert.equal(request.url, '/v1/conversations/conversation-123/messages');
+    assert.equal(request.url, '/v1/agent/conversations/conversation-123/messages');
     assert.equal(request.headers.authorization, `Bearer ${backendToken}`);
     response.writeHead(200, { 'Content-Type': 'application/json' });
     response.end(JSON.stringify({ messages }));

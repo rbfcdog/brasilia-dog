@@ -539,7 +539,7 @@ Returns a payment attempt only if it is connected to a mandate owned by the auth
 
 ## Conversation endpoints
 
-Conversation history is owner-scoped. All routes require a passkey bearer session (`Authorization: Bearer <sessionToken>`), except where noted otherwise for agent access.
+Conversation history is owner-scoped. Browser routes use the authenticated owner session. Agent context reads use a separate agent-only route.
 
 ### `POST /v1/conversations`
 
@@ -549,13 +549,9 @@ Creates a new conversation owned by the authenticated user. Returns `201` with `
 
 Lists conversations owned by the authenticated user, ordered by recent activity. Returns `{"conversations": [...]}`.
 
-When `AGENT_SERVICE_TOKEN` is configured, this route also accepts `Authorization: Bearer <AGENT_SERVICE_TOKEN>` with a `?userId=<ownerId>` query parameter for agent-accessible reads. The agent receives only conversation metadata, never passkey credentials or biometric material.
+### `GET /v1/agent/conversations/{id}/messages`
 
-### `GET /v1/conversations/{id}/messages`
-
-Returns the message transcript for a conversation owned by the authenticated user. Returns `{"messages": [...]}`. Foreign conversations return `404`.
-
-When `AGENT_SERVICE_TOKEN` is configured, this route also accepts `Authorization: Bearer <AGENT_SERVICE_TOKEN>` for agent-accessible reads. The agent receives `{"conversation": {...}, "messages": [...]}` with the conversation metadata and full transcript for contextualized reasoning.
+Requires `Authorization: Bearer <AGENT_SERVICE_TOKEN>`. This is an agent-only route and returns exactly `{"messages": [...]}` for bounded context. It never overlaps the browser owner route.
 
 ### `POST /v1/conversations/{id}/messages`
 

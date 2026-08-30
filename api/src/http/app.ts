@@ -437,12 +437,22 @@ const OPENAPI_DOCUMENT = Object.freeze({
         },
       },
     },
-    '/v1/conversations/{id}/messages': {
+    '/v1/agent/conversations/{id}/messages': {
       get: {
-        summary: 'Read a conversation transcript (passkey session or agent service token)',
+        summary: 'Read a conversation transcript for the agent service',
         responses: {
           '200': { description: 'Messages in chronological order' },
-          '401': { description: 'Passkey session or agent service token is required' },
+          '401': { description: 'Agent service token is required' },
+          '404': { description: 'Conversation not found' },
+        },
+      },
+    },
+    '/v1/conversations/{id}/messages': {
+      get: {
+        summary: 'Read an owner-scoped conversation transcript',
+        responses: {
+          '200': { description: 'Messages in chronological order' },
+          '401': { description: 'Owner session is required' },
           '404': { description: 'Conversation not found' },
         },
       },
@@ -451,7 +461,7 @@ const OPENAPI_DOCUMENT = Object.freeze({
         responses: {
           '201': { description: 'Message persisted' },
           '400': { description: 'Invalid message payload' },
-          '401': { description: 'Passkey session is required' },
+          '401': { description: 'Owner session is required' },
           '404': { description: 'Conversation not found' },
         },
       },
@@ -1080,15 +1090,14 @@ export function createApp({
     if (
       conversationRepository &&
       agentServiceToken &&
-      request.method === 'GET' &&
-      /^\/v1\/conversations\/[^/]+\/messages$/.test(pathname)
+      /^\/v1\/agent\/conversations\/[^/]+\/messages$/.test(pathname)
     ) {
       const authorization = request.headers.get('authorization');
       const match = authorization?.match(/^Bearer (.+)$/);
       if (!match || match[1] !== agentServiceToken) {
         return json({ error: 'agent_authentication_required' }, 401);
       }
-      const conversationId = pathname.split('/')[3];
+      const conversationId = pathname.split('/')[4];
       if (!conversationId) {
         return json({ error: 'conversation_id_required' }, 400);
       }

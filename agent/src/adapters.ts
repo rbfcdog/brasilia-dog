@@ -205,7 +205,7 @@ export class HttpBackendAdapter implements
 
   async getConversationMessages(conversationId: string): Promise<ConversationMessage[]> {
     const body = await this.requestRaw(
-      `v1/conversations/${encodeURIComponent(conversationId)}/messages`,
+      `v1/agent/conversations/${encodeURIComponent(conversationId)}/messages`,
       { method: 'GET' },
     );
     return this.parseResponse(conversationMessagesSchema, body, 'conversation transcript').messages;

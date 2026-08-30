@@ -163,7 +163,7 @@ test('returns a strict transcript envelope to the agent service', async () => {
 
   const response = await app(authenticatedRequest(
     'agent-service-token-12345',
-    `http://localhost/v1/conversations/${conversation.id}/messages`,
+    `http://localhost/v1/agent/conversations/${conversation.id}/messages`,
   ));
 
   assert.equal(response.status, 200);
